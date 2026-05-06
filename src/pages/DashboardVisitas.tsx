@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download, AlertCircle } from 'lucide-react'
+import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download, AlertCircle, Camera } from 'lucide-react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -157,9 +157,14 @@ function VisitCard({ visit, onEdit, onDelete }: { visit: Visit; onEdit: () => vo
             )}
           </div>
           <p className="font-semibold text-slate-800">{visit.client_name}</p>
-          <div className="flex gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
+          <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
             <span>{dateStr}</span>
             <span>{visit.responsible}</span>
+            {visit.photo_urls && visit.photo_urls.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-slate-400">
+                <Camera size={11} /> {visit.photo_urls.length}
+              </span>
+            )}
           </div>
         </div>
         <span className="text-slate-400 select-none">{expanded ? '▲' : '▼'}</span>
@@ -177,6 +182,22 @@ function VisitCard({ visit, onEdit, onDelete }: { visit: Visit; onEdit: () => vo
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Relatório</p>
               <p className="text-sm text-slate-700">{visit.report}</p>
+            </div>
+          )}
+          {visit.photo_urls && visit.photo_urls.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Fotos ({visit.photo_urls.length})</p>
+              <div className="flex gap-2 flex-wrap">
+                {visit.photo_urls.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                    <img
+                      src={url}
+                      alt={`Foto ${i + 1}`}
+                      className="w-20 h-20 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition-opacity"
+                    />
+                  </a>
+                ))}
+              </div>
             </div>
           )}
           <div className="flex gap-2 pt-1">

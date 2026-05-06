@@ -78,9 +78,9 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
   const isClosing = form.status === 'SUCESSO' || form.status === 'DESISTIU' || form.status === 'CANCELADO'
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-xl rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="relative bg-white w-full max-w-xl rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="font-bold text-slate-800">{deal ? 'Editar Negócio' : 'Novo Negócio'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">

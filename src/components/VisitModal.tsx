@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { X, AlertCircle } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { X, AlertCircle, Camera, Trash2, ImagePlus, Loader2 } from 'lucide-react'
+import imageCompression from 'browser-image-compression'
 import { supabase } from '../lib/supabase'
 import type { Visit } from '../types'
 import { RESPONSAVEIS, VISIT_TYPES, VISIT_STATUS } from '../types'
@@ -9,6 +10,9 @@ interface Props {
   onClose: () => void
   onSaved: () => void
 }
+
+const MAX_PHOTOS = 3
+const COMPRESS_OPTIONS = { maxSizeMB: 0.3, maxWidthOrHeight: 1200, useWebWorker: true }
 
 const emptyForm = {
   visit_date: new Date().toISOString().split('T')[0],
@@ -36,20 +40,60 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
         }
       : emptyForm
   )
+  const [photos, setPhotos] = useState<string[]>(visit?.photo_urls ?? [])
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
+  }
+
+  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+    if (photos.length + files.length > MAX_PHOTOS) {
+      setError(`Máximo de ${MAX_PHOTOS} fotos por visita`)
+      e.target.value = ''
+      return
+    }
+    setUploading(true)
+    setError(null)
+    for (const file of files) {
+      try {
+        const compressed = await imageCompression(file, COMPRESS_OPTIONS)
+        const ext = file.type === 'image/png' ? 'png' : 'jpg'
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+        const { data, error: upErr } = await supabase.storage
+          .from('visit-photos')
+          .upload(fileName, compressed, { contentType: compressed.type, upsert: false })
+        if (upErr) { setError('Erro no upload: ' + upErr.message); break }
+        const { data: { publicUrl } } = supabase.storage.from('visit-photos').getPublicUrl(data.path)
+        setPhotos(prev => [...prev, publicUrl])
+      } catch (err) {
+        setError('Erro ao processar foto')
+        break
+      }
+    }
+    setUploading(false)
+    e.target.value = ''
+  }
+
+  async function removePhoto(url: string) {
+    const path = url.split('/object/public/visit-photos/')[1]
+    if (path) await supabase.storage.from('visit-photos').remove([decodeURIComponent(path)])
+    setPhotos(prev => prev.filter(u => u !== url))
   }
 
   async function save() {
     if (!form.client_name.trim()) return
     setSaving(true)
     setError(null)
+    const payload = { ...form, photo_urls: photos }
     const { error: err } = visit
-      ? await supabase.from('visits').update(form).eq('id', visit.id)
-      : await supabase.from('visits').insert(form)
+      ? await supabase.from('visits').update(payload).eq('id', visit.id)
+      : await supabase.from('visits').insert(payload)
     if (err) {
       setError('Erro ao salvar: ' + err.message)
       setSaving(false)
@@ -61,9 +105,9 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="relative bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="font-bold text-slate-800">{visit ? 'Editar Visita' : 'Registrar Visita'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
@@ -114,16 +158,62 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
               </select>
             </div>
           </div>
+
+          {/* Fotos */}
+          <div>
+            <label className="label">Fotos ({photos.length}/{MAX_PHOTOS})</label>
+            <div className="flex gap-2 flex-wrap">
+              {photos.map((url, i) => (
+                <div key={i} className="relative group w-20 h-20 shrink-0">
+                  <img src={url} alt={`Foto ${i + 1}`} className="w-20 h-20 object-cover rounded-xl border border-slate-200" />
+                  <button
+                    onClick={() => removePhoto(url)}
+                    className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              ))}
+
+              {photos.length < MAX_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:border-orange-400 hover:text-orange-400 transition-colors shrink-0 disabled:opacity-50"
+                >
+                  {uploading
+                    ? <Loader2 size={22} className="animate-spin" />
+                    : <><Camera size={22} /><span className="text-[10px] mt-1 font-medium">Foto</span></>
+                  }
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              className="hidden"
+              onChange={handlePhotoSelect}
+            />
+
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              No celular abre a câmera automaticamente · max {MAX_PHOTOS} fotos · comprimidas antes do envio
+            </p>
+          </div>
         </div>
 
         {error && (
-          <div className="px-5 pb-2 flex items-center gap-2 text-xs text-red-700 bg-red-50 border-t border-red-200 py-2">
+          <div className="px-5 py-2 flex items-center gap-2 text-xs text-red-700 bg-red-50 border-t border-red-200">
             <AlertCircle size={14} className="shrink-0" /> {error}
           </div>
         )}
         <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
-          <button onClick={save} disabled={saving || !form.client_name.trim()} className="btn-primary flex-1 justify-center">
+          <button onClick={save} disabled={saving || uploading || !form.client_name.trim()} className="btn-primary flex-1 justify-center">
             {saving ? 'Salvando...' : visit ? 'Salvar' : 'Registrar Visita'}
           </button>
         </div>

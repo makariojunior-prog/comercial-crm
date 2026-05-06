@@ -29,6 +29,7 @@ export interface Visit {
   report: string | null
   priority: string | null
   status: string | null
+  photo_urls: string[] | null
   created_at: string
 }
 
