@@ -1,11 +1,12 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, MapPin, Sparkles } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
 
 const navItems = [
   { to: '/negocios', icon: LayoutDashboard, label: 'Negócios' },
   { to: '/registro', icon: ClipboardList, label: 'Registro' },
   { to: '/visitas', icon: MapPin, label: 'Visitas' },
+  { to: '/tabelas', icon: DollarSign, label: 'Tabelas' },
   { to: '/briefing', icon: Sparkles, label: 'Briefing IA' },
 ]
 

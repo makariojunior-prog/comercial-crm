@@ -68,6 +68,20 @@ export interface Briefing {
   full_json: BriefingResult | null
 }
 
+export interface PriceItem {
+  id: string
+  empresa: 'lumar' | 'cantina'
+  nome: string
+  custo: number | null
+  preco_lumar: number | null
+  preco_varejo: number | null
+  preco_revenda: number | null
+  pf: boolean
+  ativo: boolean
+  created_at: string
+  updated_at: string
+}
+
 export const DEAL_TYPES = ['CANTINA REVENDA', 'LUMAR', 'LUMAR / CANTINA'] as const
 export const RESPONSAVEIS = ['MAKÁRIO', 'TIAGO', 'BRUNA', 'MAKÁRIO/TIAGO', 'MARCO'] as const
 export const STATUS_ORDER: DealStatus[] = ['NOVO', 'EM ANDAMENTO', 'SUCESSO', 'DESISTIU', 'CANCELADO']
