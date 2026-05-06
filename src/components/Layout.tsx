@@ -1,10 +1,11 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, MapPin, Briefcase } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, MapPin, Briefcase, Sparkles } from 'lucide-react'
 
 const navItems = [
   { to: '/negocios', icon: LayoutDashboard, label: 'Negócios' },
   { to: '/registro', icon: ClipboardList, label: 'Registro' },
   { to: '/visitas', icon: MapPin, label: 'Visitas' },
+  { to: '/briefing', icon: Sparkles, label: 'Briefing IA' },
 ]
 
 export default function Layout() {
@@ -38,7 +39,7 @@ export default function Layout() {
           ))}
         </nav>
         <div className="px-4 py-3 border-t border-slate-700">
-          <p className="text-xs text-slate-500">v1.0 · 2026</p>
+          <p className="text-xs text-slate-500">v2.0 · 2026</p>
         </div>
       </aside>
 
@@ -67,8 +68,8 @@ export default function Layout() {
                 }`
               }
             >
-              <Icon size={22} />
-              {label}
+              <Icon size={20} />
+              <span className="text-[10px] mt-0.5">{label}</span>
             </NavLink>
           ))}
         </nav>

@@ -27,14 +27,23 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
 
   async function save() {
     setSaving(true)
+
+    // Update deal
     await supabase
       .from('deals')
-      .update({
-        follow_up: followUp,
-        status,
-        last_contact_date: today,
-      })
+      .update({ follow_up: followUp, status, last_contact_date: today })
       .eq('id', deal.id)
+
+    // Save to history
+    await supabase.from('crm_deal_history').insert({
+      deal_id: deal.id,
+      client_name: deal.client_name,
+      status_before: deal.status,
+      status_after: status,
+      follow_up: followUp || null,
+      last_contact_date: today,
+    })
+
     setSaving(false)
     onSaved()
     onClose()
@@ -104,17 +113,11 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
             />
           </div>
 
-          <div className="flex items-center gap-2 pt-1">
-            <div className="flex-1 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
-              📅 <strong>Data de contato</strong> será registrada como <strong>hoje</strong> automaticamente.
-            </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
+            📅 <strong>Data de contato</strong> registrada como <strong>hoje</strong> · histórico salvo automaticamente.
           </div>
 
-          <button
-            onClick={save}
-            disabled={saving}
-            className="btn-primary w-full justify-center py-3 text-base"
-          >
+          <button onClick={save} disabled={saving} className="btn-primary w-full justify-center py-3 text-base">
             {saving ? 'Salvando...' : '✅ Salvar Atualização'}
           </button>
         </div>

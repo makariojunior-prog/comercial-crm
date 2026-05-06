@@ -15,6 +15,7 @@ export interface Deal {
   priority: DealPriority | null
   follow_up: string | null
   end_date: string | null
+  potential_notes: string | null
   created_at: string
 }
 
@@ -29,6 +30,41 @@ export interface Visit {
   priority: string | null
   status: string | null
   created_at: string
+}
+
+export interface DealHistory {
+  id: string
+  deal_id: string
+  client_name: string
+  status_before: string | null
+  status_after: string | null
+  follow_up: string | null
+  last_contact_date: string | null
+  updated_at: string
+  updated_by: string | null
+}
+
+export interface BriefingResult {
+  alertas_urgentes: string
+  visitas_resumo: string
+  pipeline_resumo: string
+  proximas_acoes: string
+  insight_estrategico: string
+}
+
+export interface Briefing {
+  id: string
+  generated_at: string
+  week_ref: string | null
+  alerts_urgent: string | null
+  visits_summary: string | null
+  pipeline_summary: string | null
+  next_actions: string | null
+  strategic_insight: string | null
+  deals_count: number | null
+  visits_count: number | null
+  model_used: string | null
+  full_json: BriefingResult | null
 }
 
 export const DEAL_TYPES = ['CANTINA REVENDA', 'LUMAR', 'LUMAR / CANTINA'] as const

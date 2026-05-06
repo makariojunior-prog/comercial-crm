@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Pencil, Trash2, Phone, RefreshCw } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, RefreshCw, History } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
-import type { Deal, DealStatus, DealPriority } from '../types'
+import { exportDeals } from '../lib/export'
+import type { Deal, DealStatus } from '../types'
 import { StatusBadge, PriorityBadge, TypeBadge } from '../components/StatusBadge'
 import DealModal from '../components/DealModal'
 import QuickUpdateModal from '../components/QuickUpdateModal'
+import DealHistoryTimeline from '../components/DealHistory'
 
 const ALL = 'TODOS'
 
@@ -23,7 +25,7 @@ export default function RegistroNegocios() {
   async function load() {
     setLoading(true)
     const { data } = await supabase.from('deals').select('*').order('start_date', { ascending: false })
-    setDeals(data ?? [])
+    setDeals(data as Deal[] ?? [])
     setLoading(false)
   }
 
@@ -44,7 +46,8 @@ export default function RegistroNegocios() {
     const matchSearch = !q ||
       d.client_name.toLowerCase().includes(q) ||
       (d.contact_name ?? '').toLowerCase().includes(q) ||
-      (d.follow_up ?? '').toLowerCase().includes(q)
+      (d.follow_up ?? '').toLowerCase().includes(q) ||
+      (d.interest ?? '').toLowerCase().includes(q)
     const matchStatus = filterStatus === ALL || d.status === filterStatus
     const matchResp = filterResp === ALL || d.responsible === filterResp
     const matchType = filterType === ALL || d.deal_type === filterType
@@ -54,9 +57,12 @@ export default function RegistroNegocios() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-bold text-slate-800">Registro de Negócios</h1>
         <div className="flex gap-2">
+          <button onClick={() => exportDeals(filtered)} className="btn-secondary text-xs py-1.5" title="Exportar para Excel">
+            <Download size={14} /> Excel
+          </button>
           <button onClick={load} className="btn-ghost p-2">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -121,26 +127,22 @@ export default function RegistroNegocios() {
 }
 
 function DealRow({
-  deal,
-  onEdit,
-  onQuickUpdate,
-  onDelete,
+  deal, onEdit, onQuickUpdate, onDelete,
 }: {
-  deal: Deal
-  onEdit: () => void
-  onQuickUpdate: () => void
-  onDelete: () => void
+  deal: Deal; onEdit: () => void; onQuickUpdate: () => void; onDelete: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const startDate = deal.start_date ? format(parseISO(deal.start_date), 'dd/MM/yy', { locale: ptBR }) : '-'
   const lastContact = deal.last_contact_date ? format(parseISO(deal.last_contact_date), 'dd/MM/yy', { locale: ptBR }) : '-'
+  const isActive = deal.status === 'NOVO' || deal.status === 'EM ANDAMENTO'
 
   return (
-    <div className="card overflow-hidden">
+    <div className={`card overflow-hidden ${!isActive ? 'opacity-75' : ''}`}>
       {/* Main row */}
       <div
         className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => { setExpanded(!expanded); setShowHistory(false) }}
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -152,27 +154,22 @@ function DealRow({
           <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
             <span>{deal.responsible}</span>
             <span>Início: {startDate}</span>
-            <span>Último contato: {lastContact}</span>
+            <span>Contato: {lastContact}</span>
           </div>
         </div>
         <div className="text-slate-400 text-lg select-none">{expanded ? '▲' : '▼'}</div>
       </div>
 
-      {/* Expanded detail */}
+      {/* Expanded */}
       {expanded && (
         <div className="border-t border-slate-100 px-4 py-3 bg-slate-50 space-y-3">
           {deal.contact_name && (
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Contato</p>
               {deal.contact_phone ? (
-                <a
-                  href={`https://wa.me/55${deal.contact_phone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline"
-                >
-                  <Phone size={13} />
-                  {deal.contact_name} · {deal.contact_phone}
+                <a href={`https://wa.me/55${deal.contact_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
+                  📱 {deal.contact_name} · {deal.contact_phone}
                 </a>
               ) : (
                 <p className="text-sm text-slate-700">{deal.contact_name}</p>
@@ -191,17 +188,38 @@ function DealRow({
               <p className="text-sm text-slate-700">{deal.follow_up}</p>
             </div>
           )}
-          <div className="flex gap-2 pt-1">
-            <button onClick={onQuickUpdate} className="btn-primary text-xs py-1.5">
-              ✏️ Atualizar Acompanhamento
-            </button>
+          {deal.potential_notes && (
+            <div>
+              <p className="text-xs font-semibold text-amber-500 uppercase tracking-wide">⚠️ Potencial não atendido</p>
+              <p className="text-sm text-slate-700">{deal.potential_notes}</p>
+            </div>
+          )}
+
+          <div className="flex gap-2 flex-wrap pt-1">
+            {isActive && (
+              <button onClick={e => { e.stopPropagation(); onQuickUpdate() }} className="btn-primary text-xs py-1.5">
+                ✏️ Atualizar
+              </button>
+            )}
             <button onClick={e => { e.stopPropagation(); onEdit() }} className="btn-secondary text-xs py-1.5">
               <Pencil size={12} /> Editar
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); setShowHistory(!showHistory) }}
+              className="btn-ghost text-xs py-1.5"
+            >
+              <History size={12} /> Histórico
             </button>
             <button onClick={e => { e.stopPropagation(); onDelete() }} className="btn-danger text-xs py-1.5">
               <Trash2 size={12} />
             </button>
           </div>
+
+          {showHistory && (
+            <div className="pt-2 border-t border-slate-200">
+              <DealHistoryTimeline dealId={deal.id} />
+            </div>
+          )}
         </div>
       )}
     </div>

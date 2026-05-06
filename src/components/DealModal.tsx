@@ -23,6 +23,7 @@ const emptyForm = {
   priority: 'MÉDIA' as DealPriority,
   follow_up: '',
   end_date: '',
+  potential_notes: '',
 }
 
 export default function DealModal({ deal, onClose, onSaved }: Props) {
@@ -41,6 +42,7 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
           priority: deal.priority ?? emptyForm.priority,
           follow_up: deal.follow_up ?? '',
           end_date: deal.end_date ?? '',
+          potential_notes: deal.potential_notes ?? '',
         }
       : emptyForm
   )
@@ -56,6 +58,7 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
     const payload = {
       ...form,
       end_date: form.end_date || null,
+      potential_notes: form.potential_notes || null,
     }
     if (deal) {
       await supabase.from('deals').update(payload).eq('id', deal.id)
@@ -66,6 +69,8 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
     onSaved()
     onClose()
   }
+
+  const isClosing = form.status === 'SUCESSO' || form.status === 'DESISTIU' || form.status === 'CANCELADO'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -132,7 +137,11 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
               <label className="label">Acompanhamento</label>
               <textarea className="input resize-none" rows={3} value={form.follow_up} onChange={e => set('follow_up', e.target.value)} placeholder="Situação atual, próximos passos..." />
             </div>
-            {(form.status === 'SUCESSO' || form.status === 'DESISTIU' || form.status === 'CANCELADO') && (
+            <div className="col-span-2">
+              <label className="label">Potencial não atendido</label>
+              <input className="input" value={form.potential_notes} onChange={e => set('potential_notes', e.target.value)} placeholder="Ex: Não temos estrutura para atender essa demanda agora" />
+            </div>
+            {isClosing && (
               <div>
                 <label className="label">Data de Encerramento</label>
                 <input type="date" className="input" value={form.end_date} onChange={e => set('end_date', e.target.value)} />
