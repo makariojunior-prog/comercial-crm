@@ -114,12 +114,12 @@ export default function BriefingBI() {
             <AlertCircle size={16} /> Erro ao gerar briefing
           </div>
           <p className="text-sm text-red-600">{error}</p>
-          {error.includes('ANTHROPIC_API_KEY') && (
+          {error.includes('OPENAI_API_KEY') && (
             <div className="bg-red-100 rounded-lg p-3 text-xs text-red-700 space-y-1">
               <p><strong>Configure a chave da API:</strong></p>
-              <p>1. Acesse o painel do Supabase → Edge Functions → Secrets</p>
-              <p>2. Adicione o secret: <code className="bg-red-200 px-1 rounded">ANTHROPIC_API_KEY</code></p>
-              <p>3. Valor: sua chave da Anthropic (começa com <code className="bg-red-200 px-1 rounded">sk-ant-</code>)</p>
+              <p>1. Acesse: supabase.com/dashboard → seu projeto → Edge Functions</p>
+              <p>2. Clique em <strong>generate-briefing</strong> → aba <strong>Secrets</strong></p>
+              <p>3. Adicione: <code className="bg-red-200 px-1 rounded">OPENAI_API_KEY</code> = sua chave OpenAI</p>
             </div>
           )}
         </div>
