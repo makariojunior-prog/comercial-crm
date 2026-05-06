@@ -1,0 +1,209 @@
+import { useEffect, useState } from 'react'
+import { Plus, Search, Pencil, Trash2, Phone, RefreshCw } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { supabase } from '../lib/supabase'
+import type { Deal, DealStatus, DealPriority } from '../types'
+import { StatusBadge, PriorityBadge, TypeBadge } from '../components/StatusBadge'
+import DealModal from '../components/DealModal'
+import QuickUpdateModal from '../components/QuickUpdateModal'
+
+const ALL = 'TODOS'
+
+export default function RegistroNegocios() {
+  const [deals, setDeals] = useState<Deal[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState<string>(ALL)
+  const [filterResp, setFilterResp] = useState<string>(ALL)
+  const [filterType, setFilterType] = useState<string>(ALL)
+  const [editDeal, setEditDeal] = useState<Deal | null | undefined>(undefined)
+  const [quickDeal, setQuickDeal] = useState<Deal | null>(null)
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('deals').select('*').order('start_date', { ascending: false })
+    setDeals(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function deleteDeal(id: string) {
+    if (!confirm('Excluir este negócio?')) return
+    await supabase.from('deals').delete().eq('id', id)
+    setDeals(d => d.filter(x => x.id !== id))
+  }
+
+  const responsaveis = [ALL, ...Array.from(new Set(deals.map(d => d.responsible).filter(Boolean) as string[]))]
+  const types = [ALL, ...Array.from(new Set(deals.map(d => d.deal_type).filter(Boolean) as string[]))]
+  const statuses = [ALL, 'NOVO', 'EM ANDAMENTO', 'SUCESSO', 'DESISTIU', 'CANCELADO']
+
+  const filtered = deals.filter(d => {
+    const q = search.toLowerCase()
+    const matchSearch = !q ||
+      d.client_name.toLowerCase().includes(q) ||
+      (d.contact_name ?? '').toLowerCase().includes(q) ||
+      (d.follow_up ?? '').toLowerCase().includes(q)
+    const matchStatus = filterStatus === ALL || d.status === filterStatus
+    const matchResp = filterResp === ALL || d.responsible === filterResp
+    const matchType = filterType === ALL || d.deal_type === filterType
+    return matchSearch && matchStatus && matchResp && matchType
+  })
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-slate-800">Registro de Negócios</h1>
+        <div className="flex gap-2">
+          <button onClick={load} className="btn-ghost p-2">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={() => setEditDeal(null)} className="btn-primary">
+            <Plus size={16} /> <span className="hidden sm:inline">Novo</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="card p-3 space-y-2">
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            className="input pl-9"
+            placeholder="Buscar cliente, contato ou acompanhamento..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <select className="input shrink-0 w-auto text-xs" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            {statuses.map(s => <option key={s}>{s}</option>)}
+          </select>
+          <select className="input shrink-0 w-auto text-xs" value={filterType} onChange={e => setFilterType(e.target.value)}>
+            {types.map(t => <option key={t}>{t}</option>)}
+          </select>
+          <select className="input shrink-0 w-auto text-xs" value={filterResp} onChange={e => setFilterResp(e.target.value)}>
+            {responsaveis.map(r => <option key={r}>{r}</option>)}
+          </select>
+        </div>
+        <p className="text-xs text-slate-400">{filtered.length} de {deals.length} negócios</p>
+      </div>
+
+      {/* Lista */}
+      {loading ? (
+        <div className="flex justify-center py-12 text-slate-400">Carregando...</div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-8 text-center text-slate-400">Nenhum negócio encontrado</div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(deal => (
+            <DealRow
+              key={deal.id}
+              deal={deal}
+              onEdit={() => setEditDeal(deal)}
+              onQuickUpdate={() => setQuickDeal(deal)}
+              onDelete={() => deleteDeal(deal.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {editDeal !== undefined && (
+        <DealModal deal={editDeal} onClose={() => setEditDeal(undefined)} onSaved={load} />
+      )}
+      {quickDeal && (
+        <QuickUpdateModal deal={quickDeal} onClose={() => setQuickDeal(null)} onSaved={load} />
+      )}
+    </div>
+  )
+}
+
+function DealRow({
+  deal,
+  onEdit,
+  onQuickUpdate,
+  onDelete,
+}: {
+  deal: Deal
+  onEdit: () => void
+  onQuickUpdate: () => void
+  onDelete: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const startDate = deal.start_date ? format(parseISO(deal.start_date), 'dd/MM/yy', { locale: ptBR }) : '-'
+  const lastContact = deal.last_contact_date ? format(parseISO(deal.last_contact_date), 'dd/MM/yy', { locale: ptBR }) : '-'
+
+  return (
+    <div className="card overflow-hidden">
+      {/* Main row */}
+      <div
+        className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <StatusBadge status={deal.status} />
+            <TypeBadge type={deal.deal_type} />
+            <PriorityBadge priority={deal.priority} />
+          </div>
+          <p className="font-semibold text-slate-800">{deal.client_name}</p>
+          <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
+            <span>{deal.responsible}</span>
+            <span>Início: {startDate}</span>
+            <span>Último contato: {lastContact}</span>
+          </div>
+        </div>
+        <div className="text-slate-400 text-lg select-none">{expanded ? '▲' : '▼'}</div>
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="border-t border-slate-100 px-4 py-3 bg-slate-50 space-y-3">
+          {deal.contact_name && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Contato</p>
+              {deal.contact_phone ? (
+                <a
+                  href={`https://wa.me/55${deal.contact_phone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline"
+                >
+                  <Phone size={13} />
+                  {deal.contact_name} · {deal.contact_phone}
+                </a>
+              ) : (
+                <p className="text-sm text-slate-700">{deal.contact_name}</p>
+              )}
+            </div>
+          )}
+          {deal.interest && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Interesse</p>
+              <p className="text-sm text-slate-700">{deal.interest}</p>
+            </div>
+          )}
+          {deal.follow_up && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Acompanhamento</p>
+              <p className="text-sm text-slate-700">{deal.follow_up}</p>
+            </div>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button onClick={onQuickUpdate} className="btn-primary text-xs py-1.5">
+              ✏️ Atualizar Acompanhamento
+            </button>
+            <button onClick={e => { e.stopPropagation(); onEdit() }} className="btn-secondary text-xs py-1.5">
+              <Pencil size={12} /> Editar
+            </button>
+            <button onClick={e => { e.stopPropagation(); onDelete() }} className="btn-danger text-xs py-1.5">
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
