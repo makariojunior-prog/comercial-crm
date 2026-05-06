@@ -1,5 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, MapPin, Briefcase, Sparkles } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, MapPin, Sparkles } from 'lucide-react'
+import logoUrl from '../assets/logo.svg'
 
 const navItems = [
   { to: '/negocios', icon: LayoutDashboard, label: 'Negócios' },
@@ -13,8 +14,8 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Sidebar — desktop */}
       <aside className="hidden lg:flex flex-col w-56 bg-slate-800 text-white shrink-0">
-        <div className="flex items-center gap-2 px-5 py-5 border-b border-slate-700">
-          <Briefcase size={20} className="text-orange-400" />
+        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-700">
+          <img src={logoUrl} alt="Cantina" className="w-8 h-8 shrink-0" style={{ filter: 'invert(1)' }} />
           <div>
             <p className="font-bold text-sm leading-tight">CRM Comercial</p>
             <p className="text-xs text-slate-400">Cantina · Lumar</p>
@@ -46,8 +47,8 @@ export default function Layout() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Mobile header */}
-        <header className="lg:hidden bg-slate-800 text-white px-4 py-3 flex items-center gap-2">
-          <Briefcase size={18} className="text-orange-400" />
+        <header className="lg:hidden bg-slate-800 text-white px-4 py-3 flex items-center gap-2.5">
+          <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0" style={{ filter: 'invert(1)' }} />
           <p className="font-bold text-sm">CRM Comercial · Cantina Lumar</p>
         </header>
 
