@@ -1,16 +1,23 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
+import { useAuth } from '../contexts/AuthContext'
 
-const navItems = [
+const baseNavItems = [
   { to: '/negocios', icon: LayoutDashboard, label: 'Negócios' },
-  { to: '/registro', icon: ClipboardList, label: 'Registro' },
-  { to: '/visitas', icon: MapPin, label: 'Visitas' },
-  { to: '/tabelas', icon: DollarSign, label: 'Tabelas' },
-  { to: '/briefing', icon: Sparkles, label: 'Briefing IA' },
+  { to: '/registro', icon: ClipboardList,   label: 'Registro' },
+  { to: '/visitas',  icon: MapPin,          label: 'Visitas' },
+  { to: '/tabelas',  icon: DollarSign,      label: 'Tabelas' },
+  { to: '/briefing', icon: Sparkles,        label: 'Briefing IA' },
 ]
 
 export default function Layout() {
+  const { profile, isAdmin, signOut } = useAuth()
+
+  const navItems = isAdmin
+    ? [...baseNavItems, { to: '/usuarios', icon: ShieldCheck, label: 'Usuários' }]
+    : baseNavItems
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Sidebar — desktop */}
@@ -40,8 +47,21 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-4 py-3 border-t border-slate-700">
-          <p className="text-xs text-slate-500">v2.0 · 2026</p>
+
+        {/* Usuário logado + sair */}
+        <div className="px-4 py-3 border-t border-slate-700 space-y-2">
+          {profile && (
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-white truncate">{profile.nome || profile.email}</p>
+              <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
+            </div>
+          )}
+          <button
+            onClick={signOut}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
+          >
+            <LogOut size={14} /> Sair
+          </button>
         </div>
       </aside>
 
@@ -50,7 +70,10 @@ export default function Layout() {
         {/* Mobile header */}
         <header className="lg:hidden bg-slate-800 text-white px-4 py-3 flex items-center gap-2.5">
           <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0" style={{ filter: 'invert(1)' }} />
-          <p className="font-bold text-sm">CRM Comercial · Cantina Lumar</p>
+          <p className="font-bold text-sm flex-1">CRM Comercial · Cantina Lumar</p>
+          <button onClick={signOut} className="text-slate-400 hover:text-white p-1">
+            <LogOut size={16} />
+          </button>
         </header>
 
         {/* Content */}
