@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Phone, MessageCircle, CheckCircle, TrendingUp, XCircle, MinusCircle } from 'lucide-react'
+import { X, Phone, MessageCircle, CheckCircle, TrendingUp, XCircle, MinusCircle, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Deal, DealStatus } from '../types'
 import { StatusBadge } from './StatusBadge'
@@ -22,19 +22,25 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
   const [followUp, setFollowUp] = useState(deal.follow_up ?? '')
   const [status, setStatus] = useState<DealStatus>(deal.status ?? 'NOVO')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const today = new Date().toISOString().split('T')[0]
 
   async function save() {
     setSaving(true)
+    setError(null)
 
-    // Update deal
-    await supabase
+    const { error: dealErr } = await supabase
       .from('deals')
       .update({ follow_up: followUp, status, last_contact_date: today })
       .eq('id', deal.id)
 
-    // Save to history
+    if (dealErr) {
+      setError('Erro ao salvar: ' + dealErr.message)
+      setSaving(false)
+      return
+    }
+
     await supabase.from('crm_deal_history').insert({
       deal_id: deal.id,
       client_name: deal.client_name,
@@ -50,7 +56,7 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl">
         {/* Header */}
@@ -112,6 +118,12 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
               autoFocus
             />
           </div>
+
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
+              <AlertCircle size={14} className="shrink-0" /> {error}
+            </div>
+          )}
 
           <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
             📅 <strong>Data de contato</strong> registrada como <strong>hoje</strong> · histórico salvo automaticamente.

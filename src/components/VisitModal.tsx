@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Visit } from '../types'
 import { RESPONSAVEIS, VISIT_TYPES, VISIT_STATUS } from '../types'
@@ -37,6 +37,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       : emptyForm
   )
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -45,10 +46,14 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
   async function save() {
     if (!form.client_name.trim()) return
     setSaving(true)
-    if (visit) {
-      await supabase.from('visits').update(form).eq('id', visit.id)
-    } else {
-      await supabase.from('visits').insert(form)
+    setError(null)
+    const { error: err } = visit
+      ? await supabase.from('visits').update(form).eq('id', visit.id)
+      : await supabase.from('visits').insert(form)
+    if (err) {
+      setError('Erro ao salvar: ' + err.message)
+      setSaving(false)
+      return
     }
     setSaving(false)
     onSaved()
@@ -56,7 +61,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
@@ -111,6 +116,11 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
           </div>
         </div>
 
+        {error && (
+          <div className="px-5 pb-2 flex items-center gap-2 text-xs text-red-700 bg-red-50 border-t border-red-200 py-2">
+            <AlertCircle size={14} className="shrink-0" /> {error}
+          </div>
+        )}
         <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
           <button onClick={save} disabled={saving || !form.client_name.trim()} className="btn-primary flex-1 justify-center">

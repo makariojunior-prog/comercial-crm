@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, RefreshCw, History } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Download, RefreshCw, History, AlertCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -15,6 +15,7 @@ const ALL = 'TODOS'
 export default function RegistroNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>(ALL)
   const [filterResp, setFilterResp] = useState<string>(ALL)
@@ -24,7 +25,9 @@ export default function RegistroNegocios() {
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('deals').select('*').order('start_date', { ascending: false })
+    setLoadError(null)
+    const { data, error } = await supabase.from('deals').select('*').order('start_date', { ascending: false })
+    if (error) { setLoadError(error.message); setLoading(false); return }
     setDeals(data as Deal[] ?? [])
     setLoading(false)
   }
@@ -60,7 +63,7 @@ export default function RegistroNegocios() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-bold text-slate-800">Registro de Negócios</h1>
         <div className="flex gap-2">
-          <button onClick={() => exportDeals(filtered)} className="btn-secondary text-xs py-1.5" title="Exportar para Excel">
+          <button onClick={() => { try { exportDeals(filtered) } catch { alert('Erro ao exportar Excel') } }} className="btn-secondary text-xs py-1.5" title="Exportar para Excel">
             <Download size={14} /> Excel
           </button>
           <button onClick={load} className="btn-ghost p-2">
@@ -96,6 +99,13 @@ export default function RegistroNegocios() {
         </div>
         <p className="text-xs text-slate-400">{filtered.length} de {deals.length} negócios</p>
       </div>
+
+      {loadError && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={16} /> Erro ao carregar: {loadError}
+          <button onClick={load} className="ml-auto text-xs underline">Tentar novamente</button>
+        </div>
+      )}
 
       {/* Lista */}
       {loading ? (

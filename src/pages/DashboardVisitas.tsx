@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download } from 'lucide-react'
+import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download, AlertCircle } from 'lucide-react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -24,15 +24,18 @@ const typeColor: Record<string, string> = {
 export default function DashboardVisitas() {
   const [visits, setVisits] = useState<Visit[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [editVisit, setEditVisit] = useState<Visit | null | undefined>(undefined)
   const [search, setSearch] = useState('')
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase
+    setLoadError(null)
+    const { data, error } = await supabase
       .from('visits')
       .select('*')
       .order('visit_date', { ascending: false })
+    if (error) { setLoadError(error.message); setLoading(false); return }
     setVisits(data as Visit[] ?? [])
     setLoading(false)
   }
@@ -70,7 +73,7 @@ export default function DashboardVisitas() {
           <p className="text-xs text-slate-400 capitalize">{monthLabel}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => exportVisits(filtered)} className="btn-secondary text-xs py-1.5" title="Exportar Excel">
+          <button onClick={() => { try { exportVisits(filtered) } catch { alert('Erro ao exportar Excel') } }} className="btn-secondary text-xs py-1.5" title="Exportar Excel">
             <Download size={14} /> Excel
           </button>
           <button onClick={load} className="btn-ghost p-2">
@@ -105,6 +108,13 @@ export default function DashboardVisitas() {
         value={search}
         onChange={e => setSearch(e.target.value)}
       />
+
+      {loadError && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={16} /> Erro ao carregar: {loadError}
+          <button onClick={load} className="ml-auto text-xs underline">Tentar novamente</button>
+        </div>
+      )}
 
       {/* Lista */}
       {loading ? (

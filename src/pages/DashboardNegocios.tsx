@@ -11,15 +11,18 @@ import DealModal from '../components/DealModal'
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [quickDeal, setQuickDeal] = useState<Deal | null>(null)
   const [newDeal, setNewDeal] = useState(false)
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase
+    setLoadError(null)
+    const { data, error } = await supabase
       .from('deals')
       .select('*')
       .order('start_date', { ascending: false })
+    if (error) { setLoadError(error.message); setLoading(false); return }
     setDeals(data ?? [])
     setLoading(false)
   }
@@ -63,6 +66,13 @@ export default function DashboardNegocios() {
         <MetricCard label="Sucesso" value={success.length} color="green" />
         <MetricCard label="Conversão" value={`${convRate}%`} color="purple" />
       </div>
+
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+          <AlertTriangle size={16} /> Erro ao carregar dados: {loadError}
+          <button onClick={load} className="ml-auto text-xs underline">Tentar novamente</button>
+        </div>
+      )}
 
       {/* Alertas */}
       {stale.length > 0 && (
