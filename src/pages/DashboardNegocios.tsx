@@ -153,15 +153,16 @@ function Section({ title, count, children }: { title: string; count: number; chi
 function AlertDealRow({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
   const days = daysSince(deal.last_contact_date)
   return (
-    <div className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-red-100">
+    <button
+      onClick={onUpdate}
+      className="w-full flex items-center justify-between bg-white rounded-lg px-3 py-2.5 border border-red-100 hover:bg-red-50 active:scale-[.99] transition-all text-left"
+    >
       <div className="min-w-0">
         <p className="font-medium text-sm text-slate-800 truncate">{deal.client_name}</p>
         <p className="text-xs text-red-500">{days} dias sem contato · {deal.responsible}</p>
       </div>
-      <button onClick={onUpdate} className="btn-primary shrink-0 ml-3 py-1.5 px-3 text-xs">
-        Atualizar
-      </button>
-    </div>
+      <span className="text-xs text-orange-500 font-semibold shrink-0 ml-3">Toque para atualizar →</span>
+    </button>
   )
 }
 
@@ -170,8 +171,9 @@ function DealCard({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
   const stale = isStale(deal)
 
   return (
-    <div
-      className={`card p-4 transition-shadow hover:shadow-md ${stale ? 'border-red-200' : ''}`}
+    <button
+      onClick={onUpdate}
+      className={`card p-4 w-full text-left transition-all hover:shadow-md active:scale-[.99] ${stale ? 'border-red-200' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -181,16 +183,11 @@ function DealCard({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
           </div>
           <p className="font-semibold text-slate-800">{deal.client_name}</p>
           {deal.contact_name && (
-            <a
-              href={deal.contact_phone ? `https://wa.me/55${deal.contact_phone.replace(/\D/g, '')}` : undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-green-600 mt-0.5"
-            >
+            <p className="inline-flex items-center gap-1 text-xs text-slate-500 mt-0.5">
               <Phone size={11} />
               {deal.contact_name}
               {deal.contact_phone && ` · ${deal.contact_phone}`}
-            </a>
+            </p>
           )}
           {deal.follow_up && (
             <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 italic">"{deal.follow_up}"</p>
@@ -198,7 +195,7 @@ function DealCard({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
           <div className="flex items-center gap-3 mt-2">
             <span className="text-xs text-slate-400">{deal.responsible}</span>
             <span className={`text-xs font-medium ${stale ? 'text-red-500' : 'text-slate-400'}`}>
-              {days === 0 ? '🟢 Contatado hoje' : stale ? `⚠️ ${days}d sem contato` : `${days}d`}
+              {days === 0 ? '🟢 Hoje' : stale ? `⚠️ ${days}d sem contato` : `${days}d`}
             </span>
             {deal.last_contact_date && (
               <span className="text-xs text-slate-400">
@@ -207,13 +204,8 @@ function DealCard({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
             )}
           </div>
         </div>
-        <button
-          onClick={onUpdate}
-          className="btn-primary shrink-0 py-2 px-3 text-xs"
-        >
-          Atualizar
-        </button>
+        <span className="text-xs text-orange-400 font-semibold shrink-0 mt-1">Toque →</span>
       </div>
-    </div>
+    </button>
   )
 }
