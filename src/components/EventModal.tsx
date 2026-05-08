@@ -12,19 +12,37 @@ interface EventModalProps {
 export default function EventModal({ event, onClose, onSaved }: EventModalProps) {
   const [title, setTitle] = useState(event?.title ?? '')
   const [clientId, setClientId] = useState(event?.client_id ?? '')
+  const [clientSearch, setClientSearch] = useState(event?.client_nome ?? '')
+  const [showClientDropdown, setShowClientDropdown] = useState(false)
   const [eventType, setEventType] = useState(event?.event_type ?? 'Degustação')
   const [eventDate, setEventDate] = useState(event?.event_date ? event.event_date.substring(0, 16) : '')
   const [status, setStatus] = useState<EventStatus>(event?.status ?? 'AGENDADO')
   const [notes, setNotes] = useState(event?.notes ?? '')
-  
+
   const [materials, setMaterials] = useState<Partial<EventMaterial>[]>(event?.materials ?? [])
   const [selectedStaff, setSelectedStaff] = useState<string[]>(event?.staff?.map(s => s.staff_id) ?? [])
-  
+
   const [clients, setClients] = useState<Client[]>([])
   const [allStaff, setAllStaff] = useState<Staff[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'info' | 'materials' | 'staff'>('info')
+
+  const filteredClients = clients.filter(c =>
+    c.nome.toLowerCase().includes(clientSearch.toLowerCase())
+  )
+
+  function selectClient(client: Client) {
+    setClientId(client.id)
+    setClientSearch(client.nome)
+    setShowClientDropdown(false)
+  }
+
+  function clearClient() {
+    setClientId('')
+    setClientSearch('')
+    setShowClientDropdown(false)
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -133,10 +151,64 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
               </div>
               <div>
                 <label className="label">Cliente</label>
-                <select className="input" value={clientId} onChange={e => setClientId(e.target.value)}>
-                  <option value="">(Sem cliente vinculado)</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
+                <div className="relative">
+                  <input
+                    className="input pr-8"
+                    value={clientSearch}
+                    onChange={e => {
+                      setClientSearch(e.target.value)
+                      setClientId('')
+                      setShowClientDropdown(true)
+                    }}
+                    onFocus={() => setShowClientDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowClientDropdown(false), 150)}
+                    placeholder="Buscar cliente pelo nome..."
+                  />
+                  {clientSearch && (
+                    <button
+                      type="button"
+                      onClick={clearClient}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                  {showClientDropdown && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                      <button
+                        type="button"
+                        onMouseDown={clearClient}
+                        className="w-full text-left px-3 py-2 text-xs text-slate-400 italic hover:bg-slate-50 border-b border-slate-50"
+                      >
+                        (Sem cliente vinculado)
+                      </button>
+                      {filteredClients.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => selectClient(c)}
+                          className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${
+                            clientId === c.id
+                              ? 'bg-orange-50 text-orange-600 font-bold'
+                              : 'text-slate-700 hover:bg-orange-50'
+                          }`}
+                        >
+                          {c.nome}
+                        </button>
+                      ))}
+                      {filteredClients.length === 0 && (
+                        <p className="px-3 py-3 text-xs text-slate-400 italic">
+                          Nenhum cliente encontrado para "{clientSearch}"
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {clientId && (
+                  <p className="text-[10px] text-green-600 font-medium mt-1 flex items-center gap-1">
+                    <MapPin size={10} /> Cliente selecionado
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

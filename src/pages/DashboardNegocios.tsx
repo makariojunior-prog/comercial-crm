@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, CheckCircle2 } from 'lucide-react'
+import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, CheckCircle2, User } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -33,9 +33,6 @@ export default function DashboardNegocios() {
 
   const active = deals.filter(d => d.status === 'NOVO' || d.status === 'EM ANDAMENTO')
   const stale = active.filter(d => isStale(d))
-  const success = deals.filter(d => d.status === 'SUCESSO')
-  const total = deals.filter(d => d.status !== null).length
-  const convRate = total > 0 ? Math.round((success.length / total) * 100) : 0
 
   const novo = active.filter(d => d.status === 'NOVO')
   const emAndamento = active.filter(d => d.status === 'EM ANDAMENTO')
@@ -61,14 +58,6 @@ export default function DashboardNegocios() {
             <span className="hidden sm:inline">Novo Negócio</span>
           </button>
         </div>
-      </div>
-
-      {/* Métricas */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MetricCard label="Ativos" value={active.length} color="amber" />
-        <MetricCard label="Novos" value={novo.length} color="blue" />
-        <MetricCard label="Sucesso" value={success.length} color="green" />
-        <MetricCard label="Conversão" value={`${convRate}%`} color="purple" />
       </div>
 
       {/* Matriz de Tarefas & Eventos */}
@@ -133,21 +122,6 @@ export default function DashboardNegocios() {
   )
 }
 
-function MetricCard({ label, value, color }: { label: string; value: string | number; color: string }) {
-  const colors: Record<string, string> = {
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-  }
-  return (
-    <div className={`rounded-xl border p-4 ${colors[color]}`}>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs font-medium mt-0.5 opacity-75">{label}</p>
-    </div>
-  )
-}
-
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <div>
@@ -202,16 +176,22 @@ function DealCard({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
           {deal.follow_up && (
             <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 italic">"{deal.follow_up}"</p>
           )}
-          <div className="flex items-center gap-3 mt-2">
-            <span className="text-xs text-slate-400">{deal.responsible}</span>
-            <span className={`text-xs font-medium ${stale ? 'text-red-500' : 'text-slate-400'}`}>
-              {days === 0 ? '🟢 Hoje' : stale ? `⚠️ ${days}d sem contato` : `${days}d`}
-            </span>
-            {deal.last_contact_date && (
-              <span className="text-xs text-slate-400">
-                {format(parseISO(deal.last_contact_date), 'dd/MM', { locale: ptBR })}
+          <div className="flex items-center justify-between mt-2 gap-2">
+            {deal.responsible && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full border border-orange-100 shrink-0">
+                <User size={10} /> {deal.responsible}
               </span>
             )}
+            <div className="flex items-center gap-2 ml-auto">
+              <span className={`text-xs font-medium ${stale ? 'text-red-500' : 'text-slate-400'}`}>
+                {days === 0 ? '🟢 Hoje' : stale ? `⚠️ ${days}d sem contato` : `${days}d`}
+              </span>
+              {deal.last_contact_date && (
+                <span className="text-xs text-slate-400">
+                  {format(parseISO(deal.last_contact_date), 'dd/MM', { locale: ptBR })}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <span className="text-xs text-orange-400 font-semibold shrink-0 mt-1">Toque →</span>
