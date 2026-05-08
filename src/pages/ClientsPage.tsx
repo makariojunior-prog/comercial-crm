@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Filter, User, Phone, MapPin, MoreVertical, Edit2, Trash2, ExternalLink, AlertTriangle, UserX } from 'lucide-react'
+import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
 import ClientModal from '../components/ClientModal'
@@ -131,7 +131,7 @@ export default function ClientsPage() {
                   
                   <div className="space-y-1">
                     {client.telefone && (
-                      <button 
+                      <button
                         onClick={() => openWhatsApp(client.telefone!)}
                         className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-green-600 transition-colors"
                       >
@@ -141,21 +141,34 @@ export default function ClientsPage() {
                     )}
                     {client.setor && (
                       <p className="flex items-center gap-1.5 text-xs text-slate-500 truncate">
-                        <MapPin size={12} className="shrink-0" /> {client.setor} {client.rota && `(Rota: ${client.rota})`}
+                        <MapPin size={12} className="shrink-0" /> {client.setor} {client.rota && `· ${client.rota}`}
                       </p>
                     )}
-                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
                       {client.tipo && (
                         <span className="text-[10px] font-bold bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full border border-orange-100">
                           {client.tipo}
                         </span>
                       )}
-                      {client.pgto && (
-                        <span className="text-[10px] font-medium text-slate-400">
-                          {client.pgto}
+                      {client.carteira && (
+                        <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-100 flex items-center gap-1">
+                          <Briefcase size={9} /> {client.carteira}
+                        </span>
+                      )}
+                      {client.manutencao && client.manutencao !== 'INATIVO' && (
+                        <span className="text-[10px] font-medium bg-slate-50 text-slate-500 px-2 py-0.5 rounded-full border border-slate-100 flex items-center gap-1">
+                          <Wrench size={9} /> {client.manutencao}
+                        </span>
+                      )}
+                      {client.mensagem === 'SIM' && (
+                        <span className="text-[10px] font-medium text-green-600 flex items-center gap-0.5">
+                          <MessageCircle size={10} /> WA
                         </span>
                       )}
                     </div>
+                    {client.pgto && (
+                      <p className="text-[10px] font-medium text-slate-400 truncate">{client.pgto}</p>
+                    )}
                   </div>
                 </div>
 
