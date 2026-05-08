@@ -18,6 +18,8 @@ const emptyForm = {
   visit_date: new Date().toISOString().split('T')[0],
   visit_type: 'Prospecção',
   client_name: '',
+  contact_name: '',
+  contact_phone: '',
   responsible: 'MAKÁRIO',
   demand: '',
   report: '',
@@ -32,6 +34,8 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
           visit_date: visit.visit_date ?? emptyForm.visit_date,
           visit_type: visit.visit_type ?? emptyForm.visit_type,
           client_name: visit.client_name,
+          contact_name: visit.contact_name ?? '',
+          contact_phone: visit.contact_phone ?? '',
           responsible: visit.responsible ?? emptyForm.responsible,
           demand: visit.demand ?? '',
           report: visit.report ?? '',
@@ -130,6 +134,14 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
             <div className="col-span-2">
               <label className="label">Cliente *</label>
               <input className="input" value={form.client_name} onChange={e => set('client_name', e.target.value)} placeholder="Nome do cliente visitado" />
+            </div>
+            <div>
+              <label className="label">Contato</label>
+              <input className="input" value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder="Nome da pessoa" />
+            </div>
+            <div>
+              <label className="label">Telefone</label>
+              <input className="input" value={form.contact_phone} onChange={e => set('contact_phone', e.target.value)} placeholder="(00) 00000-0000" />
             </div>
             <div>
               <label className="label">Responsável</label>

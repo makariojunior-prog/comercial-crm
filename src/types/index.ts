@@ -24,6 +24,8 @@ export interface Visit {
   visit_date: string | null
   visit_type: string | null
   client_name: string
+  contact_name: string | null
+  contact_phone: string | null
   responsible: string | null
   demand: string | null
   report: string | null

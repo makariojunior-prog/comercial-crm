@@ -172,6 +172,14 @@ function VisitCard({ visit, onEdit, onDelete }: { visit: Visit; onEdit: () => vo
 
       {expanded && (
         <div className="border-t border-slate-100 px-4 py-3 bg-slate-50 space-y-3">
+          {(visit.contact_name || visit.contact_phone) && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Contato</p>
+              <p className="text-sm text-slate-700">
+                {visit.contact_name} {visit.contact_phone && `(${visit.contact_phone})`}
+              </p>
+            </div>
+          )}
           {visit.demand && (
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Demanda</p>

@@ -17,7 +17,7 @@ export default function RegistroNegocios() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState<string>(ALL)
+  const [filterStatus, setFilterStatus] = useState<string>('EM ANDAMENTO')
   const [filterResp, setFilterResp] = useState<string>(ALL)
   const [filterType, setFilterType] = useState<string>(ALL)
   const [editDeal, setEditDeal] = useState<Deal | null | undefined>(undefined)
