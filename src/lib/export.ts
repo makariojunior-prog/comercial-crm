@@ -60,6 +60,8 @@ export function exportVisits(visits: Visit[]) {
     'Data': v.visit_date ?? '',
     'Tipo': v.visit_type ?? '',
     'Cliente': v.client_name,
+    'Contato': v.contact_name ?? '',
+    'Telefone': v.contact_phone ?? '',
     'Responsável': v.responsible ?? '',
     'Demanda': v.demand ?? '',
     'Relatório': v.report ?? '',
