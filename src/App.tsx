@@ -9,6 +9,10 @@ import DashboardVisitas from './pages/DashboardVisitas'
 import BriefingBI from './pages/BriefingBI'
 import TabelasPreco from './pages/TabelasPreco'
 import GestaoUsuarios from './pages/GestaoUsuarios'
+import TasksPage from './pages/TasksPage'
+import ClientsPage from './pages/ClientsPage'
+import EventsPage from './pages/EventsPage'
+import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
   return (
@@ -22,9 +26,13 @@ export default function App() {
               <Route path="/negocios"  element={<DashboardNegocios />} />
               <Route path="/registro"  element={<RegistroNegocios />} />
               <Route path="/visitas"   element={<DashboardVisitas />} />
+              <Route path="/tarefas"   element={<TasksPage />} />
+              <Route path="/clientes"  element={<ClientsPage />} />
+              <Route path="/promotoria" element={<EventsPage />} />
               <Route path="/tabelas"   element={<TabelasPreco />} />
               <Route path="/briefing"  element={<BriefingBI />} />
               <Route path="/usuarios"  element={<GestaoUsuarios />} />
+              <Route path="/configuracoes" element={<SettingsPage />} />
             </Route>
           </Route>
         </Routes>

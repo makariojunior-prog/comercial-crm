@@ -35,6 +35,28 @@ export interface Visit {
   created_at: string
 }
 
+export interface TaskPriorityInfo {
+  id: TaskPriority
+  label: string
+  color: string
+  bg: string
+}
+
+export type TaskPriority = 'URGENTE_IMPORTANTE' | 'IMPORTANTE_NAO_URGENTE' | 'URGENTE_NAO_IMPORTANTE' | 'NAO_URGENTE_NAO_IMPORTANTE'
+export type TaskStatus = 'PENDENTE' | 'CONCLUIDA'
+
+export interface Task {
+  id: string
+  created_at: string
+  title: string
+  description: string | null
+  deadline: string | null
+  priority: TaskPriority
+  status: TaskStatus
+  creator_id: string
+  assignees?: { user_id: string; user_nome: string }[]
+}
+
 export interface DealHistory {
   id: string
   deal_id: string
@@ -84,6 +106,52 @@ export interface PriceItem {
   updated_at: string
 }
 
+export interface Client {
+  id: string
+  created_at: string
+  nome: string
+  telefone: string | null
+  setor: string | null
+  empresa: string | null
+  origem: string | null
+  observacao: string | null
+  atendente: string | null
+  pedidos_count: number
+  ativo: boolean
+}
+
+export type EventStatus = 'AGENDADO' | 'REALIZADO' | 'CANCELADO'
+
+export interface Event {
+  id: string
+  created_at: string
+  client_id: string | null
+  title: string
+  event_type: string
+  event_date: string
+  status: EventStatus
+  notes: string | null
+  client_nome?: string
+  materials?: EventMaterial[]
+  staff?: { staff_id: string; staff_name: string }[]
+}
+
+export interface EventMaterial {
+  id: string
+  event_id: string
+  item_name: string
+  quantity: number
+  is_provided: boolean
+}
+
+export interface Staff {
+  id: string
+  name: string
+  role: string
+  phone: string | null
+  active: boolean
+}
+
 export type { CrmUser, UserRole } from '../contexts/AuthContext'
 
 export const DEAL_TYPES = ['CANTINA REVENDA', 'LUMAR', 'LUMAR / CANTINA'] as const
@@ -91,3 +159,10 @@ export const RESPONSAVEIS = ['MAKÁRIO', 'TIAGO', 'BRUNA', 'MAKÁRIO/TIAGO', 'MA
 export const STATUS_ORDER: DealStatus[] = ['NOVO', 'EM ANDAMENTO', 'SUCESSO', 'DESISTIU', 'CANCELADO']
 export const VISIT_TYPES = ['Prospecção', 'Acompanhamento', 'Entrega', 'Reunião', 'Degustação', 'Outro'] as const
 export const VISIT_STATUS = ['Realizada', 'Agendada', 'Cancelada'] as const
+
+export const TASK_PRIORITIES: Record<TaskPriority, TaskPriorityInfo> = {
+  URGENTE_IMPORTANTE: { id: 'URGENTE_IMPORTANTE', label: 'Urgente & Importante', color: 'text-red-700', bg: 'bg-red-50 border-red-100' },
+  IMPORTANTE_NAO_URGENTE: { id: 'IMPORTANTE_NAO_URGENTE', label: 'Importante (Não Urgente)', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-100' },
+  URGENTE_NAO_IMPORTANTE: { id: 'URGENTE_NAO_IMPORTANTE', label: 'Urgente (Não Importante)', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100' },
+  NAO_URGENTE_NAO_IMPORTANTE: { id: 'NAO_URGENTE_NAO_IMPORTANTE', label: 'Não Urgente & Não Importante', color: 'text-slate-600', bg: 'bg-slate-50 border-slate-100' },
+}

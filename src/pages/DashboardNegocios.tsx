@@ -7,6 +7,8 @@ import type { Deal, DealStatus } from '../types'
 import { StatusBadge, PriorityBadge, TypeBadge, isStale, daysSince } from '../components/StatusBadge'
 import QuickUpdateModal from '../components/QuickUpdateModal'
 import DealModal from '../components/DealModal'
+import DashboardTasks from '../components/DashboardTasks'
+import DashboardEvents from '../components/DashboardEvents'
 
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -65,6 +67,12 @@ export default function DashboardNegocios() {
         <MetricCard label="Novos" value={novo.length} color="blue" />
         <MetricCard label="Sucesso" value={success.length} color="green" />
         <MetricCard label="Conversão" value={`${convRate}%`} color="purple" />
+      </div>
+
+      {/* Matriz de Tarefas & Eventos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <DashboardTasks />
+        <DashboardEvents />
       </div>
 
       {loadError && (
