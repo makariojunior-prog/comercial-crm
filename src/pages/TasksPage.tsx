@@ -51,7 +51,7 @@ export default function TasksPage() {
 
       // Filter locally for simplicity and reliability
       const filteredByOwnership = (!isAdmin || !viewAll)
-        ? formattedTasks.filter(t => t.assignees.some(a => a.user_id === user?.id))
+        ? formattedTasks.filter((t: Task) => t.assignees?.some((a: { user_id: string }) => a.user_id === user?.id))
         : formattedTasks
 
       setTasks(filteredByOwnership)
