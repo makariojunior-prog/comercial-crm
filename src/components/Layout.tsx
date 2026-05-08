@@ -4,7 +4,7 @@ import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
 
 const baseNavItems = [
-  { to: '/negocios', icon: LayoutDashboard, label: 'Negócios' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/registro', icon: ClipboardList,   label: 'Registro' },
   { to: '/visitas',  icon: MapPin,          label: 'Visitas' },
   { to: '/tarefas',  icon: CheckCircle2,    label: 'Tarefas' },

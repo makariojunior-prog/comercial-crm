@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, CheckCircle2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -48,7 +48,9 @@ export default function DashboardNegocios() {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs text-slate-400 capitalize">{today}</p>
-          <h1 className="text-xl font-bold text-slate-800">Dashboard Negócios</h1>
+          <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+             Dashboard Geral
+          </h1>
         </div>
         <div className="flex gap-2">
           <button onClick={load} className="btn-ghost p-2">
@@ -56,7 +58,7 @@ export default function DashboardNegocios() {
           </button>
           <button onClick={() => setNewDeal(true)} className="btn-primary">
             <Plus size={16} />
-            <span className="hidden sm:inline">Novo</span>
+            <span className="hidden sm:inline">Novo Negócio</span>
           </button>
         </div>
       </div>
@@ -109,7 +111,7 @@ export default function DashboardNegocios() {
       )}
 
       {novo.length > 0 && (
-        <Section title="🔵 Novos" count={novo.length}>
+        <Section title="🔵 Novos Negócios" count={novo.length}>
           {novo.map(d => <DealCard key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />)}
         </Section>
       )}

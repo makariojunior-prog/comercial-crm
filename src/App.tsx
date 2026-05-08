@@ -22,8 +22,9 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<PrivateRoute />}>
             <Route element={<Layout />}>
-              <Route index element={<Navigate to="/negocios" replace />} />
-              <Route path="/negocios"  element={<DashboardNegocios />} />
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardNegocios />} />
+              <Route path="/negocios"  element={<Navigate to="/dashboard" replace />} />
               <Route path="/registro"  element={<RegistroNegocios />} />
               <Route path="/visitas"   element={<DashboardVisitas />} />
               <Route path="/tarefas"   element={<TasksPage />} />

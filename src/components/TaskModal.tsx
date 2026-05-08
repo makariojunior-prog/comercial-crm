@@ -28,7 +28,7 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
   useEffect(() => {
     async function loadUsers() {
       const { data } = await supabase.from('crm_users').select('*').eq('ativo', true)
-      if (data) setUsers(data)
+      if (data) setUsers(data as CrmUser[])
     }
     loadUsers()
   }, [])
@@ -64,6 +64,7 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
           .insert(taskData)
           .select()
         if (insertError) throw insertError
+        if (!newTasks || newTasks.length === 0) throw new Error('Falha ao criar tarefa: Nenhum dado retornado.')
         taskId = newTasks[0].id
       }
 
@@ -74,14 +75,17 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
         .eq('task_id', taskId)
       if (delError) throw delError
 
-      const { error: assignError } = await supabase
-        .from('crm_task_assignees')
-        .insert(selectedAssignees.map(uid => ({ task_id: taskId, user_id: uid })))
-      if (assignError) throw assignError
+      if (selectedAssignees.length > 0) {
+        const { error: assignError } = await supabase
+          .from('crm_task_assignees')
+          .insert(selectedAssignees.map(uid => ({ task_id: taskId, user_id: uid })))
+        if (assignError) throw assignError
+      }
 
       onSaved()
       onClose()
     } catch (err) {
+      console.error('Save error:', err)
       setError(err instanceof Error ? err.message : 'Erro ao salvar tarefa')
     } finally {
       setSaving(false)
@@ -101,7 +105,7 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
             <CheckCircle2 size={18} className="text-orange-500" />
-            {task ? 'Editar Tarefa' : 'Nova Tarefa'}
+            {task?.id ? 'Editar Tarefa' : 'Nova Tarefa'}
           </h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
             <X size={20} />
@@ -188,10 +192,10 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
                   key={u.id}
                   type="button"
                   onClick={() => toggleAssignee(u.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-all ${
                     selectedAssignees.includes(u.id)
-                      ? 'bg-orange-500 border-orange-600 text-white'
-                      : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-orange-500 border-orange-600 text-white shadow-sm'
+                      : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100'
                   }`}
                 >
                   {u.nome}
@@ -202,19 +206,19 @@ export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
         </div>
 
         {error && (
-          <div className="mx-5 mb-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700">
+          <div className="mx-5 mb-2 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700 shadow-sm">
             <AlertCircle size={14} className="shrink-0" /> {error}
           </div>
         )}
 
         <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
-          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center py-3">Cancelar</button>
           <button 
             onClick={save} 
             disabled={saving} 
-            className="btn-primary flex-1 justify-center"
+            className="btn-primary flex-1 justify-center py-3 shadow-md"
           >
-            {saving ? 'Salvando...' : task ? 'Salvar Alterações' : 'Criar Tarefa'}
+            {saving ? 'Salvando...' : task?.id ? 'Salvar Alterações' : 'Criar Tarefa'}
           </button>
         </div>
       </div>

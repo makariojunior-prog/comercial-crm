@@ -131,19 +131,27 @@ function EventCard({ event, onEdit, onDelete }: { event: Event, onEdit: () => vo
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400"><Package size={16} /></div>
+      <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-50 pt-4">
+        <div className="flex items-start gap-2">
+          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 mt-1 shrink-0"><Users size={16} /></div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Materiais</p>
-            <p className="text-xs font-bold text-slate-700">{event.materials?.length || 0} itens</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase">Equipe Responsável</p>
+            <p className="text-xs text-slate-700 font-medium leading-relaxed">
+              {event.staff && event.staff.length > 0 
+                ? event.staff.map(s => s.staff_name).join(', ') 
+                : 'Nenhum colaborador vinculado'}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400"><Users size={16} /></div>
+        <div className="flex items-start gap-2">
+          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 mt-1 shrink-0"><Package size={16} /></div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Equipe</p>
-            <p className="text-xs font-bold text-slate-700">{event.staff?.length || 0} pessoas</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase">Materiais ({event.materials?.length || 0})</p>
+            <p className="text-xs text-slate-700 truncate max-w-xs">
+              {event.materials && event.materials.length > 0 
+                ? event.materials.map(m => `${m.quantity}x ${m.item_name}`).join(', ') 
+                : 'Sem materiais previstos'}
+            </p>
           </div>
         </div>
       </div>

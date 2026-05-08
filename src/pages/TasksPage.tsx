@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Filter, CheckCircle2, Circle, Clock, MoreVertical, Trash2, Edit2 } from 'lucide-react'
+import { Plus, Search, Filter, CheckCircle2, Circle, Clock, MoreVertical, Trash2, Edit2, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import type { Task } from '../types'
@@ -9,16 +9,17 @@ import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 export default function TasksPage() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [search, setSearch] = useState('')
+  const [viewAll, setViewAll] = useState(false) // Toggle for Admins
 
   async function loadTasks() {
     setLoading(true)
-    const { data, error } = await supabase
+    let query = supabase
       .from('crm_tasks')
       .select(`
         *,
@@ -28,6 +29,14 @@ export default function TasksPage() {
         )
       `)
       .order('created_at', { ascending: false })
+
+    // If not admin or if admin wants to see only their own
+    if (!isAdmin || !viewAll) {
+      // Note: This is complex with many-to-many in client side filter for now
+      // since Supabase doesn't easily filter by subtable value in a simple select
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error('Error loading tasks:', error)
@@ -39,12 +48,18 @@ export default function TasksPage() {
           user_nome: a.user?.nome || 'Usuário'
         }))
       }))
-      setTasks(formattedTasks)
+
+      // Filter locally for simplicity and reliability
+      const filteredByOwnership = (!isAdmin || !viewAll)
+        ? formattedTasks.filter(t => t.assignees.some(a => a.user_id === user?.id))
+        : formattedTasks
+
+      setTasks(filteredByOwnership)
     }
     setLoading(false)
   }
 
-  useEffect(() => { loadTasks() }, [])
+  useEffect(() => { loadTasks() }, [viewAll, user?.id])
 
   async function toggleStatus(task: Task) {
     const newStatus = task.status === 'PENDENTE' ? 'CONCLUIDA' : 'PENDENTE'
@@ -79,14 +94,28 @@ export default function TasksPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Tarefas</h1>
-          <p className="text-sm text-slate-500">Gerencie suas demandas e da equipe</p>
+          <p className="text-sm text-slate-500">
+            {viewAll ? 'Visualizando todas as tarefas da equipe' : 'Gerenciando suas tarefas individuais'}
+          </p>
         </div>
-        <button 
-          onClick={() => { setEditingTask(null); setShowModal(true) }} 
-          className="btn-primary"
-        >
-          <Plus size={18} /> Nova Tarefa
-        </button>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <button 
+              onClick={() => setViewAll(!viewAll)} 
+              className={`btn-secondary ${viewAll ? 'bg-orange-50 border-orange-200 text-orange-600' : ''}`}
+              title={viewAll ? 'Ver apenas minhas tarefas' : 'Ver tarefas de todos'}
+            >
+              <Users size={18} />
+              <span className="hidden sm:inline">{viewAll ? 'Ver minhas' : 'Ver Equipe'}</span>
+            </button>
+          )}
+          <button 
+            onClick={() => { setEditingTask(null); setShowModal(true) }} 
+            className="btn-primary"
+          >
+            <Plus size={18} /> Nova Tarefa
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2">
@@ -166,7 +195,7 @@ function TaskCard({ task, onToggle, onEdit, onDelete }: {
   onEdit: () => void,
   onDelete: () => void 
 }) {
-  const prio = TASK_PRIORITIES[task.priority]
+  const prio = TASK_PRIORITIES[task.priority] || TASK_PRIORITIES['NAO_URGENTE_NAO_IMPORTANTE']
   const isCompleted = task.status === 'CONCLUIDA'
 
   return (

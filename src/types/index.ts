@@ -106,18 +106,33 @@ export interface PriceItem {
   updated_at: string
 }
 
+export type ClientStatus = 'ATIVO' | 'PERDENDO' | 'PERDIDO'
+
 export interface Client {
   id: string
   created_at: string
   nome: string
   telefone: string | null
+  cnpj_cpf: string | null
+  rota: string | null
   setor: string | null
-  empresa: string | null
-  origem: string | null
-  observacao: string | null
-  atendente: string | null
+  pgto: string | null
+  localizacao: string | null
+  observacoes: string | null
+  dia_entrega: string | null
+  mensagem: string | null
+  bonificacao: string | null
+  restricao: string | null
+  tipo: string | null
+  carteira: string | null
+  manutencao: string | null
+  frequencia: string | null
+  comodato: string | null
+  valor: string | null
+  data_planilha: string | null
+  observacao_extra: string | null
+  status: ClientStatus
   pedidos_count: number
-  ativo: boolean
 }
 
 export type EventStatus = 'AGENDADO' | 'REALIZADO' | 'CANCELADO'
@@ -147,8 +162,17 @@ export interface EventMaterial {
 export interface Staff {
   id: string
   name: string
-  role: string
+  role_id: string | null
+  user_id: string | null
   phone: string | null
+  active: boolean
+  role_name?: string
+  user_email?: string
+}
+
+export interface Role {
+  id: string
+  name: string
   active: boolean
 }
 

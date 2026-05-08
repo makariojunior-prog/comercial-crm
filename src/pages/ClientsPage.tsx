@@ -1,8 +1,20 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Filter, User, Phone, MapPin, MoreVertical, Edit2, Trash2, ExternalLink } from 'lucide-react'
+import { Plus, Search, Filter, User, Phone, MapPin, MoreVertical, Edit2, Trash2, ExternalLink, AlertTriangle, UserX } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Client } from '../types'
+import type { Client, ClientStatus } from '../types'
 import ClientModal from '../components/ClientModal'
+
+const STATUS_LABELS: Record<ClientStatus, string> = {
+  ATIVO: 'Ativo',
+  PERDENDO: 'Perdendo',
+  PERDIDO: 'Perdido',
+}
+
+const STATUS_COLORS: Record<ClientStatus, string> = {
+  ATIVO: 'bg-green-100 text-green-700 border-green-200',
+  PERDENDO: 'bg-amber-100 text-amber-700 border-amber-200',
+  PERDIDO: 'bg-red-100 text-red-700 border-red-200',
+}
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
@@ -10,13 +22,17 @@ export default function ClientsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<ClientStatus | 'TODOS'>('ATIVO')
 
   async function loadClients() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('crm_clients')
-      .select('*')
-      .order('nome', { ascending: true })
+    let query = supabase.from('crm_clients').select('*').order('nome', { ascending: true })
+    
+    if (statusFilter !== 'TODOS') {
+      query = query.eq('status', statusFilter)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error('Error loading clients:', error)
@@ -26,7 +42,7 @@ export default function ClientsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { loadClients() }, [])
+  useEffect(() => { loadClients() }, [statusFilter])
 
   async function deleteClient(id: string) {
     if (!confirm('Excluir este cliente permanentemente?')) return
@@ -39,7 +55,8 @@ export default function ClientsPage() {
   const filteredClients = clients.filter(c => 
     c.nome.toLowerCase().includes(search.toLowerCase()) ||
     c.telefone?.includes(search) ||
-    c.setor?.toLowerCase().includes(search.toLowerCase())
+    c.setor?.toLowerCase().includes(search.toLowerCase()) ||
+    c.cnpj_cpf?.includes(search)
   )
 
   const openWhatsApp = (phone: string) => {
@@ -65,19 +82,31 @@ export default function ClientsPage() {
         </button>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             className="input pl-10" 
-            placeholder="Buscar por nome, telefone ou setor..." 
+            placeholder="Buscar por nome, telefone, CPF ou setor..." 
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <button className="btn-secondary px-3">
-          <Filter size={18} />
-        </button>
+        <div className="flex gap-2 shrink-0">
+          {(['TODOS', 'ATIVO', 'PERDENDO', 'PERDIDO'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                statusFilter === s 
+                  ? 'bg-orange-500 border-orange-600 text-white shadow-sm' 
+                  : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              {s === 'TODOS' ? 'Todos' : STATUS_LABELS[s]}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -90,64 +119,75 @@ export default function ClientsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredClients.map(client => (
-            <div key={client.id} className={`card p-4 transition-all hover:shadow-md group ${!client.ativo ? 'opacity-60 bg-slate-50' : 'bg-white'}`}>
-              <div className="flex items-start justify-between">
+            <div key={client.id} className={`card p-4 transition-all hover:shadow-md group flex flex-col justify-between ${client.status === 'PERDIDO' ? 'opacity-60 bg-slate-50' : 'bg-white'}`}>
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-bold text-slate-800 truncate">{client.nome}</h3>
-                    {!client.ativo && (
-                      <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full uppercase font-bold">Inativo</span>
-                    )}
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-bold text-slate-800 truncate text-sm" title={client.nome}>{client.nome}</h3>
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase border ${STATUS_COLORS[client.status]}`}>
+                      {STATUS_LABELS[client.status]}
+                    </span>
                   </div>
                   
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {client.telefone && (
                       <button 
                         onClick={() => openWhatsApp(client.telefone!)}
                         className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-green-600 transition-colors"
                       >
-                        <Phone size={12} /> {client.telefone}
+                        <Phone size={12} className="shrink-0" /> {client.telefone}
                         <ExternalLink size={10} />
                       </button>
                     )}
                     {client.setor && (
-                      <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <MapPin size={12} /> {client.setor}
+                      <p className="flex items-center gap-1.5 text-xs text-slate-500 truncate">
+                        <MapPin size={12} className="shrink-0" /> {client.setor} {client.rota && `(Rota: ${client.rota})`}
                       </p>
                     )}
-                    <div className="flex items-center gap-2 pt-1">
-                      {client.empresa && (
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      {client.tipo && (
                         <span className="text-[10px] font-bold bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full border border-orange-100">
-                          {client.empresa.toUpperCase()}
+                          {client.tipo}
                         </span>
                       )}
-                      <span className="text-[10px] font-medium text-slate-400">
-                        {client.pedidos_count} pedidos
-                      </span>
+                      {client.pgto && (
+                        <span className="text-[10px] font-medium text-slate-400">
+                          {client.pgto}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button 
                     onClick={() => { setEditingClient(client); setShowModal(true) }}
-                    className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600"
+                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600"
                   >
-                    <Edit2 size={16} />
+                    <Edit2 size={14} />
                   </button>
                   <button 
                     onClick={() => deleteClient(client.id)}
-                    className="p-2 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500"
+                    className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
               
-              {client.observacao && (
-                <p className="text-xs text-slate-400 mt-3 italic line-clamp-1 border-t border-slate-50 pt-2">
-                  "{client.observacao}"
-                </p>
+              {(client.observacoes || client.dia_entrega) && (
+                <div className="mt-3 pt-2 border-t border-slate-50 space-y-1">
+                  {client.dia_entrega && (
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">
+                      Entrega: {client.dia_entrega}
+                    </p>
+                  )}
+                  {client.observacoes && (
+                    <p className="text-[11px] text-slate-400 italic line-clamp-2 leading-relaxed">
+                      "{client.observacoes}"
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           ))}
