@@ -26,11 +26,11 @@ const TABELAS = [
   // Eventos / promotoria
   { nome: 'crm_events',          order: 'event_date', limit: 10000 },
   { nome: 'crm_event_materials', order: 'id',         limit: 10000 },
-  { nome: 'crm_event_staff',     order: 'id',         limit: 10000 },
+  { nome: 'crm_event_staff',     order: 'event_id',   limit: 10000 },
 
   // Tarefas
   { nome: 'crm_tasks',           order: 'id',         limit: 10000 },
-  { nome: 'crm_task_assignees',  order: 'id',         limit: 10000 },
+  { nome: 'crm_task_assignees',  order: 'task_id',    limit: 10000 },
 
   // Equipe / perfis
   { nome: 'crm_staff',           order: 'id',         limit: 10000 },
