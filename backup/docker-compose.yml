@@ -1,0 +1,13 @@
+services:
+  crm-backup:
+    build: .
+    container_name: crm-app-backup
+    restart: always
+    environment:
+      SUPABASE_URL: "https://taicaxtjtikdajmhtsxc.supabase.co"
+      SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhaWNheHRqdGlrZGFqbWh0c3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MjgwNzcsImV4cCI6MjA5MzAwNDA3N30.G923g-1cmjrQZi7EoOcZcP1PieO9AKmk4mMMUgT4hbE"
+      MANTER_DIAS:  "60"
+      TZ:           "America/Sao_Paulo"
+      BACKUP_DIR:   "/backups"
+    volumes:
+      - /volume1/crm-backup/dados:/backups
