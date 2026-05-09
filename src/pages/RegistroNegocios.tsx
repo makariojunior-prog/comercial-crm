@@ -177,7 +177,7 @@ function DealRow({
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Contato</p>
               {deal.contact_phone ? (
-                <a href={`https://wa.me/55${deal.contact_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                <a href={`https://wa.me/${(d => d.startsWith('55') ? d : '55' + d)(deal.contact_phone.replace(/\D/g, ''))}`} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
                   📱 {deal.contact_name} · {deal.contact_phone}
                 </a>

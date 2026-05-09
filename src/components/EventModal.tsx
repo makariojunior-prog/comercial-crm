@@ -250,7 +250,7 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
               {materials.map((m, i) => (
                 <div key={i} className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
                   <input className="input flex-1 py-1 text-sm" value={m.item_name} onChange={e => updateMaterial(i, 'item_name', e.target.value)} placeholder="Item..." />
-                  <input type="number" className="input w-16 py-1 text-sm" value={m.quantity} onChange={e => updateMaterial(i, 'quantity', parseInt(e.target.value))} />
+                  <input type="number" min="1" className="input w-16 py-1 text-sm" value={m.quantity} onChange={e => updateMaterial(i, 'quantity', Math.max(1, parseInt(e.target.value) || 1))} />
                   <button onClick={() => removeMaterial(i)} className="p-1.5 text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
                 </div>
               ))}

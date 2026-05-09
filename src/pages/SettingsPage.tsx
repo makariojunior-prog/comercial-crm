@@ -107,7 +107,8 @@ export default function SettingsPage() {
   }
 
   async function toggleStaffActive(id: string, current: boolean) {
-    await supabase.from('crm_staff').update({ active: !current }).eq('id', id)
+    const { error: err } = await supabase.from('crm_staff').update({ active: !current }).eq('id', id)
+    if (err) setError(err.message)
     loadData()
   }
 

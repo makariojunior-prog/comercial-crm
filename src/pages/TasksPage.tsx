@@ -59,7 +59,7 @@ export default function TasksPage() {
     setLoading(false)
   }
 
-  useEffect(() => { loadTasks() }, [viewAll, user?.id])
+  useEffect(() => { if (user?.id) loadTasks() }, [viewAll, user?.id])
 
   async function toggleStatus(task: Task) {
     const newStatus = task.status === 'PENDENTE' ? 'CONCLUIDA' : 'PENDENTE'

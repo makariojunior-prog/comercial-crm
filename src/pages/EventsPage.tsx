@@ -3,7 +3,7 @@ import { Plus, Search, Calendar, Clock, MapPin, Package, Users, Edit2, Trash2 } 
 import { supabase } from '../lib/supabase'
 import type { Event } from '../types'
 import EventModal from '../components/EventModal'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 export default function EventsPage() {
@@ -51,8 +51,9 @@ export default function EventsPage() {
     e.client_nome?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const upcoming = filtered.filter(e => new Date(e.event_date) >= new Date())
-  const past = filtered.filter(e => new Date(e.event_date) < new Date()).reverse()
+  const today = startOfDay(new Date())
+  const upcoming = filtered.filter(e => startOfDay(parseISO(e.event_date)) >= today)
+  const past = filtered.filter(e => startOfDay(parseISO(e.event_date)) < today).reverse()
 
   return (
     <div className="space-y-6">

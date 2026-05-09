@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, CheckCircle2, User } from 'lucide-react'
+import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, User } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'

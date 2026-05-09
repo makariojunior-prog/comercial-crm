@@ -26,7 +26,11 @@ export default function DashboardEvents() {
     setLoading(false)
   }
 
-  useEffect(() => { loadEvents() }, [])
+  useEffect(() => {
+    loadEvents()
+    const interval = setInterval(loadEvents, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   if (events.length === 0 && !loading) return null
 

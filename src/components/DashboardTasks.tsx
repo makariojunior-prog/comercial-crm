@@ -15,7 +15,7 @@ export default function DashboardTasks() {
   const [selectedPriority, setSelectedPriority] = useState<TaskPriority | null>(null)
 
   async function loadTasks() {
-    if (!user) return
+    if (!user?.id) { setLoading(false); return }
     setLoading(true)
     const { data } = await supabase
       .from('crm_tasks')
@@ -37,8 +37,7 @@ export default function DashboardTasks() {
           user_nome: a.user?.nome || 'Usuário'
         }))
       }))
-      // Filter only tasks where user is assignee
-      const myTasks = formattedTasks.filter((t: any) => 
+      const myTasks = formattedTasks.filter((t: any) =>
         t.assignees.some((a: any) => a.user_id === user.id)
       )
       setTasks(myTasks)
@@ -46,7 +45,7 @@ export default function DashboardTasks() {
     setLoading(false)
   }
 
-  useEffect(() => { loadTasks() }, [user])
+  useEffect(() => { loadTasks() }, [user?.id])
 
   async function toggleStatus(task: Task) {
     const { error } = await supabase
