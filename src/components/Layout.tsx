@@ -91,14 +91,14 @@ export default function Layout() {
         </main>
 
         {/* Bottom nav — mobile */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex z-50 overflow-x-auto">
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex z-50 overflow-x-auto">
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
                 `flex-shrink-0 flex flex-col items-center py-2 px-2 text-xs font-medium transition-colors ${
-                  isActive ? 'text-orange-500' : 'text-slate-500'
+                  isActive ? 'text-orange-500' : 'text-slate-500 dark:text-slate-400'
                 }`
               }
             >

@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import PrivateRoute from './components/PrivateRoute'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
@@ -18,6 +19,7 @@ import NotesPage from './pages/NotesPage'
 
 export default function App() {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <HashRouter>
         <Routes>
@@ -43,5 +45,6 @@ export default function App() {
         </Routes>
       </HashRouter>
     </AuthProvider>
+    </ThemeProvider>
   )
 }
