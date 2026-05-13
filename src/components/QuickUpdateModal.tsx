@@ -79,7 +79,7 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+      <div className="relative bg-white dark:bg-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
 
         {/* Header */}
         <div className="flex items-start justify-between px-5 pt-5 pb-3 shrink-0">
@@ -142,7 +142,7 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
             )}
           </div>
 
-          <div className="border-t border-slate-100" />
+          <div className="border-t border-slate-100 dark:border-slate-700" />
 
           {/* Nova atualização */}
           <div className="space-y-3">
@@ -201,7 +201,7 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-slate-100 shrink-0">
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 shrink-0">
           <button
             onClick={save}
             disabled={saving || !followUp.trim()}

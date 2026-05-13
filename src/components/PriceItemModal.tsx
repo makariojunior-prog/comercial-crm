@@ -80,8 +80,8 @@ export default function PriceItemModal({ item, defaultEmpresa = 'lumar', onClose
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div className="relative bg-white dark:bg-slate-800 w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <h2 className="font-bold text-slate-800">{item ? 'Editar Produto' : 'Novo Produto'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X size={20} /></button>
         </div>
@@ -154,7 +154,7 @@ export default function PriceItemModal({ item, defaultEmpresa = 'lumar', onClose
             <AlertCircle size={14} className="shrink-0" /> {error}
           </div>
         )}
-        <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
           <button onClick={save} disabled={saving || !form.nome.trim()} className="btn-primary flex-1 justify-center">
             {saving ? 'Salvando...' : item ? 'Salvar' : 'Criar Produto'}

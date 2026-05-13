@@ -162,10 +162,10 @@ export default function RouteModal({ route, onClose, onSaved }: Props) {
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-xl rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+      <div className="relative bg-white dark:bg-slate-800 w-full max-w-xl rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <h2 className="font-bold text-slate-800">{route?.id ? 'Editar Rota' : 'Nova Rota Comercial'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
             <X size={20} />
@@ -347,7 +347,7 @@ export default function RouteModal({ route, onClose, onSaved }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center py-3">Cancelar</button>
           <button onClick={save} disabled={saving} className="btn-primary flex-1 justify-center py-3 shadow-md">
             {saving ? 'Salvando...' : route?.id ? 'Salvar Alterações' : 'Criar Rota'}

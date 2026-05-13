@@ -206,10 +206,10 @@ export default function RouteExecutionModal({ route, onClose, onSaved }: Props) 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[94vh]">
+      <div className="relative bg-white dark:bg-slate-800 w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[94vh]">
 
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-100">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="min-w-0">
               <p className="text-xs text-slate-400 uppercase tracking-wider font-bold">Executando Rota</p>
@@ -384,7 +384,7 @@ export default function RouteExecutionModal({ route, onClose, onSaved }: Props) 
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-slate-100 space-y-2">
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 space-y-2">
           {pending > 0 && (
             <p className="text-xs text-center text-slate-400">
               {pending} cliente{pending !== 1 ? 's' : ''} ainda pendente{pending !== 1 ? 's' : ''}. Você pode finalizar mesmo assim.

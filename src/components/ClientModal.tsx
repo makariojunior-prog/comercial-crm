@@ -86,8 +86,8 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div className="relative bg-white dark:bg-slate-800 w-full max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
             <User size={18} className="text-orange-500" />
             {client ? 'Editar Cliente' : 'Novo Cliente'}
@@ -260,7 +260,7 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
           </div>
         )}
 
-        <div className="px-5 py-4 border-t border-slate-100 flex gap-3 bg-slate-50/50">
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3 bg-slate-50/50 dark:bg-slate-800/50">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center py-3">Cancelar</button>
           <button onClick={save} disabled={saving} className="btn-primary flex-1 justify-center gap-2 py-3 shadow-md">
             <Save size={18} /> {saving ? 'Salvando...' : 'Salvar Cliente'}

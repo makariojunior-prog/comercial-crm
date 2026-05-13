@@ -11,6 +11,11 @@
   }
 }
 
+/* ─── Dark mode: flip text colors that lack dark: variants ──── */
+.dark .text-slate-800 { color: rgb(241 245 249) !important; }
+.dark .text-slate-700 { color: rgb(226 232 240) !important; }
+.dark .text-slate-600 { color: rgb(203 213 225) !important; }
+
 /* ─── Print ─────────────────────────────────────────────────── */
 .print-only { display: none; }
 @media print {
