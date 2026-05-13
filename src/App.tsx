@@ -14,6 +14,7 @@ import ClientsPage from './pages/ClientsPage'
 import EventsPage from './pages/EventsPage'
 import SettingsPage from './pages/SettingsPage'
 import RoutesPage from './pages/RoutesPage'
+import NotesPage from './pages/NotesPage'
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="/tarefas"   element={<TasksPage />} />
               <Route path="/clientes"  element={<ClientsPage />} />
               <Route path="/rotas"      element={<RoutesPage />} />
+              <Route path="/notas"      element={<NotesPage />} />
               <Route path="/promotoria" element={<EventsPage />} />
               <Route path="/tabelas"   element={<TabelasPreco />} />
               <Route path="/briefing"  element={<BriefingBI />} />

@@ -42,7 +42,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
           visit_type: visit.visit_type ?? emptyForm.visit_type,
           client_name: visit.client_name,
           contact_name: visit.contact_name ?? '',
-          contact_phone: visit.contact_phone ?? '',
+          contact_phone: visit.contact_phone ? maskPhone(visit.contact_phone) : '',
           responsible: visit.responsible ?? emptyForm.responsible,
           demand: visit.demand ?? '',
           report: visit.report ?? '',

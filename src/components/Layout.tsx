@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut, CheckCircle2, Users, Calendar, Settings, Route } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut, CheckCircle2, Users, Calendar, Settings, Route, StickyNote } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -10,6 +10,7 @@ const baseNavItems = [
   { to: '/tarefas',  icon: CheckCircle2,    label: 'Tarefas' },
   { to: '/clientes', icon: Users,           label: 'Clientes' },
   { to: '/rotas',    icon: Route,           label: 'Rotas' },
+  { to: '/notas',    icon: StickyNote,      label: 'Notas' },
   { to: '/promotoria', icon: Calendar,      label: 'Promotoria' },
   { to: '/tabelas',  icon: DollarSign,      label: 'Tabelas' },
   { to: '/briefing', icon: Sparkles,        label: 'Briefing IA' },

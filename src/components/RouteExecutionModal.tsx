@@ -47,7 +47,7 @@ export default function RouteExecutionModal({ route, onClose, onSaved }: Props) 
   async function startOrResumeExecution() {
     setLoading(true)
 
-    // Check for existing in-progress execution
+    // Check for existing in-progress execution (maybeSingle = null when not found, no error)
     const { data: existing } = await supabase
       .from('crm_route_executions')
       .select('*')
@@ -55,7 +55,7 @@ export default function RouteExecutionModal({ route, onClose, onSaved }: Props) 
       .eq('status', 'EM_ANDAMENTO')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     let exec: RouteExecution
 

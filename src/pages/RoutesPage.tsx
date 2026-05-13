@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Plus, Route, Edit2, Trash2, Play, RefreshCw, Users, Calendar, Repeat, CheckCircle2, Clock, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Route, Edit2, Trash2, Play, RefreshCw, Users, Repeat, CheckCircle2, Clock, ChevronDown, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import type { Route as RouteType, RouteExecution, CrmUser } from '../types'
+import type { Route as RouteType, RouteExecution } from '../types'
 import { ROUTE_DAYS } from '../types'
 import RouteModal from '../components/RouteModal'
 import RouteExecutionModal from '../components/RouteExecutionModal'
@@ -30,10 +30,9 @@ const EXEC_STATUS_LABEL: Record<string, string> = {
 }
 
 export default function RoutesPage() {
-  const { isAdmin, user } = useAuth()
+  const { isAdmin } = useAuth()
   const [routes, setRoutes]             = useState<RouteType[]>([])
   const [executions, setExecutions]     = useState<RouteExecution[]>([])
-  const [users, setUsers]               = useState<CrmUser[]>([])
   const [clientCounts, setClientCounts] = useState<Record<string, number>>({})
   const [loading, setLoading]           = useState(true)
   const [tab, setTab]                   = useState<'routes' | 'history'>('routes')
@@ -45,22 +44,17 @@ export default function RoutesPage() {
   async function load() {
     setLoading(true)
 
-    const [routesRes, usersRes, countRes, execRes] = await Promise.all([
-      supabase
-        .from('crm_routes')
-        .select('*, responsible:crm_users!crm_routes_responsible_id_fkey(nome)')
-        .order('name'),
-      supabase.from('crm_users').select('id, nome').eq('ativo', true),
+    const [routesRes, countRes, execRes] = await Promise.all([
+      supabase.from('crm_routes').select('*, responsible:crm_users(nome)').order('name'),
       supabase.from('crm_route_clients').select('route_id'),
       supabase
         .from('crm_route_executions')
-        .select('*, route:crm_routes(name), executor:crm_users!crm_route_executions_executor_id_fkey(nome)')
+        .select('*, route:crm_routes(name), executor:crm_users(nome)')
         .order('created_at', { ascending: false })
         .limit(50),
     ])
 
     setRoutes((routesRes.data || []) as RouteType[])
-    setUsers((usersRes.data || []) as CrmUser[])
     setExecutions((execRes.data || []) as RouteExecution[])
 
     // Client count per route

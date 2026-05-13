@@ -263,3 +263,37 @@ export const ROUTE_FREQUENCIES = [
   { id: 'quinzenal', label: 'Quinzenal' },
   { id: 'mensal', label: 'Mensal' },
 ] as const
+
+// ─── Notes ─────────────────────────────────────────────────────
+export type NoteColor = 'yellow' | 'green' | 'blue' | 'pink' | 'purple' | 'slate'
+
+export interface Note {
+  id: string
+  author_id: string | null
+  title: string | null
+  content: string
+  color: NoteColor
+  is_pinned: boolean
+  created_at: string
+  updated_at: string
+  author?: { nome: string }
+  mentions?: NoteMention[]
+}
+
+export interface NoteMention {
+  id: string
+  note_id: string
+  user_id: string
+  is_read: boolean
+  created_at: string
+  user?: { nome: string }
+}
+
+export const NOTE_COLORS: Record<NoteColor, { bg: string; border: string; dot: string; label: string }> = {
+  yellow: { bg: 'bg-yellow-50',  border: 'border-yellow-300', dot: 'bg-yellow-400',  label: 'Amarelo' },
+  green:  { bg: 'bg-green-50',   border: 'border-green-300',  dot: 'bg-green-500',   label: 'Verde'   },
+  blue:   { bg: 'bg-blue-50',    border: 'border-blue-300',   dot: 'bg-blue-500',    label: 'Azul'    },
+  pink:   { bg: 'bg-pink-50',    border: 'border-pink-300',   dot: 'bg-pink-400',    label: 'Rosa'    },
+  purple: { bg: 'bg-purple-50',  border: 'border-purple-300', dot: 'bg-purple-500',  label: 'Roxo'    },
+  slate:  { bg: 'bg-slate-50',   border: 'border-slate-300',  dot: 'bg-slate-400',   label: 'Cinza'   },
+}

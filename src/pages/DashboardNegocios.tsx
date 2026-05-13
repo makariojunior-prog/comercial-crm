@@ -3,13 +3,14 @@ import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, User } from 'lucide-
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
-import type { Deal, DealStatus } from '../types'
-import { StatusBadge, PriorityBadge, TypeBadge, isStale, daysSince } from '../components/StatusBadge'
+import type { Deal } from '../types'
+import { PriorityBadge, TypeBadge, isStale, daysSince } from '../components/StatusBadge'
 import QuickUpdateModal from '../components/QuickUpdateModal'
 import DealModal from '../components/DealModal'
 import DashboardTasks from '../components/DashboardTasks'
 import DashboardEvents from '../components/DashboardEvents'
 import RecentVisitsWidget from '../components/RecentVisitsWidget'
+import DashboardNotesWidget from '../components/DashboardNotesWidget'
 
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -67,55 +68,64 @@ export default function DashboardNegocios() {
         <DashboardEvents />
       </div>
 
-      {/* Visitas Recentes em tempo real */}
-      <div className="card p-5">
-        <RecentVisitsWidget />
+      {/* Visitas Recentes + Negócios side-by-side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Visitas Recentes */}
+        <div className="card p-5">
+          <RecentVisitsWidget />
+        </div>
+
+        {/* Negócios */}
+        <div className="card p-5 space-y-4 overflow-hidden">
+          {loadError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700 flex items-center gap-2">
+              <AlertTriangle size={14} /> {loadError}
+              <button onClick={load} className="ml-auto underline">Tentar novamente</button>
+            </div>
+          )}
+
+          {stale.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle size={14} className="text-red-500" />
+                <p className="font-semibold text-red-700 text-xs">{stale.length} negócio{stale.length > 1 ? 's' : ''} sem contato há mais de 7 dias</p>
+              </div>
+              <div className="space-y-1.5">
+                {stale.map(d => (
+                  <AlertDealRow key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {active.length === 0 && !loading && (
+            <div className="py-6 text-center text-slate-400">
+              <TrendingUp size={28} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhum negócio ativo</p>
+              <button onClick={() => setNewDeal(true)} className="btn-primary mt-3 mx-auto">
+                <Plus size={14} /> Criar primeiro negócio
+              </button>
+            </div>
+          )}
+
+          {novo.length > 0 && (
+            <CompactSection title="🔵 Novos" count={novo.length}>
+              {novo.map(d => <DealCard key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />)}
+            </CompactSection>
+          )}
+
+          {emAndamento.length > 0 && (
+            <CompactSection title="🟡 Em Andamento" count={emAndamento.length}>
+              {emAndamento.map(d => <DealCard key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />)}
+            </CompactSection>
+          )}
+        </div>
       </div>
 
-      {loadError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center gap-2">
-          <AlertTriangle size={16} /> Erro ao carregar dados: {loadError}
-          <button onClick={load} className="ml-auto text-xs underline">Tentar novamente</button>
-        </div>
-      )}
-
-      {/* Alertas */}
-      {stale.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={16} className="text-red-500" />
-            <p className="font-semibold text-red-700 text-sm">{stale.length} negócio{stale.length > 1 ? 's' : ''} sem contato há mais de 7 dias</p>
-          </div>
-          <div className="space-y-2">
-            {stale.map(d => (
-              <AlertDealRow key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Ativos por status */}
-      {active.length === 0 && !loading && (
-        <div className="card p-8 text-center text-slate-400">
-          <TrendingUp size={32} className="mx-auto mb-2 opacity-40" />
-          <p>Nenhum negócio ativo</p>
-          <button onClick={() => setNewDeal(true)} className="btn-primary mt-3 mx-auto">
-            <Plus size={16} /> Criar primeiro negócio
-          </button>
-        </div>
-      )}
-
-      {novo.length > 0 && (
-        <Section title="🔵 Novos Negócios" count={novo.length}>
-          {novo.map(d => <DealCard key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />)}
-        </Section>
-      )}
-
-      {emAndamento.length > 0 && (
-        <Section title="🟡 Em Andamento" count={emAndamento.length}>
-          {emAndamento.map(d => <DealCard key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />)}
-        </Section>
-      )}
+      {/* Notas */}
+      <div className="card p-5">
+        <DashboardNotesWidget />
+      </div>
 
       {/* Modals */}
       {quickDeal && (
@@ -128,12 +138,12 @@ export default function DashboardNegocios() {
   )
 }
 
-function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+function CompactSection({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3">
-        <h2 className="font-semibold text-slate-700 text-sm">{title}</h2>
-        <span className="bg-slate-200 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">{count}</span>
+      <div className="flex items-center gap-2 mb-2">
+        <h2 className="font-semibold text-slate-700 text-xs">{title}</h2>
+        <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
       </div>
       <div className="space-y-2">{children}</div>
     </div>
