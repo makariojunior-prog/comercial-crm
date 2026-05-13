@@ -57,7 +57,7 @@ export function daysSince(dateStr: string | null): number {
   return Math.floor(diff / 86400000)
 }
 
-export function isStale(deal: { status: DealStatus | null; last_contact_date: string | null }, threshold = 7): boolean {
+export function isStale(deal: { status: DealStatus | null; last_contact_date: string | null }, threshold = 10): boolean {
   if (deal.status !== 'NOVO' && deal.status !== 'EM ANDAMENTO') return false
   return daysSince(deal.last_contact_date) > threshold
 }

@@ -1,8 +1,57 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench, LayoutGrid, List } from 'lucide-react'
+import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench, LayoutGrid, List, RefreshCw, CloudDownload, CheckCircle2, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
 import ClientModal from '../components/ClientModal'
+
+const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/15ygrVoRh7cd8iVWn0eBXpEz-jBVsOa4jxemmmva2rnA/export?format=csv&gid=338699841'
+
+function normalizeKey(str: string): string {
+  return str.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+const COLUMN_MAP: Record<string, keyof Omit<Client, 'id' | 'created_at' | 'status' | 'pedidos_count'>> = {
+  nome: 'nome', name: 'nome',
+  telefone: 'telefone', fone: 'telefone', celular: 'telefone', phone: 'telefone',
+  cnpj: 'cnpj_cpf', cpf: 'cnpj_cpf', cnpjcpf: 'cnpj_cpf',
+  rota: 'rota',
+  setor: 'setor', bairro: 'setor',
+  pgto: 'pgto', pagamento: 'pgto', formapagamento: 'pgto', formadepagamento: 'pgto',
+  localizacao: 'localizacao', endereco: 'localizacao', local: 'localizacao',
+  observacoes: 'observacoes', obs: 'observacoes', observacao: 'observacoes',
+  diaentrega: 'dia_entrega', entrega: 'dia_entrega',
+  mensagem: 'mensagem', whatsapp: 'mensagem', wa: 'mensagem',
+  bonificacao: 'bonificacao', bonif: 'bonificacao',
+  restricao: 'restricao',
+  tipo: 'tipo',
+  carteira: 'carteira',
+  manutencao: 'manutencao',
+  frequencia: 'frequencia',
+  comodato: 'comodato',
+  valor: 'valor',
+  observacaoextra: 'observacao_extra',
+}
+
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim())
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim())
+  return lines.slice(1).map(line => {
+    const vals: string[] = []
+    let cur = '', inQ = false
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === ',' && !inQ) { vals.push(cur); cur = '' }
+      else cur += ch
+    }
+    vals.push(cur)
+    const obj: Record<string, string> = {}
+    headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').trim() })
+    return obj
+  })
+}
 
 const STATUS_LABELS: Record<ClientStatus, string> = {
   ATIVO: 'Ativo',
@@ -17,13 +66,68 @@ const STATUS_COLORS: Record<ClientStatus, string> = {
 }
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
+  const [clients,       setClients]       = useState<Client[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [showModal,     setShowModal]     = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<ClientStatus | 'TODOS'>('ATIVO')
-  const [viewMode, setViewMode] = useState<'cards' | 'list'>('list')
+  const [search,        setSearch]        = useState('')
+  const [statusFilter,  setStatusFilter]  = useState<ClientStatus | 'TODOS'>('ATIVO')
+  const [viewMode,      setViewMode]      = useState<'cards' | 'list'>('list')
+  const [syncing,       setSyncing]       = useState(false)
+  const [syncMsg,       setSyncMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  async function syncFromSheets() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const res = await fetch(SHEETS_CSV_URL)
+      if (!res.ok) throw new Error(`Erro ao acessar a planilha (${res.status}). Verifique se ela está pública.`)
+      const text = await res.text()
+      const rows = parseCSV(text)
+      if (rows.length === 0) throw new Error('Nenhuma linha encontrada no CSV.')
+
+      // Build existing clients map: normalizedName → id
+      const { data: existing } = await supabase.from('crm_clients').select('id, nome')
+      const nameMap = new Map<string, string>(
+        (existing ?? []).map((c: any) => [normalizeKey(c.nome), c.id])
+      )
+
+      const toInsert: any[] = []
+      const toUpdate: { id: string; data: any }[] = []
+
+      for (const row of rows) {
+        const mapped: any = {}
+        for (const [rawKey, rawVal] of Object.entries(row)) {
+          const field = COLUMN_MAP[normalizeKey(rawKey)]
+          if (field && rawVal) mapped[field] = rawVal
+        }
+        if (!mapped.nome) continue
+        const existingId = nameMap.get(normalizeKey(mapped.nome))
+        if (existingId) {
+          toUpdate.push({ id: existingId, data: mapped })
+        } else {
+          toInsert.push({ ...mapped, status: 'ATIVO' })
+        }
+      }
+
+      let inserted = 0, updated = 0
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('crm_clients').insert(toInsert)
+        if (error) throw error
+        inserted = toInsert.length
+      }
+      for (const { id, data } of toUpdate) {
+        await supabase.from('crm_clients').update(data).eq('id', id)
+      }
+      updated = toUpdate.length
+
+      setSyncMsg({ type: 'ok', text: `Sincronização concluída: ${inserted} novos, ${updated} atualizados.` })
+      loadClients()
+    } catch (err: any) {
+      setSyncMsg({ type: 'err', text: err?.message ?? 'Erro desconhecido na sincronização.' })
+    }
+    setSyncing(false)
+  }
 
   async function loadClients() {
     setLoading(true)
@@ -75,13 +179,22 @@ export default function ClientsPage() {
           </h1>
           <p className="text-sm text-slate-500">Base de dados unificada de clientes Lumar e Cantina</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setViewMode(v => v === 'cards' ? 'list' : 'cards')}
             className="btn-secondary px-3"
             title={viewMode === 'cards' ? 'Ver como tabela' : 'Ver como cards'}
           >
             {viewMode === 'cards' ? <List size={18} /> : <LayoutGrid size={18} />}
+          </button>
+          <button
+            onClick={syncFromSheets}
+            disabled={syncing}
+            className="btn-secondary"
+            title="Sincronizar com planilha CLIENTES LUMAR"
+          >
+            {syncing ? <RefreshCw size={16} className="animate-spin" /> : <CloudDownload size={16} />}
+            <span className="hidden sm:inline">{syncing ? 'Sincronizando...' : 'Sync Planilha'}</span>
           </button>
           <button
             onClick={() => { setEditingClient(null); setShowModal(true) }}
@@ -91,6 +204,18 @@ export default function ClientsPage() {
           </button>
         </div>
       </div>
+
+      {syncMsg && (
+        <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${
+          syncMsg.type === 'ok'
+            ? 'bg-green-50 border border-green-200 text-green-700'
+            : 'bg-red-50 border border-red-200 text-red-700'
+        }`}>
+          {syncMsg.type === 'ok' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+          {syncMsg.text}
+          <button onClick={() => setSyncMsg(null)} className="ml-auto text-xs opacity-60 hover:opacity-100">&times;</button>
+        </div>
+      )}
 
       <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">

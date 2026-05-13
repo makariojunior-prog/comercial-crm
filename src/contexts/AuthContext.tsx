@@ -4,12 +4,28 @@ import { supabase } from '../lib/supabase'
 
 export type UserRole = 'admin' | 'vendedor' | 'leitura'
 
+export const ALL_MODULES = [
+  { id: 'dashboard',  label: 'Dashboard' },
+  { id: 'negocios',   label: 'Negócios' },
+  { id: 'visitas',    label: 'Visitas' },
+  { id: 'tarefas',    label: 'Tarefas' },
+  { id: 'clientes',   label: 'Clientes' },
+  { id: 'rotas',      label: 'Rotas' },
+  { id: 'notas',      label: 'Notas' },
+  { id: 'promotoria', label: 'Promotoria' },
+  { id: 'tabelas',    label: 'Tabelas de Preço' },
+  { id: 'briefing',   label: 'Briefing IA' },
+] as const
+
+export type ModuleId = typeof ALL_MODULES[number]['id']
+
 export interface CrmUser {
   id: string
   nome: string
   email: string
   role: UserRole
   ativo: boolean
+  permissions: string[]
 }
 
 interface AuthContextValue {
@@ -20,6 +36,7 @@ interface AuthContextValue {
   loading: boolean
   isAdmin: boolean
   canEdit: boolean
+  canAccess: (module: ModuleId) => boolean
   signIn: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
 }
@@ -71,9 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = role === 'admin'
   const canEdit = role === 'admin' || role === 'vendedor'
 
+  function canAccess(module: ModuleId): boolean {
+    if (isAdmin) return true
+    const perms = profile?.permissions ?? []
+    return perms.includes(module)
+  }
+
   return (
     <AuthContext.Provider value={{
-      session, user: session?.user ?? null, profile, role, loading, isAdmin, canEdit,
+      session, user: session?.user ?? null, profile, role, loading, isAdmin, canEdit, canAccess,
       signIn, signOut,
     }}>
       {children}

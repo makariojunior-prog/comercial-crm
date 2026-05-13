@@ -88,7 +88,7 @@ export default function DashboardNegocios() {
             <div className="bg-red-50 border border-red-200 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-2">
                 <AlertTriangle size={14} className="text-red-500" />
-                <p className="font-semibold text-red-700 text-xs">{stale.length} negócio{stale.length > 1 ? 's' : ''} sem contato há mais de 7 dias</p>
+                <p className="font-semibold text-red-700 text-xs">{stale.length} negócio{stale.length > 1 ? 's' : ''} sem contato há mais de 10 dias</p>
               </div>
               <div className="space-y-1.5">
                 {stale.map(d => (

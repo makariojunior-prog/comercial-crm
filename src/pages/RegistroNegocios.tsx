@@ -61,7 +61,7 @@ export default function RegistroNegocios() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold text-slate-800">Registro de Negócios</h1>
+        <h1 className="text-xl font-bold text-slate-800">Negócios</h1>
         <div className="flex gap-2">
           <button onClick={() => { try { exportDeals(filtered) } catch { alert('Erro ao exportar Excel') } }} className="btn-secondary text-xs py-1.5" title="Exportar para Excel">
             <Download size={14} /> Excel

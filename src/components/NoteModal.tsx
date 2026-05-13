@@ -143,7 +143,7 @@ export default function NoteModal({ note, defaultMentions = [], onClose, onSaved
 
           {/* Assign to users */}
           <div>
-            <label className="label flex items-center gap-1.5"><Users size={12} /> Notificar colaboradores</label>
+            <label className="label flex items-center gap-1.5"><Users size={12} /> Co-responsáveis / Notificar</label>
             <div className="flex flex-wrap gap-2">
               {users.map(u => {
                 const selected = mentions.includes(u.id)

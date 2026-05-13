@@ -2,26 +2,30 @@ import { Outlet, NavLink } from 'react-router-dom'
 import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut, CheckCircle2, Users, Calendar, Settings, Route, StickyNote } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
+import type { ModuleId } from '../contexts/AuthContext'
 
-const baseNavItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/registro', icon: ClipboardList,   label: 'Registro' },
-  { to: '/visitas',  icon: MapPin,          label: 'Visitas' },
-  { to: '/tarefas',  icon: CheckCircle2,    label: 'Tarefas' },
-  { to: '/clientes', icon: Users,           label: 'Clientes' },
-  { to: '/rotas',    icon: Route,           label: 'Rotas' },
-  { to: '/notas',    icon: StickyNote,      label: 'Notas' },
-  { to: '/promotoria', icon: Calendar,      label: 'Promotoria' },
-  { to: '/tabelas',  icon: DollarSign,      label: 'Tabelas' },
-  { to: '/briefing', icon: Sparkles,        label: 'Briefing IA' },
+const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'admin' }[] = [
+  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard',      module: 'dashboard'  },
+  { to: '/negocios',      icon: ClipboardList,   label: 'Negócios',       module: 'negocios'   },
+  { to: '/visitas',       icon: MapPin,          label: 'Visitas',        module: 'visitas'    },
+  { to: '/tarefas',       icon: CheckCircle2,    label: 'Tarefas',        module: 'tarefas'    },
+  { to: '/clientes',      icon: Users,           label: 'Clientes',       module: 'clientes'   },
+  { to: '/rotas',         icon: Route,           label: 'Rotas',          module: 'rotas'      },
+  { to: '/notas',         icon: StickyNote,      label: 'Notas',          module: 'notas'      },
+  { to: '/promotoria',    icon: Calendar,        label: 'Promotoria',     module: 'promotoria' },
+  { to: '/tabelas',       icon: DollarSign,      label: 'Tabelas',        module: 'tabelas'    },
+  { to: '/briefing',      icon: Sparkles,        label: 'Briefing IA',    module: 'briefing'   },
+  { to: '/usuarios',      icon: ShieldCheck,     label: 'Usuários',       module: 'admin'      },
+  { to: '/configuracoes', icon: Settings,        label: 'Configurações',  module: 'admin'      },
 ]
 
 export default function Layout() {
-  const { profile, isAdmin, signOut } = useAuth()
+  const { profile, isAdmin, canAccess, signOut } = useAuth()
 
-  const navItems = isAdmin
-    ? [...baseNavItems, { to: '/usuarios', icon: ShieldCheck, label: 'Usuários' }, { to: '/configuracoes', icon: Settings, label: 'Configurações' }]
-    : baseNavItems
+  const navItems = NAV_ITEMS.filter(item => {
+    if (item.module === 'admin') return isAdmin
+    return canAccess(item.module as ModuleId)
+  })
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
@@ -87,19 +91,19 @@ export default function Layout() {
         </main>
 
         {/* Bottom nav — mobile */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex z-50">
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex z-50 overflow-x-auto">
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
-                `flex-1 flex flex-col items-center py-2 text-xs font-medium transition-colors ${
+                `flex-shrink-0 flex flex-col items-center py-2 px-2 text-xs font-medium transition-colors ${
                   isActive ? 'text-orange-500' : 'text-slate-500'
                 }`
               }
             >
               <Icon size={20} />
-              <span className="text-[10px] mt-0.5">{label}</span>
+              <span className="text-[10px] mt-0.5 whitespace-nowrap">{label}</span>
             </NavLink>
           ))}
         </nav>
