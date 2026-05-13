@@ -16,6 +16,8 @@ import EventsPage from './pages/EventsPage'
 import SettingsPage from './pages/SettingsPage'
 import RoutesPage from './pages/RoutesPage'
 import NotesPage from './pages/NotesPage'
+import SolicitarAmostras from './pages/SolicitarAmostras'
+import SimularVendas from './pages/SimularVendas'
 
 export default function App() {
   return (
@@ -36,7 +38,9 @@ export default function App() {
               <Route path="/rotas"      element={<RoutesPage />} />
               <Route path="/notas"      element={<NotesPage />} />
               <Route path="/promotoria" element={<EventsPage />} />
-              <Route path="/tabelas"   element={<TabelasPreco />} />
+              <Route path="/tabelas"    element={<TabelasPreco />} />
+              <Route path="/amostras"  element={<SolicitarAmostras />} />
+              <Route path="/simulador" element={<SimularVendas />} />
               <Route path="/briefing"  element={<BriefingBI />} />
               <Route path="/usuarios"  element={<GestaoUsuarios />} />
               <Route path="/configuracoes" element={<SettingsPage />} />

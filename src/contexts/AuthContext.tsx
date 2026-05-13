@@ -14,6 +14,8 @@ export const ALL_MODULES = [
   { id: 'notas',      label: 'Notas' },
   { id: 'promotoria', label: 'Promotoria' },
   { id: 'tabelas',    label: 'Tabelas de Preço' },
+  { id: 'amostras',   label: 'Solicitar Amostras' },
+  { id: 'simulador',  label: 'Simular Vendas' },
   { id: 'briefing',   label: 'Briefing IA' },
 ] as const
 
