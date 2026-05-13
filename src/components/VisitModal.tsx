@@ -11,6 +11,13 @@ interface Props {
   onSaved: () => void
 }
 
+function maskPhone(value: string) {
+  const d = value.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
 const MAX_PHOTOS = 3
 const COMPRESS_OPTIONS = { maxSizeMB: 0.3, maxWidthOrHeight: 1200, useWebWorker: true }
 
@@ -141,7 +148,14 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
             </div>
             <div>
               <label className="label">Telefone</label>
-              <input className="input" value={form.contact_phone} onChange={e => set('contact_phone', e.target.value)} placeholder="(00) 00000-0000" />
+              <input
+                className="input"
+                value={form.contact_phone}
+                onChange={e => set('contact_phone', maskPhone(e.target.value))}
+                placeholder="(00) 00000-0000"
+                maxLength={15}
+                inputMode="numeric"
+              />
             </div>
             <div>
               <label className="label">Responsável</label>

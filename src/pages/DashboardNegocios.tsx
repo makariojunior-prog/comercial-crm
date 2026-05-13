@@ -9,6 +9,7 @@ import QuickUpdateModal from '../components/QuickUpdateModal'
 import DealModal from '../components/DealModal'
 import DashboardTasks from '../components/DashboardTasks'
 import DashboardEvents from '../components/DashboardEvents'
+import RecentVisitsWidget from '../components/RecentVisitsWidget'
 
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -64,6 +65,11 @@ export default function DashboardNegocios() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <DashboardTasks />
         <DashboardEvents />
+      </div>
+
+      {/* Visitas Recentes em tempo real */}
+      <div className="card p-5">
+        <RecentVisitsWidget />
       </div>
 
       {loadError && (

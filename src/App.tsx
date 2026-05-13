@@ -13,6 +13,7 @@ import TasksPage from './pages/TasksPage'
 import ClientsPage from './pages/ClientsPage'
 import EventsPage from './pages/EventsPage'
 import SettingsPage from './pages/SettingsPage'
+import RoutesPage from './pages/RoutesPage'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="/visitas"   element={<DashboardVisitas />} />
               <Route path="/tarefas"   element={<TasksPage />} />
               <Route path="/clientes"  element={<ClientsPage />} />
+              <Route path="/rotas"      element={<RoutesPage />} />
               <Route path="/promotoria" element={<EventsPage />} />
               <Route path="/tabelas"   element={<TabelasPreco />} />
               <Route path="/briefing"  element={<BriefingBI />} />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench } from 'lucide-react'
+import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench, LayoutGrid, List } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
 import ClientModal from '../components/ClientModal'
@@ -23,6 +23,7 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ClientStatus | 'TODOS'>('ATIVO')
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('list')
 
   async function loadClients() {
     setLoading(true)
@@ -74,12 +75,21 @@ export default function ClientsPage() {
           </h1>
           <p className="text-sm text-slate-500">Base de dados unificada de clientes Lumar e Cantina</p>
         </div>
-        <button 
-          onClick={() => { setEditingClient(null); setShowModal(true) }} 
-          className="btn-primary"
-        >
-          <Plus size={18} /> Novo Cliente
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setViewMode(v => v === 'cards' ? 'list' : 'cards')}
+            className="btn-secondary px-3"
+            title={viewMode === 'cards' ? 'Ver como tabela' : 'Ver como cards'}
+          >
+            {viewMode === 'cards' ? <List size={18} /> : <LayoutGrid size={18} />}
+          </button>
+          <button
+            onClick={() => { setEditingClient(null); setShowModal(true) }}
+            className="btn-primary"
+          >
+            <Plus size={18} /> Novo Cliente
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-3">
@@ -116,7 +126,88 @@ export default function ClientsPage() {
           <User size={48} className="mx-auto mb-4 opacity-20" />
           <p>Nenhum cliente encontrado</p>
         </div>
+      ) : viewMode === 'list' ? (
+        /* ── TABLE VIEW ── */
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Nome</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Tipo / Carteira</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider hidden lg:table-cell">Setor / Rota</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Telefone</th>
+                  <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider hidden xl:table-cell">Manutenção</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filteredClients.map(client => (
+                  <tr key={client.id} className={`group hover:bg-slate-50 transition-colors ${client.status === 'PERDIDO' ? 'opacity-60' : ''}`}>
+                    <td className="px-4 py-3 shrink-0">
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase border ${STATUS_COLORS[client.status]}`}>
+                        {STATUS_LABELS[client.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-800 truncate max-w-[200px]" title={client.nome}>{client.nome}</p>
+                        {client.observacoes && (
+                          <p className="text-[10px] text-slate-400 italic truncate max-w-[200px]">{client.observacoes}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {client.tipo && (
+                          <span className="text-[10px] font-bold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">{client.tipo}</span>
+                        )}
+                        {client.carteira && (
+                          <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full border border-blue-100">{client.carteira}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell text-xs text-slate-500">
+                      {client.setor && <span>{client.setor}</span>}
+                      {client.rota && <span className="text-slate-400"> · {client.rota}</span>}
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      {client.telefone ? (
+                        <button
+                          onClick={() => openWhatsApp(client.telefone!)}
+                          className="flex items-center gap-1 text-xs text-slate-600 hover:text-green-600 transition-colors"
+                        >
+                          <Phone size={11} /> {client.telefone}
+                        </button>
+                      ) : <span className="text-slate-300 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3 hidden xl:table-cell text-xs text-slate-500">
+                      {client.manutencao && client.manutencao !== 'INATIVO' ? (
+                        <span className="flex items-center gap-1"><Wrench size={10} /> {client.manutencao}</span>
+                      ) : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => { setEditingClient(client); setShowModal(true) }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600">
+                          <Edit2 size={14} />
+                        </button>
+                        <button onClick={() => deleteClient(client.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-2 border-t border-slate-50 text-xs text-slate-400">
+            {filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''} encontrado{filteredClients.length !== 1 ? 's' : ''}
+          </div>
+        </div>
       ) : (
+        /* ── CARDS VIEW ── */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredClients.map(client => (
             <div key={client.id} className={`card p-4 transition-all hover:shadow-md group flex flex-col justify-between ${client.status === 'PERDIDO' ? 'opacity-60 bg-slate-50' : 'bg-white'}`}>
@@ -128,7 +219,7 @@ export default function ClientsPage() {
                       {STATUS_LABELS[client.status]}
                     </span>
                   </div>
-                  
+
                   <div className="space-y-1">
                     {client.telefone && (
                       <button
@@ -173,13 +264,13 @@ export default function ClientsPage() {
                 </div>
 
                 <div className="flex shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
+                  <button
                     onClick={() => { setEditingClient(client); setShowModal(true) }}
                     className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600"
                   >
                     <Edit2 size={14} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => deleteClient(client.id)}
                     className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500"
                   >
@@ -187,7 +278,7 @@ export default function ClientsPage() {
                   </button>
                 </div>
               </div>
-              
+
               {(client.observacoes || client.dia_entrega) && (
                 <div className="mt-3 pt-2 border-t border-slate-50 space-y-1">
                   {client.dia_entrega && (

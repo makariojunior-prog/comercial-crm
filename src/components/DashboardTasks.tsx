@@ -17,31 +17,25 @@ export default function DashboardTasks() {
   async function loadTasks() {
     if (!user?.id) { setLoading(false); return }
     setLoading(true)
+
+    // Step 1: get task IDs assigned to the current user
+    const { data: assignments } = await supabase
+      .from('crm_task_assignees')
+      .select('task_id')
+      .eq('user_id', user.id)
+
+    const taskIds = (assignments || []).map((a: any) => a.task_id)
+    if (!taskIds.length) { setTasks([]); setLoading(false); return }
+
+    // Step 2: get those pending tasks
     const { data } = await supabase
       .from('crm_tasks')
-      .select(`
-        *,
-        assignees:crm_task_assignees(
-          user_id,
-          user:crm_users(nome)
-        )
-      `)
+      .select('*')
+      .in('id', taskIds)
       .eq('status', 'PENDENTE')
       .order('created_at', { ascending: false })
 
-    if (data) {
-      const formattedTasks = data.map((t: any) => ({
-        ...t,
-        assignees: t.assignees.map((a: any) => ({
-          user_id: a.user_id,
-          user_nome: a.user?.nome || 'Usuário'
-        }))
-      }))
-      const myTasks = formattedTasks.filter((t: any) =>
-        t.assignees.some((a: any) => a.user_id === user.id)
-      )
-      setTasks(myTasks)
-    }
+    setTasks((data || []) as Task[])
     setLoading(false)
   }
 

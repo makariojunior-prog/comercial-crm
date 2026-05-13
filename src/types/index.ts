@@ -190,3 +190,76 @@ export const TASK_PRIORITIES: Record<TaskPriority, TaskPriorityInfo> = {
   URGENTE_NAO_IMPORTANTE: { id: 'URGENTE_NAO_IMPORTANTE', label: 'Urgente (Não Importante)', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100' },
   NAO_URGENTE_NAO_IMPORTANTE: { id: 'NAO_URGENTE_NAO_IMPORTANTE', label: 'Não Urgente & Não Importante', color: 'text-slate-600', bg: 'bg-slate-50 border-slate-100' },
 }
+
+// ─── Routes ────────────────────────────────────────────────────
+export interface Route {
+  id: string
+  name: string
+  description: string | null
+  responsible_id: string | null
+  days_of_week: string[]
+  frequency: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  responsible?: { nome: string }
+  clients_count?: number
+}
+
+export interface RouteClient {
+  id: string
+  route_id: string
+  client_id: string
+  visit_order: number
+  observations: string | null
+  created_at: string
+  client?: { id: string; nome: string; telefone: string | null; setor: string | null }
+}
+
+export type RouteExecutionStatus = 'AGENDADA' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'CANCELADA'
+export type RouteClientCheckStatus = 'PENDENTE' | 'VISITADO' | 'PULADO'
+
+export interface RouteExecution {
+  id: string
+  route_id: string
+  executor_id: string | null
+  scheduled_date: string | null
+  started_at: string | null
+  completed_at: string | null
+  status: RouteExecutionStatus
+  notes: string | null
+  created_at: string
+  route?: { name: string }
+  executor?: { nome: string }
+  checks?: RouteClientCheck[]
+}
+
+export interface RouteClientCheck {
+  id: string
+  execution_id: string
+  route_client_id: string
+  client_id: string | null
+  client_name: string | null
+  checked_at: string | null
+  report: string | null
+  demand: string | null
+  priority: string
+  status: RouteClientCheckStatus
+  visit_id: string | null
+  created_at: string
+}
+
+export const ROUTE_DAYS = [
+  { id: 'seg', label: 'Seg' },
+  { id: 'ter', label: 'Ter' },
+  { id: 'qua', label: 'Qua' },
+  { id: 'qui', label: 'Qui' },
+  { id: 'sex', label: 'Sex' },
+  { id: 'sab', label: 'Sáb' },
+] as const
+
+export const ROUTE_FREQUENCIES = [
+  { id: 'semanal', label: 'Semanal' },
+  { id: 'quinzenal', label: 'Quinzenal' },
+  { id: 'mensal', label: 'Mensal' },
+] as const

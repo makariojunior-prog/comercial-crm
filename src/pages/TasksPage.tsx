@@ -19,43 +19,37 @@ export default function TasksPage() {
 
   async function loadTasks() {
     setLoading(true)
-    let query = supabase
-      .from('crm_tasks')
-      .select(`
-        *,
-        assignees:crm_task_assignees(
-          user_id,
-          user:crm_users(nome)
-        )
-      `)
-      .order('created_at', { ascending: false })
 
-    // If not admin or if admin wants to see only their own
-    if (!isAdmin || !viewAll) {
-      // Note: This is complex with many-to-many in client side filter for now
-      // since Supabase doesn't easily filter by subtable value in a simple select
+    // Parallel fetch: tasks + assignee links + user names
+    const [tasksRes, assigneesRes, usersRes] = await Promise.all([
+      supabase.from('crm_tasks').select('*').order('created_at', { ascending: false }),
+      supabase.from('crm_task_assignees').select('task_id, user_id'),
+      supabase.from('crm_users').select('id, nome'),
+    ])
+
+    if (tasksRes.error) {
+      console.error('Error loading tasks:', tasksRes.error)
+      setLoading(false)
+      return
     }
 
-    const { data, error } = await query
+    const usersMap: Record<string, string> = Object.fromEntries(
+      (usersRes.data || []).map((u: any) => [u.id, u.nome])
+    )
+    const allAssignees = assigneesRes.data || []
 
-    if (error) {
-      console.error('Error loading tasks:', error)
-    } else {
-      const formattedTasks = data.map((t: any) => ({
-        ...t,
-        assignees: t.assignees.map((a: any) => ({
-          user_id: a.user_id,
-          user_nome: a.user?.nome || 'Usuário'
-        }))
-      }))
+    const formattedTasks = (tasksRes.data || []).map((t: any) => ({
+      ...t,
+      assignees: allAssignees
+        .filter((a: any) => a.task_id === t.id)
+        .map((a: any) => ({ user_id: a.user_id, user_nome: usersMap[a.user_id] || 'Usuário' })),
+    }))
 
-      // Filter locally for simplicity and reliability
-      const filteredByOwnership = (!isAdmin || !viewAll)
-        ? formattedTasks.filter((t: Task) => t.assignees?.some((a: { user_id: string }) => a.user_id === user?.id))
-        : formattedTasks
+    const filtered = (!isAdmin || !viewAll)
+      ? formattedTasks.filter((t: Task) => t.assignees?.some((a) => a.user_id === user?.id))
+      : formattedTasks
 
-      setTasks(filteredByOwnership)
-    }
+    setTasks(filtered)
     setLoading(false)
   }
 
