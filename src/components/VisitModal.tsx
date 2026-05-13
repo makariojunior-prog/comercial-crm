@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react'
-import { X, AlertCircle, Camera, Trash2, ImagePlus, Loader2 } from 'lucide-react'
+import { useRef, useState, useEffect } from 'react'
+import { X, AlertCircle, Camera, Trash2, Loader2, Users } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
 import { supabase } from '../lib/supabase'
 import type { Visit } from '../types'
-import { RESPONSAVEIS, VISIT_TYPES, VISIT_STATUS } from '../types'
+import { VISIT_TYPES, VISIT_STATUS } from '../types'
 
 interface Props {
   visit?: Visit | null
@@ -22,43 +22,64 @@ const MAX_PHOTOS = 3
 const COMPRESS_OPTIONS = { maxSizeMB: 0.3, maxWidthOrHeight: 1200, useWebWorker: true }
 
 const emptyForm = {
-  visit_date: new Date().toISOString().split('T')[0],
-  visit_type: 'Prospecção',
-  client_name: '',
-  contact_name: '',
+  visit_date:    new Date().toISOString().split('T')[0],
+  visit_type:    'Prospecção',
+  client_name:   '',
+  contact_name:  '',
   contact_phone: '',
-  responsible: 'MAKÁRIO',
-  demand: '',
-  report: '',
-  priority: 'MÉDIA',
-  status: 'Realizada',
+  demand:        '',
+  report:        '',
+  priority:      'MÉDIA',
+  status:        'Realizada',
 }
 
 export default function VisitModal({ visit, onClose, onSaved }: Props) {
   const [form, setForm] = useState(
-    visit
-      ? {
-          visit_date: visit.visit_date ?? emptyForm.visit_date,
-          visit_type: visit.visit_type ?? emptyForm.visit_type,
-          client_name: visit.client_name,
-          contact_name: visit.contact_name ?? '',
-          contact_phone: visit.contact_phone ? maskPhone(visit.contact_phone) : '',
-          responsible: visit.responsible ?? emptyForm.responsible,
-          demand: visit.demand ?? '',
-          report: visit.report ?? '',
-          priority: visit.priority ?? emptyForm.priority,
-          status: visit.status ?? emptyForm.status,
-        }
-      : emptyForm
+    visit ? {
+      visit_date:    visit.visit_date    ?? emptyForm.visit_date,
+      visit_type:    visit.visit_type    ?? emptyForm.visit_type,
+      client_name:   visit.client_name,
+      contact_name:  visit.contact_name  ?? '',
+      contact_phone: visit.contact_phone ? maskPhone(visit.contact_phone) : '',
+      demand:        visit.demand        ?? '',
+      report:        visit.report        ?? '',
+      priority:      visit.priority      ?? emptyForm.priority,
+      status:        visit.status        ?? emptyForm.status,
+    } : emptyForm
   )
-  const [photos, setPhotos] = useState<string[]>(visit?.photo_urls ?? [])
-  const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+
+  const initResponsaveis = (): string[] => {
+    if (visit?.responsaveis?.length) return visit.responsaveis
+    if (visit?.responsible) return [visit.responsible]
+    return []
+  }
+  const [responsaveis,  setResponsaveis]  = useState<string[]>(initResponsaveis)
+  const [staffOptions,  setStaffOptions]  = useState<string[]>([])
+  const [photos,        setPhotos]        = useState<string[]>(visit?.photo_urls ?? [])
+  const [saving,        setSaving]        = useState(false)
+  const [uploading,     setUploading]     = useState(false)
+  const [error,         setError]         = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    supabase
+      .from('crm_staff')
+      .select('name')
+      .eq('active', true)
+      .order('name')
+      .then(({ data }) => {
+        if (data) setStaffOptions(data.map((s: any) => s.name as string))
+      })
+  }, [])
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
+  }
+
+  function toggleResp(name: string) {
+    setResponsaveis(prev =>
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    )
   }
 
   async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -82,7 +103,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
         if (upErr) { setError('Erro no upload: ' + upErr.message); break }
         const { data: { publicUrl } } = supabase.storage.from('visit-photos').getPublicUrl(data.path)
         setPhotos(prev => [...prev, publicUrl])
-      } catch (err) {
+      } catch {
         setError('Erro ao processar foto')
         break
       }
@@ -98,18 +119,19 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
   }
 
   async function save() {
-    if (!form.client_name.trim()) return
+    if (!form.client_name.trim()) return setError('Nome do cliente é obrigatório')
     setSaving(true)
     setError(null)
-    const payload = { ...form, photo_urls: photos }
+    const payload = {
+      ...form,
+      responsible:  responsaveis[0] ?? null,
+      responsaveis: responsaveis,
+      photo_urls:   photos,
+    }
     const { error: err } = visit
       ? await supabase.from('visits').update(payload).eq('id', visit.id)
       : await supabase.from('visits').insert(payload)
-    if (err) {
-      setError('Erro ao salvar: ' + err.message)
-      setSaving(false)
-      return
-    }
+    if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
     setSaving(false)
     onSaved()
     onClose()
@@ -158,24 +180,10 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
               />
             </div>
             <div>
-              <label className="label">Responsável</label>
-              <select className="input" value={form.responsible} onChange={e => set('responsible', e.target.value)}>
-                {RESPONSAVEIS.map(r => <option key={r}>{r}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="label">Status</label>
               <select className="input" value={form.status} onChange={e => set('status', e.target.value)}>
                 {VISIT_STATUS.map(s => <option key={s}>{s}</option>)}
               </select>
-            </div>
-            <div className="col-span-2">
-              <label className="label">Demanda / Objetivo</label>
-              <input className="input" value={form.demand} onChange={e => set('demand', e.target.value)} placeholder="O que foi buscar nessa visita?" />
-            </div>
-            <div className="col-span-2">
-              <label className="label">Relatório</label>
-              <textarea className="input resize-none" rows={3} value={form.report} onChange={e => set('report', e.target.value)} placeholder="O que aconteceu? Resultados, próximos passos..." />
             </div>
             <div>
               <label className="label">Prioridade</label>
@@ -183,6 +191,52 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
                 {['ALTA', 'MÉDIA', 'BAIXA'].map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Responsáveis multi-select */}
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <Users size={13} /> Responsáveis
+            </label>
+            {staffOptions.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">
+                Carregando equipe… Cadastre membros em Usuários &gt; Equipe.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {staffOptions.map(name => {
+                  const sel = responsaveis.includes(name)
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => toggleResp(name)}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                        sel
+                          ? 'bg-orange-500 border-orange-600 text-white shadow-sm'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                      }`}
+                    >
+                      {sel ? '✓ ' : ''}{name}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {responsaveis.length > 0 && (
+              <p className="text-[10px] text-slate-400 mt-1.5">
+                {responsaveis.length} selecionado(s): {responsaveis.join(', ')}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="label">Demanda / Objetivo</label>
+            <input className="input" value={form.demand} onChange={e => set('demand', e.target.value)} placeholder="O que foi buscar nessa visita?" />
+          </div>
+          <div>
+            <label className="label">Relatório</label>
+            <textarea className="input resize-none" rows={3} value={form.report} onChange={e => set('report', e.target.value)} placeholder="O que aconteceu? Resultados, próximos passos..." />
           </div>
 
           {/* Fotos */}
@@ -200,7 +254,6 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
                   </button>
                 </div>
               ))}
-
               {photos.length < MAX_PHOTOS && (
                 <button
                   type="button"
@@ -215,7 +268,6 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
                 </button>
               )}
             </div>
-
             <input
               ref={fileInputRef}
               type="file"
@@ -225,9 +277,8 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
               className="hidden"
               onChange={handlePhotoSelect}
             />
-
             <p className="text-[11px] text-slate-400 mt-1.5">
-              No celular abre a câmera automaticamente · max {MAX_PHOTOS} fotos · comprimidas antes do envio
+              No celular abre a câmera · max {MAX_PHOTOS} fotos · comprimidas antes do envio
             </p>
           </div>
         </div>

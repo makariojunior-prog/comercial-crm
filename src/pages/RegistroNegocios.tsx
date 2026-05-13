@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import { exportDeals } from '../lib/export'
 import type { Deal, DealStatus } from '../types'
+import { getResponsaveis } from '../types'
 import { StatusBadge, PriorityBadge, TypeBadge } from '../components/StatusBadge'
 import DealModal from '../components/DealModal'
 import QuickUpdateModal from '../components/QuickUpdateModal'
@@ -40,7 +41,9 @@ export default function RegistroNegocios() {
     setDeals(d => d.filter(x => x.id !== id))
   }
 
-  const responsaveis = [ALL, ...Array.from(new Set(deals.map(d => d.responsible).filter(Boolean) as string[]))]
+  const responsaveis = [ALL, ...Array.from(new Set(
+    deals.flatMap(d => d.responsaveis?.length ? d.responsaveis : (d.responsible ? [d.responsible] : []))
+  ))]
   const types = [ALL, ...Array.from(new Set(deals.map(d => d.deal_type).filter(Boolean) as string[]))]
   const statuses = [ALL, 'NOVO', 'EM ANDAMENTO', 'SUCESSO', 'DESISTIU', 'CANCELADO']
 
@@ -52,7 +55,8 @@ export default function RegistroNegocios() {
       (d.follow_up ?? '').toLowerCase().includes(q) ||
       (d.interest ?? '').toLowerCase().includes(q)
     const matchStatus = filterStatus === ALL || d.status === filterStatus
-    const matchResp = filterResp === ALL || d.responsible === filterResp
+    const respArr = d.responsaveis?.length ? d.responsaveis : (d.responsible ? [d.responsible] : [])
+    const matchResp = filterResp === ALL || respArr.includes(filterResp)
     const matchType = filterType === ALL || d.deal_type === filterType
     return matchSearch && matchStatus && matchResp && matchType
   })
@@ -162,7 +166,7 @@ function DealRow({
           </div>
           <p className="font-semibold text-slate-800">{deal.client_name}</p>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
-            <span>{deal.responsible}</span>
+            {getResponsaveis(deal) && <span>{getResponsaveis(deal)}</span>}
             <span>Início: {startDate}</span>
             <span>Contato: {lastContact}</span>
           </div>

@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import { exportVisits } from '../lib/export'
 import type { Visit } from '../types'
+import { getResponsaveis } from '../types'
 import VisitModal from '../components/VisitModal'
 
 const statusColor: Record<string, string> = {
@@ -59,7 +60,7 @@ export default function DashboardVisitas() {
     if (!search) return true
     const q = search.toLowerCase()
     return v.client_name.toLowerCase().includes(q) ||
-      (v.responsible ?? '').toLowerCase().includes(q) ||
+      getResponsaveis(v).toLowerCase().includes(q) ||
       (v.report ?? '').toLowerCase().includes(q) ||
       (v.demand ?? '').toLowerCase().includes(q)
   })
@@ -159,7 +160,7 @@ function VisitCard({ visit, onEdit, onDelete }: { visit: Visit; onEdit: () => vo
           <p className="font-semibold text-slate-800">{visit.client_name}</p>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
             <span>{dateStr}</span>
-            <span>{visit.responsible}</span>
+            {getResponsaveis(visit) && <span>{getResponsaveis(visit)}</span>}
             {visit.photo_urls && visit.photo_urls.length > 0 && (
               <span className="inline-flex items-center gap-1 text-slate-400">
                 <Camera size={11} /> {visit.photo_urls.length}

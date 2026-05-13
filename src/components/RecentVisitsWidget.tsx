@@ -5,6 +5,7 @@ import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
 import type { Visit } from '../types'
+import { getResponsaveis } from '../types'
 
 const TYPE_COLORS: Record<string, string> = {
   'Prospecção':    'bg-blue-100 text-blue-700',
@@ -116,12 +117,12 @@ export default function RecentVisitsWidget() {
                         {v.report}
                       </p>
                     )}
-                    <div className="flex items-center gap-2 mt-1">
-                      {v.responsible && (
-                        <span className="text-[10px] font-bold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">
-                          {v.responsible}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {getResponsaveis(v).split(', ').filter(Boolean).map(name => (
+                        <span key={name} className="text-[10px] font-bold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">
+                          {name}
                         </span>
-                      )}
+                      ))}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 text-[10px] text-slate-400">

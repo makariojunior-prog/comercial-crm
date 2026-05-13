@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { Deal } from '../types'
+import { getResponsaveis } from '../types'
 import { PriorityBadge, TypeBadge, isStale, daysSince } from '../components/StatusBadge'
 import QuickUpdateModal from '../components/QuickUpdateModal'
 import DealModal from '../components/DealModal'
@@ -159,7 +160,7 @@ function AlertDealRow({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) 
     >
       <div className="min-w-0">
         <p className="font-medium text-sm text-slate-800 truncate">{deal.client_name}</p>
-        <p className="text-xs text-red-500">{days} dias sem contato · {deal.responsible}</p>
+        <p className="text-xs text-red-500">{days} dias sem contato · {getResponsaveis(deal)}</p>
       </div>
       <span className="text-xs text-orange-500 font-semibold shrink-0 ml-3">Toque para atualizar →</span>
     </button>
@@ -193,9 +194,9 @@ function DealCard({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
             <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 italic">"{deal.follow_up}"</p>
           )}
           <div className="flex items-center justify-between mt-2 gap-2">
-            {deal.responsible && (
+            {getResponsaveis(deal) && (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full border border-orange-100 shrink-0">
-                <User size={10} /> {deal.responsible}
+                <User size={10} /> {getResponsaveis(deal)}
               </span>
             )}
             <div className="flex items-center gap-2 ml-auto">

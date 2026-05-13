@@ -9,6 +9,7 @@ export interface Deal {
   contact_phone: string | null
   deal_type: string | null
   responsible: string | null
+  responsaveis: string[] | null
   interest: string | null
   last_contact_date: string | null
   status: DealStatus | null
@@ -27,12 +28,19 @@ export interface Visit {
   contact_name: string | null
   contact_phone: string | null
   responsible: string | null
+  responsaveis: string[] | null
   demand: string | null
   report: string | null
   priority: string | null
   status: string | null
   photo_urls: string[] | null
   created_at: string
+}
+
+export function getResponsaveis(r: { responsible: string | null; responsaveis: string[] | null }): string {
+  const arr = r.responsaveis?.filter(Boolean) ?? []
+  if (arr.length > 0) return arr.join(', ')
+  return r.responsible ?? ''
 }
 
 export interface TaskPriorityInfo {
