@@ -39,18 +39,31 @@ function rotaSort(r: string | null): number {
   return m ? parseInt(m[0]) : 999
 }
 
+function statusPriority(s: string | null): number {
+  if (s === '⚠️') return 0
+  if (s === '🛵') return 1
+  if (s === '✅') return 2
+  if (s === '❌') return 3
+  return 4
+}
+
 function sortForDashboard(orders: VarejoPedido[]): VarejoPedido[] {
   return [...orders].sort((a, b) => {
-    // Rota numericamente
+    // Primary: Rota numericamente (rota_definida ou sugestao_rota)
     const rd = rotaSort(a.rota_definida || a.sugestao_rota) - rotaSort(b.rota_definida || b.sugestao_rota)
     if (rd !== 0) return rd
-    // ⚠️ primeiro
+    // Secondary: Entregador alfabético (null/missing → last via sentinel)
+    const ae = a.entregador ?? '￿'
+    const be = b.entregador ?? '￿'
+    const ed = ae.localeCompare(be, 'pt-BR')
+    if (ed !== 0) return ed
+    // Tertiary: Status icon priority (⚠️=0, 🛵=1, ✅=2, ❌=3, null=4)
+    const sd = statusPriority(a.status_icon) - statusPriority(b.status_icon)
+    if (sd !== 0) return sd
+    // Quaternary: Flag restrição priority (⚠️ primeiro)
     const fd = flagPriority(a.flag_restricao) - flagPriority(b.flag_restricao)
     if (fd !== 0) return fd
-    // Com entregador antes dos sem entregador
-    const ed = (a.entregador ? 0 : 1) - (b.entregador ? 0 : 1)
-    if (ed !== 0) return ed
-    // Bairro alfabético
+    // Final: Bairro alfabético
     return (a.bairro ?? '').localeCompare(b.bairro ?? '', 'pt-BR')
   })
 }
@@ -153,6 +166,19 @@ function TurnoGroup({ turno, pedidos, onEdit }: {
   const emRota    = sorted.filter(p => p.status_icon === '🛵').length
   const restantes = sorted.length - entregues
 
+  // Build consecutive groups by entregador
+  const groups: { entregador: string | null; items: VarejoPedido[] }[] = []
+  for (const p of sorted) {
+    const last = groups[groups.length - 1]
+    if (last && last.entregador === (p.entregador ?? null)) {
+      last.items.push(p)
+    } else {
+      groups.push({ entregador: p.entregador ?? null, items: [p] })
+    }
+  }
+
+  const showDividers = groups.length > 1
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-2 sticky top-0 bg-white dark:bg-slate-900 py-1 z-10">
@@ -163,7 +189,20 @@ function TurnoGroup({ turno, pedidos, onEdit }: {
         {restantes < sorted.length && <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${(entregues / sorted.length) * 100}%` }} /></div>}
       </div>
       <div className="space-y-1.5">
-        {sorted.map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
+        {groups.map((g, gi) => (
+          <div key={`${g.entregador ?? '_none_'}-${gi}`} className="space-y-1.5">
+            {showDividers && (
+              <div className="flex items-center gap-2 my-1.5">
+                <div className="h-px bg-slate-100 dark:bg-slate-700 flex-1" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide whitespace-nowrap">
+                  {g.entregador ? `👤 ${g.entregador} · ${g.items.length}` : `⏳ Sem entregador · ${g.items.length}`}
+                </span>
+                <div className="h-px bg-slate-100 dark:bg-slate-700 flex-1" />
+              </div>
+            )}
+            {g.items.map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -399,9 +438,12 @@ async function syncFromSheets(): Promise<number> {
     })
     .map(row => {
       const dataISO = parseDateBR(row[0])
+      const MAX_FUTURE_DAYS = 60
+      const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + MAX_FUTURE_DAYS)
+      const dateValid = !dataISO || new Date(dataISO) <= maxDate
       return {
         num_pedido:           String(row[3]  ?? '').trim(),
-        data_entrega:         dataISO,
+        data_entrega:         dateValid ? dataISO : null,
         status_icon:          String(row[1]  ?? '').trim() || '⚠️',
         marcador:             String(row[2]  ?? '').trim() || null,
         cliente:              String(row[4]  ?? '').trim() || null,
@@ -419,7 +461,7 @@ async function syncFromSheets(): Promise<number> {
         telefone:             String(row[17] ?? '').replace(/\D/g, '') || null,
         endereco_completo:    String(row[19] ?? '').trim() || null,
         complemento:          String(row[20] ?? '').trim() || null,
-        data_entrega_definida: !!(dataISO && String(row[6] ?? '').trim()),
+        data_entrega_definida: !!(dateValid && dataISO && String(row[6] ?? '').trim()),
         source: 'sync',
       }
     })
@@ -477,6 +519,25 @@ export default function VarejoPage() {
   }, [selectedDate, tomorrow])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-navigate to most recent date with data (runs once on mount)
+  useEffect(() => {
+    (async () => {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const { data: result } = await supabase
+        .from('varejo_pedidos')
+        .select('data_entrega')
+        .not('data_entrega', 'is', null)
+        .lte('data_entrega', today)
+        .order('data_entrega', { ascending: false })
+        .limit(1)
+        .single()
+      if (result?.data_entrega && result.data_entrega < today) {
+        setSelectedDate(result.data_entrega)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Realtime
   useEffect(() => {
