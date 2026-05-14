@@ -392,7 +392,7 @@ async function syncFromSheets(): Promise<number> {
     return null
   }
 
-  const records = rows
+  const mapped = rows
     .filter(row => String(row[3] ?? '').trim())
     .map(row => {
       const dataISO = parseDateBR(row[0])
@@ -420,6 +420,11 @@ async function syncFromSheets(): Promise<number> {
         source: 'sync',
       }
     })
+
+  // Deduplica por num_pedido mantendo a última ocorrência (mais recente na planilha)
+  const seen = new Map<string, typeof mapped[0]>()
+  for (const r of mapped) seen.set(r.num_pedido, r)
+  const records = Array.from(seen.values())
 
   const BATCH = 200
   let synced = 0
