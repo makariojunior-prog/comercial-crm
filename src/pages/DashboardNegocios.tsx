@@ -12,6 +12,7 @@ import DashboardTasks from '../components/DashboardTasks'
 import DashboardEvents from '../components/DashboardEvents'
 import RecentVisitsWidget from '../components/RecentVisitsWidget'
 import DashboardNotesWidget from '../components/DashboardNotesWidget'
+import VehicleAlertsWidget from '../components/VehicleAlertsWidget'
 
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -127,6 +128,9 @@ export default function DashboardNegocios() {
       <div className="card p-5">
         <DashboardNotesWidget />
       </div>
+
+      {/* Alertas de Frota */}
+      <VehicleAlertsWidget />
 
       {/* Modals */}
       {quickDeal && (

@@ -186,6 +186,84 @@ export interface Role {
 
 export type { CrmUser, UserRole } from '../contexts/AuthContext'
 
+// ─── Logística ─────────────────────────────────────────────────
+export type VehicleTipo = 'Carro' | 'Van' | 'Moto' | 'Caminhão' | 'Utilitário' | 'Outro'
+export type VehicleCombustivel = 'Gasolina' | 'Etanol' | 'Flex' | 'Diesel' | 'Elétrico' | 'GNV'
+export type CnhCategoria = 'A' | 'B' | 'AB' | 'C' | 'D' | 'E' | 'ACC'
+export type DocExpiryStatus = 'ok' | 'warning' | 'danger' | 'expired'
+
+export interface Driver {
+  id: string
+  nome: string
+  telefone: string | null
+  cpf: string | null
+  cnh_numero: string | null
+  cnh_categoria: CnhCategoria | null
+  cnh_vencimento: string | null
+  ativo: boolean
+  created_at: string
+}
+
+export interface Vehicle {
+  id: string
+  empresa: 'lumar' | 'cantina'
+  apelido: string
+  tipo: VehicleTipo | null
+  marca_modelo: string | null
+  ano: number | null
+  placa: string | null
+  cor: string | null
+  combustivel: VehicleCombustivel | null
+  tanque_litros: number | null
+  driver_id: string | null
+  driver?: Driver | null
+  venc_seguro: string | null
+  seguradora: string | null
+  contato_seguradora: string | null
+  venc_ipva: string | null
+  documentacao: string | null
+  km_atual: number | null
+  proxima_revisao_km: number | null
+  tem_rastreamento: boolean
+  velotrack_device_id: number | null
+  ativo: boolean
+  created_at: string
+}
+
+export interface VelotrackPosition {
+  iddevice: number
+  vehicle_code: string
+  latitude: string
+  longitude: string
+  description: string
+  driver: string
+  command_date: string
+  connected: boolean
+  odometer: number
+  address: string
+  offline_hours: number
+  interest_point: string
+  map_icon: string
+}
+
+export function docExpiryStatus(dateStr: string | null): DocExpiryStatus | null {
+  if (!dateStr) return null
+  const days = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000)
+  if (days < 0)  return 'expired'
+  if (days <= 14) return 'danger'
+  if (days <= 60) return 'warning'
+  return 'ok'
+}
+
+export function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000)
+}
+
+export const VEHICLE_TIPOS: VehicleTipo[] = ['Carro', 'Van', 'Moto', 'Caminhão', 'Utilitário', 'Outro']
+export const VEHICLE_COMBUSTIVEIS: VehicleCombustivel[] = ['Gasolina', 'Etanol', 'Flex', 'Diesel', 'Elétrico', 'GNV']
+export const CNH_CATEGORIAS: CnhCategoria[] = ['A', 'B', 'AB', 'C', 'D', 'E', 'ACC']
+
 export const DEAL_TYPES = ['CANTINA REVENDA', 'LUMAR', 'LUMAR / CANTINA'] as const
 export const RESPONSAVEIS = ['MAKÁRIO', 'TIAGO', 'BRUNA', 'MAKÁRIO/TIAGO', 'MARCO'] as const
 export const STATUS_ORDER: DealStatus[] = ['NOVO', 'EM ANDAMENTO', 'SUCESSO', 'DESISTIU', 'CANCELADO']

@@ -18,6 +18,7 @@ import RoutesPage from './pages/RoutesPage'
 import NotesPage from './pages/NotesPage'
 import SolicitarAmostras from './pages/SolicitarAmostras'
 import SimularVendas from './pages/SimularVendas'
+import LogisticaPage from './pages/LogisticaPage'
 
 export default function App() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="/briefing"  element={<BriefingBI />} />
               <Route path="/usuarios"  element={<GestaoUsuarios />} />
               <Route path="/configuracoes" element={<SettingsPage />} />
+              <Route path="/logistica"    element={<LogisticaPage />} />
             </Route>
           </Route>
         </Routes>
