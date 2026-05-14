@@ -3,8 +3,9 @@ import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldChe
 import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
 import type { ModuleId } from '../contexts/AuthContext'
+import { usePreferences } from '../contexts/PreferencesContext'
 
-const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'admin' }[] = [
+const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'admin' | 'personal' }[] = [
   { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard',      module: 'dashboard'  },
   { to: '/negocios',      icon: ClipboardList,   label: 'Negócios',       module: 'negocios'   },
   { to: '/visitas',       icon: MapPin,          label: 'Visitas',        module: 'visitas'    },
@@ -19,16 +20,35 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/logistica',     icon: Truck,           label: 'Logística',      module: 'logistica'  },
   { to: '/briefing',      icon: Sparkles,        label: 'Briefing IA',    module: 'briefing'   },
   { to: '/usuarios',      icon: ShieldCheck,     label: 'Usuários',       module: 'admin'      },
-  { to: '/configuracoes', icon: Settings,        label: 'Configurações',  module: 'admin'      },
+  { to: '/configuracoes', icon: Settings,        label: 'Configurações',  module: 'personal'   },
 ]
 
 export default function Layout() {
   const { profile, isAdmin, canAccess, signOut } = useAuth()
+  const { prefs } = usePreferences()
 
-  const navItems = NAV_ITEMS.filter(item => {
+  const accessibleItems = NAV_ITEMS.filter(item => {
     if (item.module === 'admin') return isAdmin
+    if (item.module === 'personal') return true
     return canAccess(item.module as ModuleId)
   })
+
+  // Split module items (reorderable) from fixed items (admin/personal, always at end)
+  const moduleItems  = accessibleItems.filter(i => i.module !== 'admin' && i.module !== 'personal')
+  const specialItems = accessibleItems.filter(i => i.module === 'admin' || i.module === 'personal')
+
+  const sortedModuleItems = prefs.navOrder.length
+    ? [...moduleItems].sort((a, b) => {
+        const ai = prefs.navOrder.indexOf(a.module as string)
+        const bi = prefs.navOrder.indexOf(b.module as string)
+        if (ai === -1 && bi === -1) return 0
+        if (ai === -1) return 1
+        if (bi === -1) return -1
+        return ai - bi
+      })
+    : moduleItems
+
+  const navItems = [...sortedModuleItems, ...specialItems]
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">

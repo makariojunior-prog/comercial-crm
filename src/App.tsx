@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { PreferencesProvider } from './contexts/PreferencesContext'
 import PrivateRoute from './components/PrivateRoute'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <ThemeProvider>
     <AuthProvider>
+    <PreferencesProvider>
       <HashRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -50,6 +52,7 @@ export default function App() {
           </Route>
         </Routes>
       </HashRouter>
+    </PreferencesProvider>
     </AuthProvider>
     </ThemeProvider>
   )

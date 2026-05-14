@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, User } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -14,6 +14,7 @@ import RecentVisitsWidget from '../components/RecentVisitsWidget'
 import DashboardNotesWidget from '../components/DashboardNotesWidget'
 import VehicleAlertsWidget from '../components/VehicleAlertsWidget'
 import TrackingWidget from '../components/TrackingWidget'
+import { usePreferences, DEFAULT_DASHBOARD_WIDGETS } from '../contexts/PreferencesContext'
 
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -21,6 +22,7 @@ export default function DashboardNegocios() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [quickDeal, setQuickDeal] = useState<Deal | null>(null)
   const [newDeal, setNewDeal] = useState(false)
+  const { prefs } = usePreferences()
 
   async function load() {
     setLoading(true)
@@ -37,12 +39,65 @@ export default function DashboardNegocios() {
   useEffect(() => { load() }, [])
 
   const active = deals.filter(d => d.status === 'NOVO' || d.status === 'EM ANDAMENTO')
-  const stale = active.filter(d => isStale(d))
-
-  const novo = active.filter(d => d.status === 'NOVO')
+  const stale  = active.filter(d => isStale(d))
+  const novo   = active.filter(d => d.status === 'NOVO')
   const emAndamento = active.filter(d => d.status === 'EM ANDAMENTO')
 
   const today = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })
+
+  // Merge saved prefs with defaults (in case new widgets were added)
+  const orderedWidgets = useMemo(() => {
+    const saved = prefs.dashboardWidgets
+    if (!saved.length) return DEFAULT_DASHBOARD_WIDGETS
+    const savedIds = new Set(saved.map(w => w.id))
+    const extra = DEFAULT_DASHBOARD_WIDGETS.filter(w => !savedIds.has(w.id))
+    return [...saved, ...extra].filter(w => w.visible)
+  }, [prefs.dashboardWidgets])
+
+  function renderWidget(id: string) {
+    switch (id) {
+      case 'tarefas_eventos':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <DashboardTasks />
+            <DashboardEvents />
+          </div>
+        )
+      case 'visitas_negocios':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="card p-5">
+              <RecentVisitsWidget />
+            </div>
+            <NegociosCard
+              loading={loading}
+              loadError={loadError}
+              stale={stale}
+              novo={novo}
+              emAndamento={emAndamento}
+              onRetry={load}
+              onQuickDeal={setQuickDeal}
+              onNewDeal={() => setNewDeal(true)}
+            />
+          </div>
+        )
+      case 'notas':
+        return (
+          <div className="card p-5">
+            <DashboardNotesWidget />
+          </div>
+        )
+      case 'frota':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <VehicleAlertsWidget />
+            <TrackingWidget />
+          </div>
+        )
+      default:
+        return null
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -65,76 +120,9 @@ export default function DashboardNegocios() {
         </div>
       </div>
 
-      {/* Matriz de Tarefas & Eventos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <DashboardTasks />
-        <DashboardEvents />
-      </div>
-
-      {/* Visitas Recentes + Negócios side-by-side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Visitas Recentes */}
-        <div className="card p-5">
-          <RecentVisitsWidget />
-        </div>
-
-        {/* Negócios */}
-        <div className="card p-5 space-y-4 overflow-hidden">
-          {loadError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700 flex items-center gap-2">
-              <AlertTriangle size={14} /> {loadError}
-              <button onClick={load} className="ml-auto underline">Tentar novamente</button>
-            </div>
-          )}
-
-          {stale.length > 0 && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle size={14} className="text-red-500 dark:text-red-400" />
-                <p className="font-semibold text-red-700 dark:text-red-300 text-xs">{stale.length} negócio{stale.length > 1 ? 's' : ''} sem contato há mais de 10 dias</p>
-              </div>
-              <div className="space-y-1.5">
-                {stale.map(d => (
-                  <AlertDealRow key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {active.length === 0 && !loading && (
-            <div className="py-6 text-center text-slate-400">
-              <TrendingUp size={28} className="mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Nenhum negócio ativo</p>
-              <button onClick={() => setNewDeal(true)} className="btn-primary mt-3 mx-auto">
-                <Plus size={14} /> Criar primeiro negócio
-              </button>
-            </div>
-          )}
-
-          {novo.length > 0 && (
-            <CompactSection title="🔵 Novos" count={novo.length}>
-              {novo.map(d => <DealCard key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />)}
-            </CompactSection>
-          )}
-
-          {emAndamento.length > 0 && (
-            <CompactSection title="🟡 Em Andamento" count={emAndamento.length}>
-              {emAndamento.map(d => <DealCard key={d.id} deal={d} onUpdate={() => setQuickDeal(d)} />)}
-            </CompactSection>
-          )}
-        </div>
-      </div>
-
-      {/* Notas */}
-      <div className="card p-5">
-        <DashboardNotesWidget />
-      </div>
-
-      {/* Frota: alertas + rastreamento */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <VehicleAlertsWidget />
-        <TrackingWidget />
-      </div>
+      {orderedWidgets.map(w => (
+        <div key={w.id}>{renderWidget(w.id)}</div>
+      ))}
 
       {/* Modals */}
       {quickDeal && (
@@ -142,6 +130,66 @@ export default function DashboardNegocios() {
       )}
       {newDeal && (
         <DealModal onClose={() => setNewDeal(false)} onSaved={load} />
+      )}
+    </div>
+  )
+}
+
+// ─── Sub-components ───────────────────────────────────────────────
+
+function NegociosCard({ loading, loadError, stale, novo, emAndamento, onRetry, onQuickDeal, onNewDeal }: {
+  loading: boolean
+  loadError: string | null
+  stale: Deal[]
+  novo: Deal[]
+  emAndamento: Deal[]
+  onRetry: () => void
+  onQuickDeal: (d: Deal) => void
+  onNewDeal: () => void
+}) {
+  return (
+    <div className="card p-5 space-y-4 overflow-hidden">
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700 flex items-center gap-2">
+          <AlertTriangle size={14} /> {loadError}
+          <button onClick={onRetry} className="ml-auto underline">Tentar novamente</button>
+        </div>
+      )}
+
+      {stale.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={14} className="text-red-500 dark:text-red-400" />
+            <p className="font-semibold text-red-700 dark:text-red-300 text-xs">
+              {stale.length} negócio{stale.length > 1 ? 's' : ''} sem contato há mais de 10 dias
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            {stale.map(d => <AlertDealRow key={d.id} deal={d} onUpdate={() => onQuickDeal(d)} />)}
+          </div>
+        </div>
+      )}
+
+      {novo.length === 0 && emAndamento.length === 0 && !loading && (
+        <div className="py-6 text-center text-slate-400">
+          <TrendingUp size={28} className="mx-auto mb-2 opacity-40" />
+          <p className="text-sm">Nenhum negócio ativo</p>
+          <button onClick={onNewDeal} className="btn-primary mt-3 mx-auto">
+            <Plus size={14} /> Criar primeiro negócio
+          </button>
+        </div>
+      )}
+
+      {novo.length > 0 && (
+        <CompactSection title="🔵 Novos" count={novo.length}>
+          {novo.map(d => <DealCard key={d.id} deal={d} onUpdate={() => onQuickDeal(d)} />)}
+        </CompactSection>
+      )}
+
+      {emAndamento.length > 0 && (
+        <CompactSection title="🟡 Em Andamento" count={emAndamento.length}>
+          {emAndamento.map(d => <DealCard key={d.id} deal={d} onUpdate={() => onQuickDeal(d)} />)}
+        </CompactSection>
       )}
     </div>
   )
