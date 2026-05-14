@@ -248,7 +248,7 @@ function TrackingTab() {
 // ─── Página principal ─────────────────────────────────────────────
 
 export default function LogisticaPage() {
-  const [tab, setTab] = useState<Tab>('veiculos')
+  const [tab, setTab] = useState<Tab>('rastreamento')
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(true)
@@ -317,9 +317,9 @@ export default function LogisticaPage() {
   }, [vehicles, drivers])
 
   const TABS = [
-    { id: 'veiculos'     as Tab, label: 'Veículos',    icon: Truck,  count: vehicles.filter(v => v.ativo).length },
-    { id: 'motoristas'   as Tab, label: 'Motoristas',  icon: Users,  count: drivers.filter(d => d.ativo).length },
-    { id: 'rastreamento' as Tab, label: 'Rastreamento',icon: Radio,  count: null },
+    { id: 'rastreamento' as Tab, label: 'Rastreamento', icon: Radio,  count: null },
+    { id: 'veiculos'     as Tab, label: 'Veículos',     icon: Truck,  count: vehicles.filter(v => v.ativo).length },
+    { id: 'motoristas'   as Tab, label: 'Motoristas',   icon: Users,  count: drivers.filter(d => d.ativo).length },
   ]
 
   return (
