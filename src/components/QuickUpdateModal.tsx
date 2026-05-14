@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { X, Phone, MessageCircle, CheckCircle, TrendingUp, XCircle, MinusCircle, AlertCircle, Clock } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { Deal, DealHistory, DealStatus } from '../types'
 import { StatusBadge } from './StatusBadge'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface Props {
   deal: Deal
@@ -26,6 +27,7 @@ const statusColor: Record<string, string> = {
 }
 
 export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
+  useEscKey(useCallback(onClose, [onClose]))
   const [followUp, setFollowUp]       = useState('')
   const [status, setStatus]           = useState<DealStatus>(deal.status ?? 'NOVO')
   const [contactDate, setContactDate] = useState(new Date().toISOString().split('T')[0])

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench, LayoutGrid, List, RefreshCw, CloudDownload, CheckCircle2, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
@@ -157,12 +157,12 @@ export default function ClientsPage() {
     }
   }
 
-  const filteredClients = clients.filter(c => 
+  const filteredClients = useMemo(() => clients.filter(c =>
     c.nome.toLowerCase().includes(search.toLowerCase()) ||
     c.telefone?.includes(search) ||
     c.setor?.toLowerCase().includes(search.toLowerCase()) ||
     c.cnpj_cpf?.includes(search)
-  )
+  ), [clients, search])
 
   const openWhatsApp = (phone: string) => {
     const clean = phone.replace(/\D/g, '')

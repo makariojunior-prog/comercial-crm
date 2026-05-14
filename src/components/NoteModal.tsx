@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, Pin, Users, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import type { Note, NoteColor, CrmUser } from '../types'
 import { NOTE_COLORS } from '../types'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface Props {
   note?: Note | null
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function NoteModal({ note, defaultMentions = [], onClose, onSaved }: Props) {
+  useEscKey(useCallback(onClose, [onClose]))
   const { user } = useAuth()
   const [title,    setTitle]    = useState(note?.title    ?? '')
   const [content,  setContent]  = useState(note?.content  ?? '')

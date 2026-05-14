@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download, AlertCircle, Camera } from 'lucide-react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -52,18 +52,23 @@ export default function DashboardVisitas() {
   const now = new Date()
   const monthStart = startOfMonth(now).toISOString().split('T')[0]
   const monthEnd = endOfMonth(now).toISOString().split('T')[0]
-  const thisMonth = visits.filter(v => v.visit_date && v.visit_date >= monthStart && v.visit_date <= monthEnd)
-  const realized = thisMonth.filter(v => v.status === 'Realizada')
   const monthLabel = format(now, "MMMM 'de' yyyy", { locale: ptBR })
 
-  const filtered = visits.filter(v => {
-    if (!search) return true
+  const { thisMonth, realized } = useMemo(() => {
+    const thisMonth = visits.filter(v => v.visit_date && v.visit_date >= monthStart && v.visit_date <= monthEnd)
+    return { thisMonth, realized: thisMonth.filter(v => v.status === 'Realizada') }
+  }, [visits, monthStart, monthEnd])
+
+  const filtered = useMemo(() => {
+    if (!search) return visits
     const q = search.toLowerCase()
-    return v.client_name.toLowerCase().includes(q) ||
+    return visits.filter(v =>
+      v.client_name.toLowerCase().includes(q) ||
       getResponsaveis(v).toLowerCase().includes(q) ||
       (v.report ?? '').toLowerCase().includes(q) ||
       (v.demand ?? '').toLowerCase().includes(q)
-  })
+    )
+  }, [visits, search])
 
   return (
     <div className="space-y-5">

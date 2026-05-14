@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, AlertCircle, Search, Plus, Trash2, GripVertical, ChevronUp, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Route, RouteClient, CrmUser } from '../types'
 import { ROUTE_DAYS, ROUTE_FREQUENCIES } from '../types'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface Props {
   route?: Route | null
@@ -20,6 +21,7 @@ interface ClientDraft {
 }
 
 export default function RouteModal({ route, onClose, onSaved }: Props) {
+  useEscKey(useCallback(onClose, [onClose]))
   const [name, setName]           = useState(route?.name ?? '')
   const [description, setDesc]    = useState(route?.description ?? '')
   const [responsibleId, setResp]  = useState(route?.responsible_id ?? '')

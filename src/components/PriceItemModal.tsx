@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { X, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { PriceItem } from '../types'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface Props {
   item?: PriceItem | null
@@ -22,6 +23,7 @@ const empty = (empresa: 'lumar' | 'cantina') => ({
 })
 
 export default function PriceItemModal({ item, defaultEmpresa = 'lumar', onClose, onSaved }: Props) {
+  useEscKey(useCallback(onClose, [onClose]))
   const [form, setForm] = useState(
     item
       ? {

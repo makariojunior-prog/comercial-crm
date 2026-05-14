@@ -6,6 +6,13 @@
     <meta name="theme-color" content="#1e293b" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>CRM Comercial · Cantina Lumar</title>
+    <script>
+      try {
+        if (localStorage.getItem('crm-theme') === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

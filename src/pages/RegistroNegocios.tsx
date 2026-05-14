@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Plus, Search, Pencil, Trash2, Download, RefreshCw, History, AlertCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -23,6 +23,7 @@ export default function RegistroNegocios() {
   const [filterType, setFilterType] = useState<string>(ALL)
   const [editDeal, setEditDeal] = useState<Deal | null | undefined>(undefined)
   const [quickDeal, setQuickDeal] = useState<Deal | null>(null)
+  const [sortBy, setSortBy] = useState<'date' | 'client' | 'contact' | 'priority'>('date')
 
   async function load() {
     setLoading(true)
@@ -41,25 +42,35 @@ export default function RegistroNegocios() {
     setDeals(d => d.filter(x => x.id !== id))
   }
 
-  const responsaveis = [ALL, ...Array.from(new Set(
+  const responsaveis = useMemo(() => [ALL, ...Array.from(new Set(
     deals.flatMap(d => d.responsaveis?.length ? d.responsaveis : (d.responsible ? [d.responsible] : []))
-  ))]
-  const types = [ALL, ...Array.from(new Set(deals.map(d => d.deal_type).filter(Boolean) as string[]))]
+  ))], [deals])
+  const types = useMemo(() => [ALL, ...Array.from(new Set(deals.map(d => d.deal_type).filter(Boolean) as string[]))], [deals])
   const statuses = [ALL, 'NOVO', 'EM ANDAMENTO', 'SUCESSO', 'DESISTIU', 'CANCELADO']
 
-  const filtered = deals.filter(d => {
-    const q = search.toLowerCase()
-    const matchSearch = !q ||
-      d.client_name.toLowerCase().includes(q) ||
-      (d.contact_name ?? '').toLowerCase().includes(q) ||
-      (d.follow_up ?? '').toLowerCase().includes(q) ||
-      (d.interest ?? '').toLowerCase().includes(q)
-    const matchStatus = filterStatus === ALL || d.status === filterStatus
-    const respArr = d.responsaveis?.length ? d.responsaveis : (d.responsible ? [d.responsible] : [])
-    const matchResp = filterResp === ALL || respArr.includes(filterResp)
-    const matchType = filterType === ALL || d.deal_type === filterType
-    return matchSearch && matchStatus && matchResp && matchType
-  })
+  const PRIORITY_ORDER: Record<string, number> = { 'ALTA': 0, 'MÉDIA': 1, 'BAIXA': 2 }
+
+  const filtered = useMemo(() => {
+    const result = deals.filter(d => {
+      const q = search.toLowerCase()
+      const matchSearch = !q ||
+        d.client_name.toLowerCase().includes(q) ||
+        (d.contact_name ?? '').toLowerCase().includes(q) ||
+        (d.follow_up ?? '').toLowerCase().includes(q) ||
+        (d.interest ?? '').toLowerCase().includes(q)
+      const matchStatus = filterStatus === ALL || d.status === filterStatus
+      const respArr = d.responsaveis?.length ? d.responsaveis : (d.responsible ? [d.responsible] : [])
+      const matchResp = filterResp === ALL || respArr.includes(filterResp)
+      const matchType = filterType === ALL || d.deal_type === filterType
+      return matchSearch && matchStatus && matchResp && matchType
+    })
+    return result.sort((a, b) => {
+      if (sortBy === 'client')   return a.client_name.localeCompare(b.client_name, 'pt')
+      if (sortBy === 'contact')  return (a.last_contact_date ?? '').localeCompare(b.last_contact_date ?? '')
+      if (sortBy === 'priority') return (PRIORITY_ORDER[a.priority ?? ''] ?? 9) - (PRIORITY_ORDER[b.priority ?? ''] ?? 9)
+      return (b.start_date ?? '').localeCompare(a.start_date ?? '')
+    })
+  }, [deals, search, filterStatus, filterResp, filterType, sortBy])
 
   return (
     <div className="space-y-4">
@@ -99,6 +110,12 @@ export default function RegistroNegocios() {
           </select>
           <select className="input shrink-0 w-auto text-xs" value={filterResp} onChange={e => setFilterResp(e.target.value)}>
             {responsaveis.map(r => <option key={r}>{r}</option>)}
+          </select>
+          <select className="input shrink-0 w-auto text-xs" value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="date">Mais recentes</option>
+            <option value="contact">Último contato</option>
+            <option value="client">A–Z cliente</option>
+            <option value="priority">Prioridade</option>
           </select>
         </div>
         <p className="text-xs text-slate-400">{filtered.length} de {deals.length} negócios</p>

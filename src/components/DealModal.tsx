@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, AlertCircle, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Deal, DealStatus, DealPriority } from '../types'
 import { DEAL_TYPES, STATUS_ORDER } from '../types'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface Props {
   deal?: Deal | null
@@ -52,6 +53,7 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
   const [staffOptions, setStaffOptions] = useState<string[]>([])
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState<string | null>(null)
+  useEscKey(useCallback(onClose, [onClose]))
 
   useEffect(() => {
     supabase

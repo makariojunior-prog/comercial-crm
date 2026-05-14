@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, Calendar, MapPin, Package, Users, Save, AlertCircle, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Event, EventStatus, Client, Staff, EventMaterial } from '../types'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface EventModalProps {
   event?: Event | null
@@ -10,6 +11,7 @@ interface EventModalProps {
 }
 
 export default function EventModal({ event, onClose, onSaved }: EventModalProps) {
+  useEscKey(useCallback(onClose, [onClose]))
   const [title, setTitle] = useState(event?.title ?? '')
   const [clientId, setClientId] = useState(event?.client_id ?? '')
   const [clientSearch, setClientSearch] = useState(event?.client_nome ?? '')

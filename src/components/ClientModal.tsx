@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { X, User, Phone, MapPin, Building2, MessageSquare, Save, AlertCircle, CheckCircle2, AlertTriangle, UserX, Briefcase, Package, Wrench, MessageCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface ClientModalProps {
   client?: Client | null
@@ -15,6 +16,7 @@ const FREQUENCIAS = ['1X', '2X'] as const
 const TIPOS = ['LUMAR', 'LUMAR REVENDA', 'CANTINA REVENDA', 'LUMAR / CANTINA'] as const
 
 export default function ClientModal({ client, onClose, onSaved }: ClientModalProps) {
+  useEscKey(useCallback(onClose, [onClose]))
   const [nome, setNome]               = useState(client?.nome ?? '')
   const [telefone, setTelefone]       = useState(client?.telefone ?? '')
   const [cnpj_cpf, setCnpjCpf]       = useState(client?.cnpj_cpf ?? '')

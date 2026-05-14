@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, CheckCircle2, AlertCircle, Calendar, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import type { Task, TaskPriority, TaskStatus, CrmUser } from '../types'
 import { TASK_PRIORITIES } from '../types'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface TaskModalProps {
   task?: Task | null
@@ -13,6 +14,7 @@ interface TaskModalProps {
 
 export default function TaskModal({ task, onClose, onSaved }: TaskModalProps) {
   const { user } = useAuth()
+  useEscKey(useCallback(onClose, [onClose]))
   const [title, setTitle]       = useState(task?.title ?? '')
   const [description, setDesc]  = useState(task?.description ?? '')
   const [deadline, setDeadline] = useState(task?.deadline ?? '')

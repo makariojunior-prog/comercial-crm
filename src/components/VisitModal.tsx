@@ -1,9 +1,10 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { X, AlertCircle, Camera, Trash2, Loader2, Users } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
 import { supabase } from '../lib/supabase'
 import type { Visit } from '../types'
 import { VISIT_TYPES, VISIT_STATUS } from '../types'
+import { useEscKey } from '../hooks/useEscKey'
 
 interface Props {
   visit?: Visit | null
@@ -34,6 +35,7 @@ const emptyForm = {
 }
 
 export default function VisitModal({ visit, onClose, onSaved }: Props) {
+  useEscKey(useCallback(onClose, [onClose]))
   const [form, setForm] = useState(
     visit ? {
       visit_date:    visit.visit_date    ?? emptyForm.visit_date,
