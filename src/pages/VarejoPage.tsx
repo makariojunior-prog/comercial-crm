@@ -393,7 +393,10 @@ async function syncFromSheets(): Promise<number> {
   }
 
   const mapped = rows
-    .filter(row => String(row[3] ?? '').trim())
+    .filter(row => {
+      const n = String(row[3] ?? '').trim()
+      return n.length > 0 && /^\d/.test(n) && !n.includes('/')
+    })
     .map(row => {
       const dataISO = parseDateBR(row[0])
       return {
@@ -465,7 +468,7 @@ export default function VarejoPage() {
         .from('varejo_pedidos')
         .select('*')
         .is('data_entrega', null)
-        .neq('status_icon', '❌')
+        .eq('status_icon', '⚠️')
         .order('created_at', { ascending: false })
         .limit(200),
     ])

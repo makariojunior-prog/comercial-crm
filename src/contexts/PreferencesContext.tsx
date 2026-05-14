@@ -12,17 +12,22 @@ export interface UserPreferences {
 }
 
 export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
-  tarefas_eventos:  'Tarefas & Eventos',
+  tarefas_eventos:  'Tarefas & Eventos',  // legado — mantido para migração
+  tarefas:          'Tarefas',
+  eventos:          'Eventos',
   visitas_negocios: 'Visitas & Negócios',
   notas:            'Notas',
   frota:            'Alertas de Frota & Rastreamento',
+  varejo_fila:      'Fila Varejo',
 }
 
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
-  { id: 'tarefas_eventos',  visible: true },
+  { id: 'tarefas',          visible: true },
+  { id: 'eventos',          visible: true },
   { id: 'visitas_negocios', visible: true },
   { id: 'notas',            visible: true },
   { id: 'frota',            visible: true },
+  { id: 'varejo_fila',      visible: true },
 ]
 
 const DEFAULT_PREFS: UserPreferences = {
@@ -39,10 +44,18 @@ function loadPrefs(userId: string): UserPreferences {
     const raw = localStorage.getItem(storageKey(userId))
     if (!raw) return DEFAULT_PREFS
     const parsed = JSON.parse(raw) as Partial<UserPreferences>
-    return {
-      navOrder: parsed.navOrder ?? [],
-      dashboardWidgets: parsed.dashboardWidgets ?? DEFAULT_DASHBOARD_WIDGETS,
+    let widgets = parsed.dashboardWidgets ?? DEFAULT_DASHBOARD_WIDGETS
+    // Migra o widget legado tarefas_eventos → tarefas + eventos separados
+    const hasLegacy = widgets.some(w => w.id === 'tarefas_eventos')
+    const hasSplit   = widgets.some(w => w.id === 'tarefas' || w.id === 'eventos')
+    if (hasLegacy && !hasSplit) {
+      widgets = widgets.flatMap(w =>
+        w.id === 'tarefas_eventos'
+          ? [{ id: 'tarefas', visible: w.visible }, { id: 'eventos', visible: w.visible }]
+          : [w]
+      )
     }
+    return { navOrder: parsed.navOrder ?? [], dashboardWidgets: widgets }
   } catch {
     return DEFAULT_PREFS
   }

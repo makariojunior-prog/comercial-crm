@@ -14,6 +14,7 @@ import RecentVisitsWidget from '../components/RecentVisitsWidget'
 import DashboardNotesWidget from '../components/DashboardNotesWidget'
 import VehicleAlertsWidget from '../components/VehicleAlertsWidget'
 import TrackingWidget from '../components/TrackingWidget'
+import VarejoFilaWidget from '../components/VarejoFilaWidget'
 import { usePreferences, DEFAULT_DASHBOARD_WIDGETS } from '../contexts/PreferencesContext'
 
 export default function DashboardNegocios() {
@@ -56,10 +57,22 @@ export default function DashboardNegocios() {
 
   function renderWidget(id: string) {
     switch (id) {
-      case 'tarefas_eventos':
+      case 'tarefas_eventos':  // legado
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <DashboardTasks />
+            <DashboardEvents />
+          </div>
+        )
+      case 'tarefas':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <DashboardTasks />
+          </div>
+        )
+      case 'eventos':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <DashboardEvents />
           </div>
         )
@@ -86,6 +99,14 @@ export default function DashboardNegocios() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="card p-5">
               <DashboardNotesWidget />
+            </div>
+          </div>
+        )
+      case 'varejo_fila':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="card p-5">
+              <VarejoFilaWidget />
             </div>
           </div>
         )
