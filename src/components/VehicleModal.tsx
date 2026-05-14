@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { X, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Vehicle, Driver } from '../types'
@@ -9,6 +9,15 @@ interface Props {
   vehicle?: Vehicle | null
   onClose: () => void
   onSaved: () => void
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="mb-3">
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  )
 }
 
 const TIPOS_CONTA = ['ativo', 'manutencao', 'parado', 'inativo'] as const
@@ -108,13 +117,6 @@ export default function VehicleModal({ vehicle, onClose, onSaved }: Props) {
     if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
     setSaving(false); onSaved(); onClose()
   }
-
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="mb-3">
-      <label className="label">{label}</label>
-      {children}
-    </div>
-  )
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
