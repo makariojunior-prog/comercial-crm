@@ -93,8 +93,8 @@ export default function RecentVisitsWidget() {
                 key={v.id}
                 className={`rounded-xl border p-3 transition-all ${
                   isHighPriority
-                    ? 'bg-red-50 border-red-200'
-                    : 'bg-white border-slate-100 hover:border-slate-200 hover:shadow-sm'
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                    : 'bg-white dark:bg-slate-700 border-slate-100 dark:border-slate-600 hover:border-slate-200 dark:hover:border-slate-500 hover:shadow-sm'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -103,7 +103,7 @@ export default function RecentVisitsWidget() {
                       {isHighPriority && (
                         <AlertTriangle size={12} className="text-red-500 shrink-0" />
                       )}
-                      <p className={`font-semibold text-sm truncate ${isHighPriority ? 'text-red-800' : 'text-slate-800'}`}>
+                      <p className={`font-semibold text-sm truncate ${isHighPriority ? 'text-red-800 dark:text-red-300' : 'text-slate-800 dark:text-slate-100'}`}>
                         {v.client_name}
                       </p>
                       {v.visit_type && (
@@ -113,13 +113,13 @@ export default function RecentVisitsWidget() {
                       )}
                     </div>
                     {hasReport && (
-                      <p className={`text-[11px] line-clamp-1 leading-relaxed ${isHighPriority ? 'text-red-700' : 'text-slate-500'}`}>
+                      <p className={`text-[11px] line-clamp-1 leading-relaxed ${isHighPriority ? 'text-red-700 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
                         {v.report}
                       </p>
                     )}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {getResponsaveis(v).split(', ').filter(Boolean).map(name => (
-                        <span key={name} className="text-[10px] font-bold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-100">
+                        <span key={name} className="text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded-full border border-orange-100 dark:border-orange-800">
                           {name}
                         </span>
                       ))}

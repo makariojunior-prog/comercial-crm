@@ -53,10 +53,10 @@ export default function DashboardTasks() {
   }
 
   const quadrants: { id: TaskPriority; label: string; bg: string; border: string; text: string }[] = [
-    { id: 'URGENTE_IMPORTANTE',         label: 'Fazer Agora',       bg: 'bg-red-50',    border: 'border-red-100',    text: 'text-red-700' },
-    { id: 'IMPORTANTE_NAO_URGENTE',     label: 'Agendar',           bg: 'bg-blue-50',   border: 'border-blue-100',   text: 'text-blue-700' },
-    { id: 'URGENTE_NAO_IMPORTANTE',     label: 'Delegar',           bg: 'bg-amber-50',  border: 'border-amber-100',  text: 'text-amber-700' },
-    { id: 'NAO_URGENTE_NAO_IMPORTANTE', label: 'Eliminar/Esperar',  bg: 'bg-slate-50',  border: 'border-slate-100',  text: 'text-slate-600' },
+    { id: 'URGENTE_IMPORTANTE',         label: 'Fazer Agora',      bg: 'bg-red-50 dark:bg-red-900/20',     border: 'border-red-100 dark:border-red-800',     text: 'text-red-700 dark:text-red-300' },
+    { id: 'IMPORTANTE_NAO_URGENTE',     label: 'Agendar',          bg: 'bg-blue-50 dark:bg-blue-900/20',   border: 'border-blue-100 dark:border-blue-800',   text: 'text-blue-700 dark:text-blue-300' },
+    { id: 'URGENTE_NAO_IMPORTANTE',     label: 'Delegar',          bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-100 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-300' },
+    { id: 'NAO_URGENTE_NAO_IMPORTANTE', label: 'Eliminar/Esperar', bg: 'bg-slate-50 dark:bg-slate-700/50', border: 'border-slate-100 dark:border-slate-600', text: 'text-slate-600 dark:text-slate-300' },
   ]
 
   return (
@@ -94,7 +94,7 @@ export default function DashboardTasks() {
                   >
                     <Circle size={14} />
                   </button>
-                  <p className="text-xs text-slate-700 line-clamp-2 leading-tight flex-1">
+                  <p className="text-xs text-slate-700 dark:text-slate-200 line-clamp-2 leading-tight flex-1">
                     {task.title}
                   </p>
                 </div>

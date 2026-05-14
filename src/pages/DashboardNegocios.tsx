@@ -86,10 +86,10 @@ export default function DashboardNegocios() {
           )}
 
           {stale.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle size={14} className="text-red-500" />
-                <p className="font-semibold text-red-700 text-xs">{stale.length} negócio{stale.length > 1 ? 's' : ''} sem contato há mais de 10 dias</p>
+                <AlertTriangle size={14} className="text-red-500 dark:text-red-400" />
+                <p className="font-semibold text-red-700 dark:text-red-300 text-xs">{stale.length} negócio{stale.length > 1 ? 's' : ''} sem contato há mais de 10 dias</p>
               </div>
               <div className="space-y-1.5">
                 {stale.map(d => (
@@ -143,8 +143,8 @@ function CompactSection({ title, count, children }: { title: string; count: numb
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <h2 className="font-semibold text-slate-700 text-xs">{title}</h2>
-        <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
+        <h2 className="font-semibold text-slate-700 dark:text-slate-300 text-xs">{title}</h2>
+        <span className="bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
       </div>
       <div className="space-y-2">{children}</div>
     </div>
@@ -156,11 +156,11 @@ function AlertDealRow({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) 
   return (
     <button
       onClick={onUpdate}
-      className="w-full flex items-center justify-between bg-white rounded-lg px-3 py-2.5 border border-red-100 hover:bg-red-50 active:scale-[.99] transition-all text-left"
+      className="w-full flex items-center justify-between bg-white dark:bg-slate-700 rounded-lg px-3 py-2.5 border border-red-100 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-[.99] transition-all text-left"
     >
       <div className="min-w-0">
-        <p className="font-medium text-sm text-slate-800 truncate">{deal.client_name}</p>
-        <p className="text-xs text-red-500">{days} dias sem contato · {getResponsaveis(deal)}</p>
+        <p className="font-medium text-sm text-slate-800 dark:text-slate-100 truncate">{deal.client_name}</p>
+        <p className="text-xs text-red-500 dark:text-red-400">{days} dias sem contato · {getResponsaveis(deal)}</p>
       </div>
       <span className="text-xs text-orange-500 font-semibold shrink-0 ml-3">Toque para atualizar →</span>
     </button>
@@ -182,20 +182,20 @@ function DealCard({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
             <TypeBadge type={deal.deal_type} />
             <PriorityBadge priority={deal.priority} />
           </div>
-          <p className="font-semibold text-slate-800">{deal.client_name}</p>
+          <p className="font-semibold text-slate-800 dark:text-slate-100">{deal.client_name}</p>
           {deal.contact_name && (
-            <p className="inline-flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+            <p className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               <Phone size={11} />
               {deal.contact_name}
               {deal.contact_phone && ` · ${deal.contact_phone}`}
             </p>
           )}
           {deal.follow_up && (
-            <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 italic">"{deal.follow_up}"</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 line-clamp-2 italic">"{deal.follow_up}"</p>
           )}
           <div className="flex items-center justify-between mt-2 gap-2">
             {getResponsaveis(deal) && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full border border-orange-100 shrink-0">
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800 shrink-0">
                 <User size={10} /> {getResponsaveis(deal)}
               </span>
             )}
