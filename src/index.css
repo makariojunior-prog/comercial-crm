@@ -11,10 +11,57 @@
   }
 }
 
-/* ─── Dark mode: flip text colors that lack dark: variants ──── */
+/* ─── Dark mode: text color overrides ──────────────────────── */
 .dark .text-slate-800 { color: rgb(241 245 249) !important; }
 .dark .text-slate-700 { color: rgb(226 232 240) !important; }
 .dark .text-slate-600 { color: rgb(203 213 225) !important; }
+.dark .text-slate-500 { color: rgb(148 163 184) !important; }
+
+/* ─── Dark mode: background overrides ──────────────────────── */
+.dark .bg-slate-50  { background-color: rgb(30 41 59 / 0.6)  !important; }
+.dark .bg-white     { background-color: rgb(30 41 59)         !important; }
+.dark .bg-blue-50   { background-color: rgb(23 37 84 / 0.35)  !important; }
+.dark .bg-green-50  { background-color: rgb(5 46 22 / 0.35)   !important; }
+.dark .bg-amber-50  { background-color: rgb(120 53 15 / 0.35) !important; }
+.dark .bg-orange-50 { background-color: rgb(124 45 18 / 0.25) !important; }
+.dark .bg-red-50    { background-color: rgb(127 29 29 / 0.25) !important; }
+.dark .bg-purple-50 { background-color: rgb(88 28 135 / 0.25) !important; }
+.dark .bg-slate-100 { background-color: rgb(30 41 59 / 0.8)   !important; }
+.dark .bg-blue-100  { background-color: rgb(23 37 84 / 0.4)   !important; }
+.dark .bg-green-100 { background-color: rgb(5 46 22 / 0.4)    !important; }
+.dark .bg-red-100   { background-color: rgb(127 29 29 / 0.4)  !important; }
+.dark .bg-amber-100 { background-color: rgb(120 53 15 / 0.4)  !important; }
+.dark .bg-orange-100{ background-color: rgb(124 45 18 / 0.3)  !important; }
+
+/* ─── Dark mode: hover background overrides ─────────────────── */
+.dark .hover\:bg-slate-50:hover  { background-color: rgb(51 65 85)        !important; }
+.dark .hover\:bg-slate-100:hover { background-color: rgb(51 65 85)        !important; }
+.dark .hover\:bg-red-50:hover    { background-color: rgb(127 29 29 / 0.3) !important; }
+.dark .active\:bg-gray-50:active { background-color: rgb(51 65 85)        !important; }
+
+/* ─── Dark mode: border overrides ──────────────────────────── */
+.dark .border-slate-100 { border-color: rgb(51 65 85)          !important; }
+.dark .border-slate-200 { border-color: rgb(51 65 85)          !important; }
+.dark .border-red-100   { border-color: rgb(153 27 27 / 0.4)   !important; }
+.dark .border-red-200   { border-color: rgb(153 27 27 / 0.6)   !important; }
+.dark .border-blue-100  { border-color: rgb(30 64 175 / 0.4)   !important; }
+.dark .border-blue-200  { border-color: rgb(30 64 175 / 0.5)   !important; }
+.dark .border-green-200 { border-color: rgb(21 128 61 / 0.5)   !important; }
+.dark .border-orange-100{ border-color: rgb(124 45 18 / 0.3)   !important; }
+
+/* ─── Dark mode: text color overrides for status/alert contexts ─ */
+.dark .text-red-700   { color: rgb(252 165 165) !important; }
+.dark .text-red-800   { color: rgb(252 165 165) !important; }
+.dark .text-red-600   { color: rgb(248 113 113) !important; }
+.dark .text-red-500   { color: rgb(248 113 113) !important; }
+.dark .text-blue-700  { color: rgb(147 197 253) !important; }
+.dark .text-blue-600  { color: rgb(96  165 250) !important; }
+.dark .text-green-700 { color: rgb(134 239 172) !important; }
+.dark .text-green-600 { color: rgb(74  222 128) !important; }
+.dark .text-amber-700 { color: rgb(252 211 77)  !important; }
+.dark .text-amber-600 { color: rgb(251 191 36)  !important; }
+.dark .text-orange-600{ color: rgb(251 146 60)  !important; }
+.dark .text-purple-700{ color: rgb(216 180 254) !important; }
 
 /* ─── Print ─────────────────────────────────────────────────── */
 .print-only { display: none; }
