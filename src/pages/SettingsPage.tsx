@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, CloudDownload, Check } from 'lucide-react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -58,6 +58,36 @@ export default function SettingsPage() {
     updateDashboardWidgets(settingsWidgets.map(w =>
       w.id === id ? { ...w, visible: !w.visible } : w
     ))
+  }
+
+  // ─── Nav drag-and-drop ──────────────────────────────────────────
+  const navDragIdx = useRef<number | null>(null)
+  const [navOverIdx, setNavOverIdx] = useState<number | null>(null)
+
+  function handleNavDrop(targetIdx: number) {
+    const from = navDragIdx.current
+    if (from === null || from === targetIdx) { setNavOverIdx(null); return }
+    const next = [...orderedModules]
+    const [item] = next.splice(from, 1)
+    next.splice(targetIdx, 0, item)
+    updateNavOrder(next.map(m => m.id))
+    navDragIdx.current = null
+    setNavOverIdx(null)
+  }
+
+  // ─── Widget drag-and-drop ────────────────────────────────────────
+  const widgetDragIdx = useRef<number | null>(null)
+  const [widgetOverIdx, setWidgetOverIdx] = useState<number | null>(null)
+
+  function handleWidgetDrop(targetIdx: number) {
+    const from = widgetDragIdx.current
+    if (from === null || from === targetIdx) { setWidgetOverIdx(null); return }
+    const next = [...settingsWidgets]
+    const [item] = next.splice(from, 1)
+    next.splice(targetIdx, 0, item)
+    updateDashboardWidgets(next)
+    widgetDragIdx.current = null
+    setWidgetOverIdx(null)
   }
 
   const navIsDefault = prefs.navOrder.length === 0
@@ -132,8 +162,17 @@ export default function SettingsPage() {
         <div className="space-y-1.5">
           {orderedModules.map((mod, i) => (
             <div key={mod.id}
-              className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600">
-              <GripVertical size={14} className="text-slate-300 dark:text-slate-500 shrink-0" />
+              draggable
+              onDragStart={() => { navDragIdx.current = i }}
+              onDragOver={e => { e.preventDefault(); setNavOverIdx(i) }}
+              onDrop={() => handleNavDrop(i)}
+              onDragEnd={() => { navDragIdx.current = null; setNavOverIdx(null) }}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
+                navOverIdx === i
+                  ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20'
+                  : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600'
+              }`}>
+              <GripVertical size={14} className="text-slate-300 dark:text-slate-500 shrink-0 cursor-grab" />
               <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200">{mod.label}</span>
               <div className="flex gap-0.5">
                 <button
@@ -180,10 +219,17 @@ export default function SettingsPage() {
         <div className="space-y-1.5">
           {settingsWidgets.map((widget, i) => (
             <div key={widget.id}
+              draggable
+              onDragStart={() => { widgetDragIdx.current = i }}
+              onDragOver={e => { e.preventDefault(); setWidgetOverIdx(i) }}
+              onDrop={() => handleWidgetDrop(i)}
+              onDragEnd={() => { widgetDragIdx.current = null; setWidgetOverIdx(null) }}
               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
-                widget.visible
-                  ? 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600'
-                  : 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-700 opacity-60'
+                widgetOverIdx === i
+                  ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20'
+                  : widget.visible
+                    ? 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600'
+                    : 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-700 opacity-60'
               }`}>
               <button
                 onClick={() => toggleWidget(widget.id)}
@@ -195,7 +241,7 @@ export default function SettingsPage() {
                   : <EyeOff size={15} className="text-slate-400" />
                 }
               </button>
-              <GripVertical size={14} className="text-slate-300 dark:text-slate-500 shrink-0" />
+              <GripVertical size={14} className="text-slate-300 dark:text-slate-500 shrink-0 cursor-grab" />
               <span className={`flex-1 text-sm font-medium ${
                 widget.visible ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500 line-through'
               }`}>

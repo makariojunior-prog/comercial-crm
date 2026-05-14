@@ -374,6 +374,7 @@ export default function VarejoPage() {
   const [tab, setTab] = useState<Tab>('fila')
   const [editPedido, setEditPedido] = useState<VarejoPedido | undefined>(undefined)
   const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const webhookUrl = typeof window !== 'undefined' ? localStorage.getItem('crm_webhook_url') ?? '' : ''
 
   const tomorrow = useMemo(() => nextBusinessDay(selectedDate), [selectedDate])
@@ -471,15 +472,23 @@ export default function VarejoPage() {
             <button
               onClick={async () => {
                 setSyncing(true)
+                setSyncError(null)
                 try {
-                  await fetch(`${webhookUrl}/sync`, { method: 'POST' })
+                  const res = await fetch(`${webhookUrl}/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}',
+                  })
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`)
                   setTimeout(load, 3000)
-                } catch { /* silent */ }
-                finally { setSyncing(false) }
+                } catch (e: unknown) {
+                  setSyncError(e instanceof Error ? e.message : 'Erro desconhecido')
+                  setTimeout(() => setSyncError(null), 5000)
+                } finally { setSyncing(false) }
               }}
               disabled={syncing}
-              className="btn-ghost p-2 text-purple-500"
-              title="Sincronizar com Planilha"
+              className={`btn-ghost p-2 ${syncError ? 'text-red-500' : 'text-purple-500'}`}
+              title={syncError ?? 'Sincronizar com Planilha'}
             >
               <CloudDownload size={16} className={syncing ? 'animate-pulse' : ''} />
             </button>

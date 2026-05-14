@@ -83,8 +83,10 @@ export default function DashboardNegocios() {
         )
       case 'notas':
         return (
-          <div className="card p-5">
-            <DashboardNotesWidget />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="card p-5">
+              <DashboardNotesWidget />
+            </div>
           </div>
         )
       case 'frota':
