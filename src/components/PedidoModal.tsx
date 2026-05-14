@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { X, AlertCircle, Phone, MapPin, Package, User, Truck } from 'lucide-react'
+import { X, AlertCircle, Phone, MapPin, Package, User, Truck, CalendarClock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { VarejoPedido } from '../types'
 import { TURNOS, EMPRESAS_ROTA } from '../types'
@@ -106,6 +106,12 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                 {pedido.qtd_pedidos_cliente > 1 && (
                   <span className="text-[10px] text-slate-400">{pedido.qtd_pedidos_cliente}º pedido do cliente</span>
                 )}
+                {pedido.order_timing === 'scheduled' && pedido.scheduled_start && (
+                  <span className="flex items-center gap-1 text-[10px] text-purple-600 dark:text-purple-400 font-medium">
+                    <CalendarClock size={10} />
+                    {new Date(pedido.scheduled_start).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -124,6 +130,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
             <InfoRow icon={MapPin}  label="Endereço"  value={pedido.endereco_completo} />
             {pedido.complemento && <InfoRow icon={MapPin} label="Compl." value={pedido.complemento} />}
             <InfoRow icon={Phone}   label="Telefone"  value={pedido.telefone} />
+            {pedido.ponto_referencia && <InfoRow icon={MapPin} label="Referência" value={pedido.ponto_referencia} />}
             {pedido.sugestao_rota && <InfoRow icon={Truck} label="Sugestão" value={pedido.sugestao_rota} />}
             <div className="flex gap-4 pt-1">
               <span className="text-xs text-slate-500">Líquido: <strong className="text-slate-800 dark:text-slate-100">{brl(pedido.valor_liquido)}</strong></span>

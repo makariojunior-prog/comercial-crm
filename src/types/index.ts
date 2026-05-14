@@ -276,6 +276,7 @@ export interface VarejoPedido {
   telefone: string | null            // R
   endereco_completo: string | null   // T
   complemento: string | null         // U
+  ponto_referencia: string | null    // reference do endereço de entrega
   // Atendente
   turno: string | null               // G – MANHÃ / TARDE / NOITE
   restricao: string | null           // J – restrição/obs de entrega
@@ -287,6 +288,9 @@ export interface VarejoPedido {
   rota_definida: string | null       // I – logística define
   entregador: string | null          // K
   empresa: string | null             // CANTINA / LUMAR
+  // Agendamento
+  order_timing: string | null        // 'immediate' | 'scheduled'
+  scheduled_start: string | null     // ISO datetime do agendamento
   // Meta
   created_at: string
   updated_at: string

@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { RefreshCw, ShoppingBag, AlertTriangle, CheckCircle2, Bike, ChevronLeft, ChevronRight, Package } from 'lucide-react'
-import { format, addDays, parseISO, isWeekend } from 'date-fns'
+import { RefreshCw, ShoppingBag, AlertTriangle, CheckCircle2, Bike, ChevronLeft, ChevronRight, Package, Search, CalendarClock } from 'lucide-react'
+import { format, addDays, parseISO, isWeekend, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { VarejoPedido } from '../types'
 import PedidoModal from '../components/PedidoModal'
 
-type Tab = 'dashboard' | 'fila' | 'delivery' | 'amanha'
+type Tab = 'dashboard' | 'fila' | 'delivery' | 'amanha' | 'historico'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -111,6 +111,11 @@ function PedidoCard({ pedido, onClick }: { pedido: VarejoPedido; onClick: () => 
             <span className="font-bold text-slate-800 dark:text-slate-100 text-sm">#{pedido.num_pedido}</span>
             <EmpresaBadge empresa={pedido.empresa} />
             <OrigemBadge origem={pedido.origem} />
+            {pedido.order_timing === 'scheduled' && (
+              <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                <CalendarClock size={9} /> AGENDADO
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-700 dark:text-slate-300 font-medium truncate">{pedido.cliente ?? '—'}</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">{pedido.bairro ?? '—'}</p>
@@ -288,6 +293,78 @@ function DeliveryTab({ pedidos }: { pedidos: VarejoPedido[] }) {
   )
 }
 
+function HistoricoTab({ onEdit }: { onEdit: (p: VarejoPedido) => void }) {
+  const [search, setSearch]   = useState('')
+  const [from,   setFrom]     = useState(() => format(subDays(new Date(), 60), 'yyyy-MM-dd'))
+  const [to,     setTo]       = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [data,   setData]     = useState<VarejoPedido[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const run = useCallback(async () => {
+    setLoading(true)
+    let q = supabase
+      .from('varejo_pedidos')
+      .select('*')
+      .gte('data_entrega', from)
+      .lte('data_entrega', to)
+      .order('data_entrega', { ascending: false })
+      .order('created_at',   { ascending: false })
+      .limit(500)
+
+    if (search.trim()) {
+      const s = search.trim()
+      q = q.or(`num_pedido.ilike.%${s}%,cliente.ilike.%${s}%,bairro.ilike.%${s}%`)
+    }
+
+    const { data: rows } = await q
+    setData(rows ?? [])
+    setLoading(false)
+  }, [search, from, to])
+
+  useEffect(() => { run() }, [run])
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            className="input pl-8 text-sm"
+            placeholder="Pedido, cliente ou bairro..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <input type="date" className="input text-sm w-auto" value={from} onChange={e => setFrom(e.target.value)} />
+        <input type="date" className="input text-sm w-auto" value={to}   onChange={e => setTo(e.target.value)} />
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-slate-400 text-sm">Buscando...</div>
+      ) : data.length === 0 ? (
+        <div className="card p-10 text-center text-slate-400">
+          <Package size={28} className="mx-auto mb-2 opacity-40" />
+          <p className="text-sm">Nenhum pedido encontrado.</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-xs text-slate-400">{data.length} pedido{data.length !== 1 ? 's' : ''}</p>
+          {data.map(p => (
+            <div key={p.id} className="relative">
+              {p.data_entrega && (
+                <span className="absolute right-9 top-2.5 text-[10px] text-slate-400">
+                  {format(parseISO(p.data_entrega), 'dd/MM/yy')}
+                </span>
+              )}
+              <PedidoCard pedido={p} onClick={() => onEdit(p)} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function VarejoPage() {
@@ -361,6 +438,7 @@ export default function VarejoPage() {
     { id: 'fila'      as Tab, label: 'Fila',           count: fila.length, alert: fila.length > 0 },
     { id: 'delivery'  as Tab, label: 'iFood / 99Food', count: todayDelivery.length },
     { id: 'amanha'    as Tab, label: 'Amanhã',         count: amanha.length },
+    { id: 'historico' as Tab, label: 'Histórico',      count: 0 },
   ]
 
   const displayDate = format(parseISO(selectedDate), "EEEE, dd/MM", { locale: ptBR })
@@ -428,7 +506,9 @@ export default function VarejoPage() {
       </div>
 
       {/* Content */}
-      {loading ? (
+      {tab === 'historico' ? (
+        <HistoricoTab onEdit={setEditPedido} />
+      ) : loading ? (
         <div className="flex justify-center py-12 text-slate-400 text-sm">Carregando...</div>
       ) : tab === 'dashboard' ? (
         <DashboardTab pedidos={today} onEdit={setEditPedido} />
