@@ -106,14 +106,14 @@ function loadSession(): VelotrackSession | null {
 }
 
 async function authenticate(creds: VelotrackCredentials): Promise<VelotrackSession> {
-  const ts = Date.now()
+  const ts = Math.floor(Date.now() / 1000) // Unix timestamp in seconds
   const ua = 'CRM-Comercial/1.0'
   const descUid = md5(`${creds.login}:${md5(creds.password)}:${ts}`)
 
   const res = await fetch(`${BASE}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ desc_uid: descUid, desc_useragent: ua, desc_data: ts }),
+    body: JSON.stringify({ desc_uid: descUid, desc_useragent: ua, desc_data: String(ts) }),
   })
   if (!res.ok) throw new Error(`Login Velotrack falhou: ${res.status}`)
   const data = await res.json()

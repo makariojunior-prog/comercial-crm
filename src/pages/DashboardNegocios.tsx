@@ -55,6 +55,9 @@ export default function DashboardNegocios() {
     return [...saved, ...extra].filter(w => w.visible)
   }, [prefs.dashboardWidgets])
 
+  // Full-width widgets span both columns; half-width fit side-by-side in the grid
+  const FULL_WIDTH = new Set(['visitas_negocios', 'frota', 'tarefas_eventos'])
+
   function renderWidget(id: string) {
     switch (id) {
       case 'tarefas_eventos':  // legado
@@ -65,17 +68,9 @@ export default function DashboardNegocios() {
           </div>
         )
       case 'tarefas':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <DashboardTasks />
-          </div>
-        )
+        return <DashboardTasks />
       case 'eventos':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <DashboardEvents />
-          </div>
-        )
+        return <DashboardEvents />
       case 'visitas_negocios':
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -95,21 +90,9 @@ export default function DashboardNegocios() {
           </div>
         )
       case 'notas':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="card p-5">
-              <DashboardNotesWidget />
-            </div>
-          </div>
-        )
+        return <div className="card p-5"><DashboardNotesWidget /></div>
       case 'varejo_fila':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="card p-5">
-              <VarejoFilaWidget />
-            </div>
-          </div>
-        )
+        return <div className="card p-5"><VarejoFilaWidget /></div>
       case 'frota':
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -143,9 +126,13 @@ export default function DashboardNegocios() {
         </div>
       </div>
 
-      {orderedWidgets.map(w => (
-        <div key={w.id}>{renderWidget(w.id)}</div>
-      ))}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {orderedWidgets.map(w => (
+          <div key={w.id} className={FULL_WIDTH.has(w.id) ? 'lg:col-span-2' : ''}>
+            {renderWidget(w.id)}
+          </div>
+        ))}
+      </div>
 
       {/* Modals */}
       {quickDeal && (

@@ -493,10 +493,10 @@ export default function VarejoPage() {
   const todayDelivery = pedidos.filter(p =>
     p.data_entrega === selectedDate && (p.origem === 'IFOOD' || p.origem === '99FOOD')
   )
+  // Fila: orders with no delivery date yet (unscheduled)
   const fila = pedidos.filter(p =>
-    (p.data_entrega === null || !p.turno) &&
-    p.origem === 'CARDAPIO WEB' &&
-    p.status_icon !== '❌'
+    p.data_entrega === null &&
+    p.origem === 'CARDAPIO WEB'
   )
   const amanha = pedidos.filter(p => p.data_entrega === tomorrow)
 

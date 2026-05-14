@@ -55,14 +55,32 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Sidebar — desktop */}
       <aside className="hidden lg:flex flex-col w-56 bg-slate-800 text-white shrink-0">
-        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-700">
-          <img src={logoUrl} alt="Cantina" className="w-8 h-8 shrink-0" style={{ filter: 'invert(1)' }} />
-          <div>
-            <p className="font-bold text-sm leading-tight">CRM Comercial</p>
-            <p className="text-xs text-slate-400">Cantina · Lumar</p>
+        <div className="px-5 pt-5 pb-3 border-b border-slate-700">
+          <div className="flex items-center gap-2.5 mb-3">
+            <img src={logoUrl} alt="Cantina" className="w-8 h-8 shrink-0" style={{ filter: 'invert(1)' }} />
+            <div>
+              <p className="font-bold text-sm leading-tight">CRM Comercial</p>
+              <p className="text-xs text-slate-400">Cantina · Lumar</p>
+            </div>
+          </div>
+          {/* Usuário logado + sair */}
+          <div className="flex items-center justify-between gap-2">
+            {profile && (
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-white truncate">{profile.nome || profile.email}</p>
+                <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
+              </div>
+            )}
+            <button
+              onClick={signOut}
+              title="Sair"
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors shrink-0"
+            >
+              <LogOut size={14} /> Sair
+            </button>
           </div>
         </div>
-        <nav className="flex-1 py-4 px-2 space-y-1">
+        <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
@@ -80,22 +98,6 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-
-        {/* Usuário logado + sair */}
-        <div className="px-4 py-3 border-t border-slate-700 space-y-2">
-          {profile && (
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-white truncate">{profile.nome || profile.email}</p>
-              <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
-            </div>
-          )}
-          <button
-            onClick={signOut}
-            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
-          >
-            <LogOut size={14} /> Sair
-          </button>
-        </div>
       </aside>
 
       {/* Main */}
