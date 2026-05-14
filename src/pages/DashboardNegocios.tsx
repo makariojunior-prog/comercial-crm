@@ -13,6 +13,7 @@ import DashboardEvents from '../components/DashboardEvents'
 import RecentVisitsWidget from '../components/RecentVisitsWidget'
 import DashboardNotesWidget from '../components/DashboardNotesWidget'
 import VehicleAlertsWidget from '../components/VehicleAlertsWidget'
+import TrackingWidget from '../components/TrackingWidget'
 
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -129,8 +130,11 @@ export default function DashboardNegocios() {
         <DashboardNotesWidget />
       </div>
 
-      {/* Alertas de Frota */}
-      <VehicleAlertsWidget />
+      {/* Frota: alertas + rastreamento */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <VehicleAlertsWidget />
+        <TrackingWidget />
+      </div>
 
       {/* Modals */}
       {quickDeal && (
