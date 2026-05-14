@@ -15,19 +15,22 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
   tarefas_eventos:  'Tarefas & Eventos',  // legado — mantido para migração
   tarefas:          'Tarefas',
   eventos:          'Eventos',
-  visitas_negocios: 'Visitas & Negócios',
+  visitas_negocios: 'Visitas & Negócios', // legado — mantido para migração
+  visitas:          'Visitas Recentes',
+  negocios:         'Negócios Ativos',
   notas:            'Notas',
   frota:            'Alertas de Frota & Rastreamento',
   varejo_fila:      'Fila Varejo',
 }
 
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
-  { id: 'tarefas',          visible: true },
-  { id: 'eventos',          visible: true },
-  { id: 'visitas_negocios', visible: true },
-  { id: 'notas',            visible: true },
-  { id: 'frota',            visible: true },
-  { id: 'varejo_fila',      visible: true },
+  { id: 'tarefas',   visible: true },
+  { id: 'eventos',   visible: true },
+  { id: 'visitas',   visible: true },
+  { id: 'negocios',  visible: true },
+  { id: 'notas',     visible: true },
+  { id: 'frota',     visible: true },
+  { id: 'varejo_fila', visible: true },
 ]
 
 const DEFAULT_PREFS: UserPreferences = {
@@ -45,13 +48,23 @@ function loadPrefs(userId: string): UserPreferences {
     if (!raw) return DEFAULT_PREFS
     const parsed = JSON.parse(raw) as Partial<UserPreferences>
     let widgets = parsed.dashboardWidgets ?? DEFAULT_DASHBOARD_WIDGETS
-    // Migra o widget legado tarefas_eventos → tarefas + eventos separados
-    const hasLegacy = widgets.some(w => w.id === 'tarefas_eventos')
-    const hasSplit   = widgets.some(w => w.id === 'tarefas' || w.id === 'eventos')
-    if (hasLegacy && !hasSplit) {
+    // Migra tarefas_eventos → tarefas + eventos separados
+    const hasLegacyTE = widgets.some(w => w.id === 'tarefas_eventos')
+    const hasSplitTE  = widgets.some(w => w.id === 'tarefas' || w.id === 'eventos')
+    if (hasLegacyTE && !hasSplitTE) {
       widgets = widgets.flatMap(w =>
         w.id === 'tarefas_eventos'
           ? [{ id: 'tarefas', visible: w.visible }, { id: 'eventos', visible: w.visible }]
+          : [w]
+      )
+    }
+    // Migra visitas_negocios → visitas + negocios separados
+    const hasLegacyVN = widgets.some(w => w.id === 'visitas_negocios')
+    const hasSplitVN  = widgets.some(w => w.id === 'visitas' || w.id === 'negocios')
+    if (hasLegacyVN && !hasSplitVN) {
+      widgets = widgets.flatMap(w =>
+        w.id === 'visitas_negocios'
+          ? [{ id: 'visitas', visible: w.visible }, { id: 'negocios', visible: w.visible }]
           : [w]
       )
     }

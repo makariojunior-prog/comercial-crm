@@ -56,7 +56,7 @@ export default function DashboardNegocios() {
   }, [prefs.dashboardWidgets])
 
   // Full-width widgets span both columns; half-width fit side-by-side in the grid
-  const FULL_WIDTH = new Set(['visitas_negocios', 'frota', 'tarefas_eventos'])
+  const FULL_WIDTH = new Set(['frota', 'tarefas_eventos', 'visitas_negocios'])
 
   function renderWidget(id: string) {
     switch (id) {
@@ -67,16 +67,10 @@ export default function DashboardNegocios() {
             <DashboardEvents />
           </div>
         )
-      case 'tarefas':
-        return <DashboardTasks />
-      case 'eventos':
-        return <DashboardEvents />
-      case 'visitas_negocios':
+      case 'visitas_negocios':  // legado
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="card p-5">
-              <RecentVisitsWidget />
-            </div>
+            <div className="card p-5"><RecentVisitsWidget /></div>
             <NegociosCard
               loading={loading}
               loadError={loadError}
@@ -88,6 +82,25 @@ export default function DashboardNegocios() {
               onNewDeal={() => setNewDeal(true)}
             />
           </div>
+        )
+      case 'tarefas':
+        return <DashboardTasks />
+      case 'eventos':
+        return <DashboardEvents />
+      case 'visitas':
+        return <div className="card p-5"><RecentVisitsWidget /></div>
+      case 'negocios':
+        return (
+          <NegociosCard
+            loading={loading}
+            loadError={loadError}
+            stale={stale}
+            novo={novo}
+            emAndamento={emAndamento}
+            onRetry={load}
+            onQuickDeal={setQuickDeal}
+            onNewDeal={() => setNewDeal(true)}
+          />
         )
       case 'notas':
         return <div className="card p-5"><DashboardNotesWidget /></div>
