@@ -365,6 +365,74 @@ function HistoricoTab({ onEdit }: { onEdit: (p: VarejoPedido) => void }) {
   )
 }
 
+// ─── Sync direto com Google Sheets API ───────────────────────────────────────
+
+async function syncFromSheets(): Promise<number> {
+  const apiKey    = localStorage.getItem('crm_sheets_api_key') ?? ''
+  const sheetId   = localStorage.getItem('crm_sheet_id')       ?? '15ygrVoRh7cd8iVWn0eBXpEz-jBVsOa4jxemmmva2rnA'
+  const sheetName = localStorage.getItem('crm_sheet_name')     ?? 'REG-CANTINA'
+
+  const range = `${sheetName}!A2:U`
+  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?key=${encodeURIComponent(apiKey)}`
+
+  const res = await fetch(url)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body?.error?.message ?? `Erro ${res.status} ao acessar planilha`)
+  }
+
+  const json  = await res.json() as { values?: string[][] }
+  const rows: string[][] = json.values ?? []
+
+  function parseDateBR(val: unknown): string | null {
+    const s = String(val ?? '').trim()
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+    if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+    return null
+  }
+
+  const records = rows
+    .filter(row => String(row[3] ?? '').trim())
+    .map(row => {
+      const dataISO = parseDateBR(row[0])
+      return {
+        num_pedido:           String(row[3]  ?? '').trim(),
+        data_entrega:         dataISO,
+        status_icon:          String(row[1]  ?? '').trim() || '⚠️',
+        marcador:             String(row[2]  ?? '').trim() || null,
+        cliente:              String(row[4]  ?? '').trim() || null,
+        bairro:               String(row[5]  ?? '').trim() || null,
+        turno:                String(row[6]  ?? '').trim() || null,
+        rota_definida:        String(row[8]  ?? '').trim() || null,
+        restricao:            String(row[9]  ?? '').trim() || null,
+        entregador:           String(row[10] ?? '').trim() || null,
+        flag_restricao:       String(row[11] ?? '').trim() || null,
+        origem:               String(row[12] ?? '').trim() || 'CARDAPIO WEB',
+        atendente:            String(row[13] ?? '').trim() || null,
+        valor_liquido:        parseFloat(String(row[14] ?? '').replace(',', '.')) || null,
+        frete:                parseFloat(String(row[15] ?? '').replace(',', '.')) || null,
+        qtd_pedidos_cliente:  parseInt(String(row[16]  ?? ''), 10) || 1,
+        telefone:             String(row[17] ?? '').replace(/\D/g, '') || null,
+        endereco_completo:    String(row[19] ?? '').trim() || null,
+        complemento:          String(row[20] ?? '').trim() || null,
+        data_entrega_definida: !!(dataISO && String(row[6] ?? '').trim()),
+        source: 'sync',
+      }
+    })
+
+  const BATCH = 200
+  let synced = 0
+  for (let i = 0; i < records.length; i += BATCH) {
+    const { error } = await supabase
+      .from('varejo_pedidos')
+      .upsert(records.slice(i, i + BATCH), { onConflict: 'num_pedido', ignoreDuplicates: false })
+    if (error) throw new Error(error.message)
+    synced += records.slice(i, i + BATCH).length
+  }
+  return synced
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function VarejoPage() {
@@ -374,8 +442,8 @@ export default function VarejoPage() {
   const [tab, setTab] = useState<Tab>('fila')
   const [editPedido, setEditPedido] = useState<VarejoPedido | undefined>(undefined)
   const [syncing, setSyncing] = useState(false)
-  const [syncError, setSyncError] = useState<string | null>(null)
-  const webhookUrl = typeof window !== 'undefined' ? localStorage.getItem('crm_webhook_url') ?? '' : ''
+  const [syncMsg, setSyncMsg]   = useState<string | null>(null)
+  const sheetsApiKey = typeof window !== 'undefined' ? localStorage.getItem('crm_sheets_api_key') ?? '' : ''
 
   const tomorrow = useMemo(() => nextBusinessDay(selectedDate), [selectedDate])
 
@@ -468,29 +536,28 @@ export default function VarejoPage() {
           <button onClick={load} disabled={loading} className="btn-ghost p-2" title="Atualizar">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          {webhookUrl && (
+          {sheetsApiKey && (
             <button
               onClick={async () => {
                 setSyncing(true)
-                setSyncError(null)
+                setSyncMsg(null)
                 try {
-                  const res = await fetch(`${webhookUrl}/sync`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: '{}',
-                  })
-                  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-                  setTimeout(load, 3000)
+                  const count = await syncFromSheets()
+                  setSyncMsg(`✓ ${count} pedidos`)
+                  setTimeout(() => { setSyncMsg(null); load() }, 2000)
                 } catch (e: unknown) {
-                  setSyncError(e instanceof Error ? e.message : 'Erro desconhecido')
-                  setTimeout(() => setSyncError(null), 5000)
+                  setSyncMsg(e instanceof Error ? e.message : 'Erro')
+                  setTimeout(() => setSyncMsg(null), 5000)
                 } finally { setSyncing(false) }
               }}
               disabled={syncing}
-              className={`btn-ghost p-2 ${syncError ? 'text-red-500' : 'text-purple-500'}`}
-              title={syncError ?? 'Sincronizar com Planilha'}
+              className={`btn-ghost px-2 py-1 flex items-center gap-1 text-xs ${
+                syncMsg?.startsWith('✓') ? 'text-green-500' : syncMsg ? 'text-red-500' : 'text-purple-500'
+              }`}
+              title="Sincronizar com Planilha"
             >
-              <CloudDownload size={16} className={syncing ? 'animate-pulse' : ''} />
+              <CloudDownload size={14} className={syncing ? 'animate-pulse' : ''} />
+              {syncing ? 'Sincronizando…' : syncMsg ?? 'Sync'}
             </button>
           )}
         </div>

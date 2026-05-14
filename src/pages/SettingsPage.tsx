@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, CloudDownload, Check } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, FileSpreadsheet, Check } from 'lucide-react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import type { ModuleId } from '../contexts/AuthContext'
@@ -273,8 +273,8 @@ export default function SettingsPage() {
         </p>
       </Section>
 
-      {/* ─── Integração Varejo ──────────────────────────────────── */}
-      <WebhookUrlSection />
+      {/* ─── Planilha Google ────────────────────────────────────── */}
+      <SheetsSection />
 
       {/* ─── Admin note ─────────────────────────────────────────── */}
       {isAdmin && (
@@ -287,36 +287,53 @@ export default function SettingsPage() {
   )
 }
 
-function WebhookUrlSection() {
-  const [url, setUrl] = useState(() => localStorage.getItem('crm_webhook_url') ?? '')
+function SheetsSection() {
+  const [apiKey,    setApiKey]    = useState(() => localStorage.getItem('crm_sheets_api_key')  ?? '')
+  const [sheetId,   setSheetId]   = useState(() => localStorage.getItem('crm_sheet_id')        ?? '15ygrVoRh7cd8iVWn0eBXpEz-jBVsOa4jxemmmva2rnA')
+  const [sheetName, setSheetName] = useState(() => localStorage.getItem('crm_sheet_name')      ?? 'REG-CANTINA')
   const [saved, setSaved] = useState(false)
 
   function save() {
-    const trimmed = url.trim().replace(/\/$/, '')
-    localStorage.setItem('crm_webhook_url', trimmed)
-    setUrl(trimmed)
+    localStorage.setItem('crm_sheets_api_key', apiKey.trim())
+    localStorage.setItem('crm_sheet_id',       sheetId.trim())
+    localStorage.setItem('crm_sheet_name',     sheetName.trim())
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
   return (
-    <Section icon={<CloudDownload size={16} className="text-orange-500" />} title="Integração Varejo">
+    <Section icon={<FileSpreadsheet size={16} className="text-orange-500" />} title="Planilha de Pedidos">
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-        URL do serviço de automação (Cloud Run). Usada pelo botão de sincronizar
-        a planilha com o Supabase durante a transição.
+        Sincronização direta com o Google Sheets. A planilha deve estar compartilhada como{' '}
+        <strong>Qualquer pessoa com o link pode visualizar</strong>.
       </p>
-      <div className="flex gap-2">
-        <input
-          className="input flex-1 text-sm font-mono"
-          placeholder="https://cantina-automacoes-xxx.run.app"
-          value={url}
-          onChange={e => { setUrl(e.target.value); setSaved(false) }}
-        />
-        <button onClick={save} className={`btn-primary px-4 flex items-center gap-1.5 ${saved ? 'bg-green-500' : ''}`}>
-          {saved ? <><Check size={14} /> Salvo</> : 'Salvar'}
+      <div className="space-y-3">
+        <div>
+          <label className="label">Google API Key</label>
+          <input className="input font-mono text-xs" placeholder="AIzaSy..."
+            value={apiKey} onChange={e => { setApiKey(e.target.value); setSaved(false) }} />
+          <p className="text-[11px] text-slate-400 mt-1">
+            Gere em <span className="font-mono">console.cloud.google.com</span> → APIs e Serviços → Credenciais → Criar chave de API
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="col-span-2">
+            <label className="label">ID da Planilha</label>
+            <input className="input font-mono text-xs" value={sheetId}
+              onChange={e => { setSheetId(e.target.value); setSaved(false) }} />
+          </div>
+          <div>
+            <label className="label">Aba</label>
+            <input className="input text-xs" value={sheetName}
+              onChange={e => { setSheetName(e.target.value); setSaved(false) }} />
+          </div>
+        </div>
+        <button onClick={save}
+          className={`btn-primary w-full justify-center flex items-center gap-1.5 ${saved ? '!bg-green-500' : ''}`}>
+          {saved ? <><Check size={14} /> Salvo</> : 'Salvar configuração'}
         </button>
       </div>
-      {url && <p className="text-[11px] text-slate-400 mt-2">Botão <strong>☁ Sincronizar</strong> aparecerá no módulo Varejo.</p>}
+      {apiKey && <p className="text-[11px] text-slate-400 mt-2">Botão <strong>☁ Sincronizar</strong> aparecerá no módulo Varejo.</p>}
     </Section>
   )
 }

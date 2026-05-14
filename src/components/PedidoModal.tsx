@@ -24,6 +24,8 @@ const ORIGEM_COLORS: Record<string, string> = {
   'CARDAPIO WEB':'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
 }
 
+const firstName = (nome: string) => nome.trim().split(/\s+/)[0]
+
 function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: string | null | undefined }) {
   if (!value) return null
   return (
@@ -207,7 +209,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                 <label className="label">Atendente responsável</label>
                 <input className="input" list="users-list" value={form.atendente} onChange={e => set('atendente', e.target.value)} placeholder="Nome da atendente" />
                 <datalist id="users-list">
-                  {users.map(u => <option key={u.id} value={u.nome} />)}
+                  {users.map(u => <option key={u.id} value={firstName(u.nome)} />)}
                 </datalist>
               </div>
             </div>
@@ -226,7 +228,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                 <label className="label">Entregador</label>
                 <input className="input" list="drivers-list" value={form.entregador} onChange={e => set('entregador', e.target.value)} placeholder="Nome do entregador" />
                 <datalist id="drivers-list">
-                  {drivers.map(d => <option key={d.id} value={d.nome} />)}
+                  {drivers.map(d => <option key={d.id} value={firstName(d.nome)} />)}
                 </datalist>
               </div>
               <div>
