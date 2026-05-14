@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { X, AlertCircle, Phone, MapPin, Package, User, Truck, CalendarClock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { VarejoPedido } from '../types'
@@ -54,6 +54,15 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [drivers, setDrivers] = useState<{ id: string; nome: string }[]>([])
+  const [users,   setUsers]   = useState<{ id: string; nome: string }[]>([])
+
+  useEffect(() => {
+    supabase.from('crm_drivers').select('id, nome').eq('ativo', true).order('nome')
+      .then(({ data }) => setDrivers(data ?? []))
+    supabase.from('crm_users').select('id, nome').eq('ativo', true).order('nome')
+      .then(({ data }) => setUsers(data ?? []))
+  }, [])
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -196,7 +205,10 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
               </div>
               <div>
                 <label className="label">Atendente responsável</label>
-                <input className="input" value={form.atendente} onChange={e => set('atendente', e.target.value)} placeholder="Nome da atendente" />
+                <input className="input" list="users-list" value={form.atendente} onChange={e => set('atendente', e.target.value)} placeholder="Nome da atendente" />
+                <datalist id="users-list">
+                  {users.map(u => <option key={u.id} value={u.nome} />)}
+                </datalist>
               </div>
             </div>
           </div>
@@ -212,7 +224,10 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
               </div>
               <div>
                 <label className="label">Entregador</label>
-                <input className="input" value={form.entregador} onChange={e => set('entregador', e.target.value)} placeholder="Nome do entregador" />
+                <input className="input" list="drivers-list" value={form.entregador} onChange={e => set('entregador', e.target.value)} placeholder="Nome do entregador" />
+                <datalist id="drivers-list">
+                  {drivers.map(d => <option key={d.id} value={d.nome} />)}
+                </datalist>
               </div>
               <div>
                 <label className="label">Empresa da Rota</label>

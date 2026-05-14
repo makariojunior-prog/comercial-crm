@@ -1,5 +1,5 @@
-import { useMemo, type ReactNode } from 'react'
-import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
+import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, CloudDownload, Check } from 'lucide-react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import type { ModuleId } from '../contexts/AuthContext'
@@ -227,6 +227,9 @@ export default function SettingsPage() {
         </p>
       </Section>
 
+      {/* ─── Integração Varejo ──────────────────────────────────── */}
+      <WebhookUrlSection />
+
       {/* ─── Admin note ─────────────────────────────────────────── */}
       {isAdmin && (
         <div className="text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-700">
@@ -235,6 +238,40 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function WebhookUrlSection() {
+  const [url, setUrl] = useState(() => localStorage.getItem('crm_webhook_url') ?? '')
+  const [saved, setSaved] = useState(false)
+
+  function save() {
+    const trimmed = url.trim().replace(/\/$/, '')
+    localStorage.setItem('crm_webhook_url', trimmed)
+    setUrl(trimmed)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <Section icon={<CloudDownload size={16} className="text-orange-500" />} title="Integração Varejo">
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        URL do serviço de automação (Cloud Run). Usada pelo botão de sincronizar
+        a planilha com o Supabase durante a transição.
+      </p>
+      <div className="flex gap-2">
+        <input
+          className="input flex-1 text-sm font-mono"
+          placeholder="https://cantina-automacoes-xxx.run.app"
+          value={url}
+          onChange={e => { setUrl(e.target.value); setSaved(false) }}
+        />
+        <button onClick={save} className={`btn-primary px-4 flex items-center gap-1.5 ${saved ? 'bg-green-500' : ''}`}>
+          {saved ? <><Check size={14} /> Salvo</> : 'Salvar'}
+        </button>
+      </div>
+      {url && <p className="text-[11px] text-slate-400 mt-2">Botão <strong>☁ Sincronizar</strong> aparecerá no módulo Varejo.</p>}
+    </Section>
   )
 }
 

@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { RefreshCw, ShoppingBag, AlertTriangle, CheckCircle2, Bike, ChevronLeft, ChevronRight, Package, Search, CalendarClock } from 'lucide-react'
+import { RefreshCw, ShoppingBag, AlertTriangle, CheckCircle2, Bike, ChevronLeft, ChevronRight, Package, Search, CalendarClock, CloudDownload } from 'lucide-react'
 import { format, addDays, parseISO, isWeekend, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { VarejoPedido } from '../types'
 import PedidoModal from '../components/PedidoModal'
 
-type Tab = 'dashboard' | 'fila' | 'delivery' | 'amanha' | 'historico'
+type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -371,8 +371,10 @@ export default function VarejoPage() {
   const [pedidos, setPedidos] = useState<VarejoPedido[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
-  const [tab, setTab] = useState<Tab>('dashboard')
+  const [tab, setTab] = useState<Tab>('fila')
   const [editPedido, setEditPedido] = useState<VarejoPedido | undefined>(undefined)
+  const [syncing, setSyncing] = useState(false)
+  const webhookUrl = typeof window !== 'undefined' ? localStorage.getItem('crm_webhook_url') ?? '' : ''
 
   const tomorrow = useMemo(() => nextBusinessDay(selectedDate), [selectedDate])
 
@@ -409,9 +411,7 @@ export default function VarejoPage() {
   }, [load])
 
   // ── Derivados ─────────────────────────────────────────────────────
-  const today = pedidos.filter(p =>
-    p.data_entrega === selectedDate || (p.data_entrega === null && p.origem === 'CARDAPIO WEB')
-  )
+  const today = pedidos.filter(p => p.data_entrega === selectedDate)
   const todayCW = today.filter(p => p.origem === 'CARDAPIO WEB')
   const todayDelivery = pedidos.filter(p =>
     p.data_entrega === selectedDate && (p.origem === 'IFOOD' || p.origem === '99FOOD')
@@ -434,8 +434,8 @@ export default function VarejoPage() {
   }, [todayCW])
 
   const TABS = [
-    { id: 'dashboard' as Tab, label: 'Hoje',          count: today.length },
-    { id: 'fila'      as Tab, label: 'Fila',           count: fila.length, alert: fila.length > 0 },
+    { id: 'fila'      as Tab, label: 'Fila',           count: fila.length,         alert: fila.length > 0 },
+    { id: 'dashboard' as Tab, label: 'Hoje',           count: today.length },
     { id: 'delivery'  as Tab, label: 'iFood / 99Food', count: todayDelivery.length },
     { id: 'amanha'    as Tab, label: 'Amanhã',         count: amanha.length },
     { id: 'historico' as Tab, label: 'Histórico',      count: 0 },
@@ -464,9 +464,26 @@ export default function VarejoPage() {
           <button onClick={() => setSelectedDate(nextBusinessDay(selectedDate))} className="btn-ghost p-1.5">
             <ChevronRight size={16} />
           </button>
-          <button onClick={load} disabled={loading} className="btn-ghost p-2">
+          <button onClick={load} disabled={loading} className="btn-ghost p-2" title="Atualizar">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
+          {webhookUrl && (
+            <button
+              onClick={async () => {
+                setSyncing(true)
+                try {
+                  await fetch(`${webhookUrl}/sync`, { method: 'POST' })
+                  setTimeout(load, 3000)
+                } catch { /* silent */ }
+                finally { setSyncing(false) }
+              }}
+              disabled={syncing}
+              className="btn-ghost p-2 text-purple-500"
+              title="Sincronizar com Planilha"
+            >
+              <CloudDownload size={16} className={syncing ? 'animate-pulse' : ''} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -483,7 +500,7 @@ export default function VarejoPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
