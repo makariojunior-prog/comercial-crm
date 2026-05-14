@@ -18,6 +18,7 @@ export const ALL_MODULES = [
   { id: 'simulador',  label: 'Simular Vendas' },
   { id: 'briefing',   label: 'Briefing IA' },
   { id: 'logistica',  label: 'Logística' },
+  { id: 'varejo',     label: 'Varejo' },
 ] as const
 
 export type ModuleId = typeof ALL_MODULES[number]['id']

@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut, CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Gift, Calculator, Truck } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut, CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Gift, Calculator, Truck, ShoppingBag } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
 import type { ModuleId } from '../contexts/AuthContext'
@@ -17,6 +17,7 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/tabelas',       icon: DollarSign,      label: 'Tabelas',        module: 'tabelas'    },
   { to: '/amostras',      icon: Gift,            label: 'Amostras',       module: 'amostras'   },
   { to: '/simulador',     icon: Calculator,      label: 'Simular',        module: 'simulador'  },
+  { to: '/varejo',        icon: ShoppingBag,     label: 'Varejo',         module: 'varejo'     },
   { to: '/logistica',     icon: Truck,           label: 'Logística',      module: 'logistica'  },
   { to: '/briefing',      icon: Sparkles,        label: 'Briefing IA',    module: 'briefing'   },
   { to: '/usuarios',      icon: ShieldCheck,     label: 'Usuários',       module: 'admin'      },

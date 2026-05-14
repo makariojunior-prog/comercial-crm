@@ -20,6 +20,7 @@ import NotesPage from './pages/NotesPage'
 import SolicitarAmostras from './pages/SolicitarAmostras'
 import SimularVendas from './pages/SimularVendas'
 import LogisticaPage from './pages/LogisticaPage'
+import VarejoPage from './pages/VarejoPage'
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="/usuarios"  element={<GestaoUsuarios />} />
               <Route path="/configuracoes" element={<SettingsPage />} />
               <Route path="/logistica"    element={<LogisticaPage />} />
+              <Route path="/varejo"       element={<VarejoPage />} />
             </Route>
           </Route>
         </Routes>

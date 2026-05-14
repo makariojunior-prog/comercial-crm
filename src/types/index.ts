@@ -260,6 +260,42 @@ export function daysUntil(dateStr: string | null): number | null {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000)
 }
 
+// ─── Varejo ────────────────────────────────────────────────────
+export interface VarejoPedido {
+  id: string
+  num_pedido: string
+  data_entrega: string | null        // A – data de entrega (null = não definida)
+  status_icon: string                // B – ⚠️ 🛵 ✅ ❌
+  marcador: string | null            // C – ⭕️
+  cliente: string | null             // E
+  bairro: string | null              // F
+  origem: string                     // M – CARDAPIO WEB / IFOOD / 99FOOD
+  valor_liquido: number | null       // O
+  frete: number | null               // P
+  qtd_pedidos_cliente: number        // Q
+  telefone: string | null            // R
+  endereco_completo: string | null   // T
+  complemento: string | null         // U
+  // Atendente
+  turno: string | null               // G – MANHÃ / TARDE / NOITE
+  restricao: string | null           // J – restrição/obs de entrega
+  flag_restricao: string | null      // L – ⚠️ / ✅
+  atendente: string | null           // N
+  data_entrega_definida: boolean
+  // Logística
+  sugestao_rota: string | null       // H – auto (Apps Script)
+  rota_definida: string | null       // I – logística define
+  entregador: string | null          // K
+  empresa: string | null             // CANTINA / LUMAR
+  // Meta
+  created_at: string
+  updated_at: string
+  source: string
+}
+
+export const TURNOS = ['MANHÃ', 'TARDE', 'NOITE'] as const
+export const EMPRESAS_ROTA = ['CANTINA', 'LUMAR'] as const
+
 export const VEHICLE_TIPOS: VehicleTipo[] = ['Carro', 'Van', 'Moto', 'Caminhão', 'Utilitário', 'Outro']
 export const VEHICLE_COMBUSTIVEIS: VehicleCombustivel[] = ['Gasolina', 'Etanol', 'Flex', 'Diesel', 'Elétrico', 'GNV']
 export const CNH_CATEGORIAS: CnhCategoria[] = ['A', 'B', 'AB', 'C', 'D', 'E', 'ACC']
