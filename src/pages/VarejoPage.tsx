@@ -542,14 +542,18 @@ export default function VarejoPage() {
   const sheetsApiKey = typeof window !== 'undefined' ? localStorage.getItem('crm_sheets_api_key') ?? '' : ''
 
   const tomorrow = useMemo(() => nextBusinessDay(selectedDate), [selectedDate])
+  // "Amanhã" always means the real next business day from today, independent of selectedDate
+  const actualTomorrow = useMemo(() => nextBusinessDay(format(new Date(), 'yyyy-MM-dd')), [])
 
   const load = useCallback(async () => {
     setLoading(true)
+    // Always fetch selectedDate, its next day, AND the real tomorrow (they may differ)
+    const datesToFetch = [...new Set([selectedDate, tomorrow, actualTomorrow])]
     const [{ data: dated }, { data: unconf }] = await Promise.all([
       supabase
         .from('varejo_pedidos')
         .select('*')
-        .in('data_entrega', [selectedDate, tomorrow])
+        .in('data_entrega', datesToFetch)
         .order('created_at', { ascending: false })
         .limit(500),
       supabase
@@ -562,7 +566,7 @@ export default function VarejoPage() {
     ])
     setPedidos([...(dated ?? []), ...(unconf ?? [])])
     setLoading(false)
-  }, [selectedDate, tomorrow])
+  }, [selectedDate, tomorrow, actualTomorrow])
 
   useEffect(() => { load() }, [load])
 
@@ -606,7 +610,8 @@ export default function VarejoPage() {
     !p.turno &&
     p.origem === 'CARDAPIO WEB'
   )
-  const amanha = pedidos.filter(p => p.data_entrega === tomorrow)
+  // Amanhã = always actual tomorrow (não relativo ao selectedDate)
+  const amanha = pedidos.filter(p => p.data_entrega === actualTomorrow)
 
   const stats = useMemo(() => {
     const base = todayCW
@@ -622,7 +627,7 @@ export default function VarejoPage() {
     { id: 'fila'      as Tab, label: 'Fila',           count: fila.length,         alert: fila.length > 0 },
     { id: 'dashboard' as Tab, label: 'Hoje',           count: today.length },
     { id: 'delivery'  as Tab, label: 'iFood / 99Food', count: todayDelivery.length },
-    { id: 'amanha'    as Tab, label: 'Amanhã',         count: amanha.length },
+    { id: 'amanha'    as Tab, label: `Amanhã ${format(parseISO(actualTomorrow), 'dd/MM')}`, count: amanha.length },
     { id: 'historico' as Tab, label: 'Histórico',      count: 0 },
   ]
 
