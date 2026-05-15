@@ -1,13 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ShoppingBag, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-
-interface FilaItem {
-  num_pedido: string
-  cliente: string | null
-  bairro: string | null
-  origem: string | null
-}
+import type { VarejoPedido } from '../types'
+import PedidoModal from './PedidoModal'
 
 const ORIGEM_DOT: Record<string, string> = {
   'IFOOD':        'bg-red-400',
@@ -16,19 +11,25 @@ const ORIGEM_DOT: Record<string, string> = {
 }
 
 export default function VarejoFilaWidget() {
-  const [items, setItems] = useState<FilaItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems]         = useState<VarejoPedido[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [editPedido, setEditPedido] = useState<VarejoPedido | undefined>()
 
-  useEffect(() => {
-    supabase
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { data } = await supabase
       .from('varejo_pedidos')
-      .select('num_pedido, cliente, bairro, origem')
-      .is('data_entrega', null)
+      .select('*')
       .eq('status_icon', '⚠️')
+      .is('turno', null)
+      .eq('origem', 'CARDAPIO WEB')
       .order('created_at', { ascending: false })
       .limit(50)
-      .then(({ data }) => { setItems(data ?? []); setLoading(false) })
+    setItems(data ?? [])
+    setLoading(false)
   }, [])
+
+  useEffect(() => { load() }, [load])
 
   return (
     <div>
@@ -66,13 +67,17 @@ export default function VarejoFilaWidget() {
       {!loading && items.length > 0 && (
         <div className="space-y-1.5">
           {items.slice(0, 8).map(p => (
-            <div key={p.num_pedido}
-              className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700">
+            <button
+              key={p.num_pedido}
+              onClick={() => setEditPedido(p)}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-200 dark:hover:border-orange-800 active:scale-[.99] transition-all text-left"
+            >
               <span className={`w-2 h-2 rounded-full shrink-0 ${ORIGEM_DOT[p.origem ?? ''] ?? 'bg-slate-300'}`} />
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0 w-12">#{p.num_pedido}</span>
               <span className="text-xs text-slate-700 dark:text-slate-200 truncate flex-1">{p.cliente ?? '—'}</span>
               <span className="text-[10px] text-slate-400 truncate max-w-[80px]">{p.bairro ?? ''}</span>
-            </div>
+              <span className="text-[10px] text-orange-400 shrink-0">›</span>
+            </button>
           ))}
           {items.length > 8 && (
             <p className="text-[11px] text-center text-slate-400 pt-1">
@@ -85,8 +90,16 @@ export default function VarejoFilaWidget() {
       {items.length > 0 && (
         <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-1 text-[11px] text-slate-400">
           <AlertTriangle size={11} className="text-orange-400" />
-          Pedidos sem data de entrega definida
+          Clique para definir turno e data de entrega
         </div>
+      )}
+
+      {editPedido && (
+        <PedidoModal
+          pedido={editPedido}
+          onClose={() => setEditPedido(undefined)}
+          onSaved={() => { setEditPedido(undefined); load() }}
+        />
       )}
     </div>
   )

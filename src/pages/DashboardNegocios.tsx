@@ -55,12 +55,11 @@ export default function DashboardNegocios() {
     return [...saved, ...extra].filter(w => w.visible)
   }, [prefs.dashboardWidgets])
 
-  // Colspan por widget: lg = 2 colunas, xl = 3 colunas
-  // Widgets sem entrada aqui = 1 coluna em todos os breakpoints
+  // Compound widgets (legacy) span both columns; individual widgets = 1 col (50%)
   const WIDGET_SPAN: Record<string, string> = {
-    frota:           'lg:col-span-2 xl:col-span-3',
-    tarefas_eventos: 'lg:col-span-2 xl:col-span-2',
-    visitas_negocios:'lg:col-span-2 xl:col-span-2',
+    frota:           'col-span-2',
+    tarefas_eventos: 'col-span-2',
+    visitas_negocios:'col-span-2',
   }
 
   function renderWidget(id: string) {
@@ -144,7 +143,7 @@ export default function DashboardNegocios() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {orderedWidgets.map(w => (
           <div key={w.id} className={WIDGET_SPAN[w.id] ?? ''}>
             {renderWidget(w.id)}
