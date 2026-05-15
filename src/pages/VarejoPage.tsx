@@ -5,8 +5,9 @@ import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { VarejoPedido } from '../types'
 import PedidoModal from '../components/PedidoModal'
+import PosVendaTab from '../components/PosVendaTab'
 
-type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico'
+type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico' | 'posvendas'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -539,6 +540,7 @@ export default function VarejoPage() {
   const [editPedido, setEditPedido] = useState<VarejoPedido | undefined>(undefined)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg]   = useState<string | null>(null)
+  const [posVendaAtivos, setPosVendaAtivos] = useState(0)
   const sheetsApiKey = typeof window !== 'undefined' ? localStorage.getItem('crm_sheets_api_key') ?? '' : ''
 
   const tomorrow = useMemo(() => nextBusinessDay(selectedDate), [selectedDate])
@@ -629,6 +631,7 @@ export default function VarejoPage() {
     { id: 'delivery'  as Tab, label: 'iFood / 99Food', count: todayDelivery.length },
     { id: 'amanha'    as Tab, label: `Amanhã ${format(parseISO(actualTomorrow), 'dd/MM')}`, count: amanha.length },
     { id: 'historico' as Tab, label: 'Histórico',      count: 0 },
+    { id: 'posvendas' as Tab, label: 'Pós-Venda',      count: posVendaAtivos, alert: posVendaAtivos > 0 },
   ]
 
   const displayDate = format(parseISO(selectedDate), "EEEE, dd/MM", { locale: ptBR })
@@ -720,7 +723,9 @@ export default function VarejoPage() {
       </div>
 
       {/* Content */}
-      {tab === 'historico' ? (
+      {tab === 'posvendas' ? (
+        <PosVendaTab onCountsChange={(p1, p2) => setPosVendaAtivos(p1 + p2)} />
+      ) : tab === 'historico' ? (
         <HistoricoTab onEdit={setEditPedido} />
       ) : loading ? (
         <div className="flex justify-center py-12 text-slate-400 text-sm">Carregando...</div>

@@ -424,6 +424,27 @@ export const NOTE_COLORS: Record<NoteColor, { bg: string; border: string; dot: s
   slate:  { bg: 'bg-slate-50',   border: 'border-slate-300',  dot: 'bg-slate-400',   label: 'Cinza'   },
 }
 
+// ─── Pós-Venda Varejo ──────────────────────────────────────────
+export interface PosVendaCliente {
+  telefone: string
+  nome: string | null
+  ult_compra: string
+  ult_interacao: string | null
+  dias_pos_compra: number
+  dias_sem_contato: number
+  n_pedidos: number
+  prioridade: 1 | 2 | 3
+}
+
+export interface PosVendaInteracao {
+  id: string
+  created_at: string
+  telefone: string
+  nome: string | null
+  data_interacao: string
+  observacao: string
+}
+
 // ─── Conversas WhatsApp ────────────────────────────────────────
 export interface CrmConversation {
   id: string
