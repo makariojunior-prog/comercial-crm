@@ -22,6 +22,7 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
   conversas_alertas:   'Alertas de Conversas',
   frota:               'Alertas de Frota & Rastreamento',
   varejo_fila:         'Fila Varejo',
+  posvendas:           'Pós-Venda Pendentes',
 }
 
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
@@ -33,6 +34,7 @@ export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: 'conversas_alertas', visible: true },
   { id: 'frota',             visible: true },
   { id: 'varejo_fila',       visible: true },
+  { id: 'posvendas',         visible: true },
 ]
 
 const DEFAULT_PREFS: UserPreferences = {

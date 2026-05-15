@@ -5,7 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { PosVendaCliente, PosVendaInteracao } from '../types'
 
-type Filtro = 'ativos' | '1' | '2' | 'todos'
+type Filtro = '1' | '2' | 'todos'
 
 const P: Record<number, { icon: string; label: string; border: string; badge: string }> = {
   1: {
@@ -96,7 +96,7 @@ async function importarHistorico(): Promise<{ imported: number; skipped: number 
 export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: number, p2: number) => void }) {
   const [clientes, setClientes]         = useState<PosVendaCliente[]>([])
   const [loading, setLoading]           = useState(true)
-  const [filtro, setFiltro]             = useState<Filtro>('ativos')
+  const [filtro, setFiltro]             = useState<Filtro>('1')
   const [modal, setModal]               = useState<PosVendaCliente | null>(null)
   const [importing, setImporting]       = useState(false)
   const [importStatus, setImportStatus] = useState<string | null>(null)
@@ -127,8 +127,7 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
   const filtered = useMemo(() => {
     if (filtro === '1')     return clientes.filter(c => c.prioridade === 1)
     if (filtro === '2')     return clientes.filter(c => c.prioridade === 2)
-    if (filtro === 'todos') return clientes
-    return clientes.filter(c => c.prioridade <= 2)
+    return clientes
   }, [clientes, filtro])
 
   async function handleImport() {
@@ -147,7 +146,6 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
   }
 
   const FILTROS: [Filtro, string][] = [
-    ['ativos', `Ativos ${counts.p1 + counts.p2}`],
     ['1',      `📞 Pós-Venda ${counts.p1}`],
     ['2',      `🚨 Recompra ${counts.p2}`],
     ['todos',  `Todos ${clientes.length}`],
