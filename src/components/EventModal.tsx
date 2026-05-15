@@ -81,6 +81,7 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
       } else {
         const { data, error: err } = await supabase.from('crm_events').insert(eventData).select()
         if (err) throw err
+        if (!data?.length) throw new Error('Nenhum dado retornado após criação do evento.')
         eId = data[0].id
       }
 

@@ -22,9 +22,10 @@ function prevDay(dateStr: string): string {
 
 function getTurnoOrder(): string[] {
   const h = new Date().getHours()
-  if (h >= 6  && h < 12) return ['MANHÃ', 'TARDE', 'NOITE']
-  if (h >= 12 && h < 18) return ['TARDE', 'NOITE', 'MANHÃ']
-  return ['NOITE', 'TARDE', 'MANHÃ']
+  // SR (Sem Restrição de Horário) always appears last — pode ir a qualquer hora
+  if (h >= 6  && h < 12) return ['MANHÃ', 'TARDE', 'NOITE', 'SR']
+  if (h >= 12 && h < 18) return ['TARDE', 'NOITE', 'MANHÃ', 'SR']
+  return ['NOITE', 'TARDE', 'MANHÃ', 'SR']
 }
 
 function flagPriority(f: string | null): number {
@@ -72,9 +73,16 @@ function borderColor(p: VarejoPedido): string {
   if (p.status_icon === '❌') return 'border-l-slate-300 opacity-50'
   if (p.status_icon === '✅') return 'border-l-green-400'
   if (p.status_icon === '🛵') return 'border-l-blue-400'
-  if (p.flag_restricao === '⚠️') return 'border-l-red-400'
+  if (p.flag_restricao === '⚠️' || p.restricao) return 'border-l-red-500'
   if (!p.entregador) return 'border-l-amber-400'
   return 'border-l-slate-200 dark:border-l-slate-600'
+}
+
+const TURNO_CONFIG: Record<string, { icon: string; label: string; color: string; bg: string; border: string }> = {
+  'MANHÃ':  { icon: '🌅', label: 'Manhã',              color: 'text-amber-700 dark:text-amber-400',  bg: 'bg-amber-50 dark:bg-amber-900/20',   border: 'border-amber-300 dark:border-amber-700'  },
+  'TARDE':  { icon: '☀️', label: 'Tarde',              color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20',  border: 'border-orange-300 dark:border-orange-700' },
+  'NOITE':  { icon: '🌙', label: 'Noite',              color: 'text-indigo-700 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20',  border: 'border-indigo-300 dark:border-indigo-700' },
+  'SR':     { icon: '🕐', label: 'SR — Sem Restrição', color: 'text-slate-600 dark:text-slate-300',   bg: 'bg-slate-100 dark:bg-slate-800/60',   border: 'border-slate-300 dark:border-slate-600'   },
 }
 
 function brl(v: number | null | undefined): string {
@@ -137,17 +145,20 @@ function PedidoCard({ pedido, onClick }: { pedido: VarejoPedido; onClick: () => 
               <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{rota}</span>
             )}
             {pedido.entregador && (
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">👤 {pedido.entregador}</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">🛵 {pedido.entregador}</span>
+            )}
+            {pedido.atendente && (
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">📞 {pedido.atendente}</span>
             )}
             {pedido.valor_liquido != null && (
               <span className="text-[11px] text-slate-400">{brl(pedido.valor_liquido)}</span>
             )}
           </div>
           {pedido.restricao && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-              <AlertTriangle size={9} className="shrink-0" />
-              <span className="line-clamp-1">{pedido.restricao}</span>
-            </p>
+            <div className="mt-1.5 flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-2 py-1">
+              <AlertTriangle size={10} className="text-red-500 dark:text-red-400 shrink-0" />
+              <span className="text-[11px] font-semibold text-red-700 dark:text-red-400 line-clamp-1">{pedido.restricao}</span>
+            </div>
           )}
         </div>
         <span className="text-[10px] text-slate-300 dark:text-slate-600 mt-1 shrink-0">›</span>
@@ -166,6 +177,9 @@ function TurnoGroup({ turno, pedidos, onEdit }: {
   const emRota    = sorted.filter(p => p.status_icon === '🛵').length
   const restantes = sorted.length - entregues
 
+  const cfg = TURNO_CONFIG[turno]
+  const displayLabel = cfg?.label ?? turno
+
   // Build consecutive groups by entregador
   const groups: { entregador: string | null; items: VarejoPedido[] }[] = []
   for (const p of sorted) {
@@ -180,15 +194,22 @@ function TurnoGroup({ turno, pedidos, onEdit }: {
   const showDividers = groups.length > 1
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2 sticky top-0 bg-white dark:bg-slate-900 py-1 z-10">
-        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{turno}</span>
-        <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full font-bold">{sorted.length}</span>
-        {emRota > 0 && <span className="text-[10px] text-blue-600 font-bold">🛵 {emRota}</span>}
-        {entregues > 0 && <span className="text-[10px] text-green-600 font-bold">✅ {entregues}/{sorted.length}</span>}
-        {restantes < sorted.length && <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${(entregues / sorted.length) * 100}%` }} /></div>}
+    <div className={`rounded-xl border ${cfg?.border ?? 'border-slate-200 dark:border-slate-700'} overflow-hidden`}>
+      {/* Colored section header */}
+      <div className={`flex items-center gap-2 px-3 py-2 sticky top-0 z-10 ${cfg?.bg ?? 'bg-slate-50 dark:bg-slate-800'} border-b ${cfg?.border ?? 'border-slate-200 dark:border-slate-700'}`}>
+        {cfg?.icon && <span className="text-base shrink-0">{cfg.icon}</span>}
+        <span className={`text-sm font-bold ${cfg?.color ?? 'text-slate-700 dark:text-slate-200'}`}>{displayLabel}</span>
+        <span className="text-[10px] bg-white/70 dark:bg-black/20 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full font-bold">{sorted.length}</span>
+        {emRota > 0 && <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">🛵 {emRota}</span>}
+        {entregues > 0 && <span className="text-[10px] text-green-600 dark:text-green-400 font-bold">✅ {entregues}/{sorted.length}</span>}
+        {restantes < sorted.length && (
+          <div className="flex-1 h-1.5 bg-white/40 dark:bg-black/20 rounded-full overflow-hidden">
+            <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${(entregues / sorted.length) * 100}%` }} />
+          </div>
+        )}
       </div>
-      <div className="space-y-1.5">
+      {/* Orders */}
+      <div className="p-2 space-y-1.5">
         {groups.map((g, gi) => (
           <div key={`${g.entregador ?? '_none_'}-${gi}`} className="space-y-1.5">
             {showDividers && (
@@ -277,7 +298,7 @@ function FilaTab({ pedidos, onEdit }: { pedidos: VarejoPedido[]; onEdit: (p: Var
     <div className="space-y-4">
       <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
         <AlertTriangle size={13} />
-        {pedidos.length} pedido{pedidos.length > 1 ? 's' : ''} sem data/turno definidos — clique para preencher
+        {pedidos.length} pedido{pedidos.length > 1 ? 's' : ''} aguardando definição de turno — clique para preencher
       </p>
       <div className="space-y-1.5">
         {pedidos.map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
@@ -334,33 +355,43 @@ function DeliveryTab({ pedidos }: { pedidos: VarejoPedido[] }) {
 
 function HistoricoTab({ onEdit }: { onEdit: (p: VarejoPedido) => void }) {
   const [search, setSearch]   = useState('')
-  const [from,   setFrom]     = useState(() => format(subDays(new Date(), 60), 'yyyy-MM-dd'))
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [from,   setFrom]     = useState(() => format(subDays(new Date(), 540), 'yyyy-MM-dd'))
   const [to,     setTo]       = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [data,   setData]     = useState<VarejoPedido[]>([])
   const [loading, setLoading] = useState(false)
 
-  const run = useCallback(async () => {
-    setLoading(true)
-    let q = supabase
-      .from('varejo_pedidos')
-      .select('*')
-      .gte('data_entrega', from)
-      .lte('data_entrega', to)
-      .order('data_entrega', { ascending: false })
-      .order('created_at',   { ascending: false })
-      .limit(500)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
 
-    if (search.trim()) {
-      const s = search.trim()
-      q = q.or(`num_pedido.ilike.%${s}%,cliente.ilike.%${s}%,bairro.ilike.%${s}%`)
-    }
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      if (!from || !to) return
+      setLoading(true)
+      let q = supabase
+        .from('varejo_pedidos')
+        .select('*')
+        .gte('data_entrega', from)
+        .lte('data_entrega', to)
+        .order('data_entrega', { ascending: false })
+        .order('created_at',   { ascending: false })
+        .limit(500)
 
-    const { data: rows } = await q
-    setData(rows ?? [])
-    setLoading(false)
-  }, [search, from, to])
+      if (debouncedSearch) {
+        const s = debouncedSearch.replace(/[%,]/g, '')
+        if (s) q = q.or(`num_pedido.ilike.%${s}%,cliente.ilike.%${s}%,bairro.ilike.%${s}%`)
+      }
 
-  useEffect(() => { run() }, [run])
+      const { data: rows } = await q
+      if (!active) return
+      setData(rows ?? [])
+      setLoading(false)
+    })()
+    return () => { active = false }
+  }, [debouncedSearch, from, to])
 
   return (
     <div className="space-y-3">
@@ -431,6 +462,13 @@ async function syncFromSheets(): Promise<number> {
     return null
   }
 
+  function toNum(raw: unknown): number | null {
+    const s = String(raw ?? '').replace(',', '.').trim()
+    if (!s) return null
+    const n = parseFloat(s)
+    return Number.isFinite(n) ? n : null
+  }
+
   const mapped = rows
     .filter(row => {
       const n = String(row[3] ?? '').trim()
@@ -441,6 +479,7 @@ async function syncFromSheets(): Promise<number> {
       const MAX_FUTURE_DAYS = 60
       const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + MAX_FUTURE_DAYS)
       const dateValid = !dataISO || new Date(dataISO) <= maxDate
+      const qtdParsed = parseInt(String(row[16] ?? ''), 10)
       return {
         num_pedido:           String(row[3]  ?? '').trim(),
         data_entrega:         dateValid ? dataISO : null,
@@ -455,9 +494,9 @@ async function syncFromSheets(): Promise<number> {
         flag_restricao:       String(row[11] ?? '').trim() || null,
         origem:               String(row[12] ?? '').trim() || 'CARDAPIO WEB',
         atendente:            String(row[13] ?? '').trim() || null,
-        valor_liquido:        parseFloat(String(row[14] ?? '').replace(',', '.')) || null,
-        frete:                parseFloat(String(row[15] ?? '').replace(',', '.')) || null,
-        qtd_pedidos_cliente:  parseInt(String(row[16]  ?? ''), 10) || 1,
+        valor_liquido:        toNum(row[14]),
+        frete:                toNum(row[15]),
+        qtd_pedidos_cliente:  Number.isFinite(qtdParsed) && qtdParsed > 0 ? qtdParsed : 1,
         telefone:             String(row[17] ?? '').replace(/\D/g, '') || null,
         endereco_completo:    String(row[19] ?? '').trim() || null,
         complemento:          String(row[20] ?? '').trim() || null,
@@ -531,7 +570,7 @@ export default function VarejoPage() {
         .lte('data_entrega', today)
         .order('data_entrega', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
       if (result?.data_entrega && result.data_entrega < today) {
         setSelectedDate(result.data_entrega)
       }
@@ -542,7 +581,7 @@ export default function VarejoPage() {
   // Realtime
   useEffect(() => {
     const channel = supabase
-      .channel('varejo_realtime')
+      .channel(`varejo_realtime_${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'varejo_pedidos' }, () => load())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -554,9 +593,10 @@ export default function VarejoPage() {
   const todayDelivery = pedidos.filter(p =>
     p.data_entrega === selectedDate && (p.origem === 'IFOOD' || p.origem === '99FOOD')
   )
-  // Fila: orders with no delivery date yet (unscheduled)
+  // Fila: CW orders pending turno assignment (⚠️ sem turno definido)
   const fila = pedidos.filter(p =>
-    p.data_entrega === null &&
+    p.status_icon === '⚠️' &&
+    !p.turno &&
     p.origem === 'CARDAPIO WEB'
   )
   const amanha = pedidos.filter(p => p.data_entrega === tomorrow)

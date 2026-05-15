@@ -28,10 +28,10 @@ export default function EventsPage() {
     if (error) {
       console.error('Error loading events:', error)
     } else {
-      const formatted = data.map((e: any) => ({
+      const formatted = (data ?? []).map((e: any) => ({
         ...e,
         client_nome: e.client?.nome,
-        staff: e.staff.map((s: any) => ({ staff_id: s.staff_id, staff_name: s.staff?.name }))
+        staff: (e.staff ?? []).map((s: any) => ({ staff_id: s.staff_id, staff_name: s.staff?.name }))
       }))
       setEvents(formatted)
     }
@@ -52,8 +52,16 @@ export default function EventsPage() {
   )
 
   const today = startOfDay(new Date())
-  const upcoming = filtered.filter(e => startOfDay(parseISO(e.event_date)) >= today)
-  const past = filtered.filter(e => startOfDay(parseISO(e.event_date)) < today).reverse()
+  const upcoming = filtered.filter(e => {
+    if (!e.event_date) return false
+    const d = parseISO(e.event_date)
+    return !isNaN(d.getTime()) && startOfDay(d) >= today
+  })
+  const past = filtered.filter(e => {
+    if (!e.event_date) return false
+    const d = parseISO(e.event_date)
+    return !isNaN(d.getTime()) && startOfDay(d) < today
+  }).reverse()
 
   return (
     <div className="space-y-6">

@@ -37,15 +37,19 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
   const [loadingHistory, setLoadingHistory] = useState(true)
 
   useEffect(() => {
+    let active = true
+    setLoadingHistory(true)
     supabase
       .from('crm_deal_history')
       .select('*')
       .eq('deal_id', deal.id)
       .order('updated_at', { ascending: false })
       .then(({ data }) => {
+        if (!active) return
         setHistory((data as DealHistory[]) ?? [])
         setLoadingHistory(false)
       })
+    return () => { active = false }
   }, [deal.id])
 
   async function save() {

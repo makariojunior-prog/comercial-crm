@@ -60,7 +60,8 @@ export default function NoteModal({ note, defaultMentions = [], onClose, onSaved
       } else {
         const { data, error: e } = await supabase.from('crm_notes').insert(noteData).select()
         if (e) throw e
-        noteId = data![0].id
+        if (!data?.length) throw new Error('Nenhum dado retornado após criação da nota.')
+        noteId = data[0].id
       }
 
       // Sync mentions: delete all, re-insert

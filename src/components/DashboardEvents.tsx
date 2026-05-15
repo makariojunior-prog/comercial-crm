@@ -18,8 +18,8 @@ export default function DashboardEvents() {
   const [items, setItems]   = useState<AgendaItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  async function loadItems() {
-    setLoading(true)
+  async function loadItems(silent = false) {
+    if (!silent) setLoading(true)
     const today = new Date().toISOString().split('T')[0]
     const nowIso = new Date().toISOString()
 
@@ -68,7 +68,7 @@ export default function DashboardEvents() {
 
   useEffect(() => {
     loadItems()
-    const interval = setInterval(loadItems, 5 * 60 * 1000)
+    const interval = setInterval(() => loadItems(true), 5 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 

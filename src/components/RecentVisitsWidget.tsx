@@ -45,7 +45,7 @@ export default function RecentVisitsWidget() {
 
     // Realtime: prepend new visits as they arrive
     const channel = supabase
-      .channel('recent_visits_widget')
+      .channel(`recent_visits_widget_${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'visits' },

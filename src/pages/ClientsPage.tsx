@@ -35,18 +35,31 @@ const COLUMN_MAP: Record<string, keyof Omit<Client, 'id' | 'created_at' | 'statu
 }
 
 function parseCSV(text: string): Record<string, string>[] {
-  const lines = text.split(/\r?\n/).filter(l => l.trim())
-  if (lines.length < 2) return []
-  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim())
-  return lines.slice(1).map(line => {
-    const vals: string[] = []
-    let cur = '', inQ = false
-    for (const ch of line) {
-      if (ch === '"') { inQ = !inQ }
-      else if (ch === ',' && !inQ) { vals.push(cur); cur = '' }
+  // RFC 4180-ish parser that handles quoted fields with embedded commas, newlines and "" escapes
+  const rows: string[][] = []
+  let cur = ''
+  let row: string[] = []
+  let inQ = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inQ) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cur += '"'; i++ }
+        else inQ = false
+      } else cur += ch
+    } else {
+      if (ch === '"') inQ = true
+      else if (ch === ',') { row.push(cur); cur = '' }
+      else if (ch === '\r') { /* ignore */ }
+      else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = '' }
       else cur += ch
     }
-    vals.push(cur)
+  }
+  if (cur.length > 0 || row.length > 0) { row.push(cur); rows.push(row) }
+  const nonEmpty = rows.filter(r => r.some(c => c.trim().length > 0))
+  if (nonEmpty.length < 2) return []
+  const headers = nonEmpty[0].map(h => h.trim())
+  return nonEmpty.slice(1).map(vals => {
     const obj: Record<string, string> = {}
     headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').trim() })
     return obj
@@ -116,8 +129,13 @@ export default function ClientsPage() {
         if (error) throw error
         inserted = toInsert.length
       }
-      for (const { id, data } of toUpdate) {
-        await supabase.from('crm_clients').update(data).eq('id', id)
+      // Run updates in parallel batches of 10 to avoid overwhelming the API
+      const BATCH = 10
+      for (let i = 0; i < toUpdate.length; i += BATCH) {
+        const slice = toUpdate.slice(i, i + BATCH)
+        await Promise.all(slice.map(({ id, data }) =>
+          supabase.from('crm_clients').update(data).eq('id', id)
+        ))
       }
       updated = toUpdate.length
 

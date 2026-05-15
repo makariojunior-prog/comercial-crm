@@ -319,7 +319,19 @@ export default function RouteExecutionModal({ route, onClose, onSaved }: Props) 
                 {/* Undo buttons */}
                 {(c.status === 'VISITADO' || c.status === 'PULADO') && (
                   <button
-                    onClick={() => setChecks(prev => prev.map((x, j) => j === i ? { ...x, status: 'PENDENTE', expanded: false } : x))}
+                    onClick={async () => {
+                      // Remove created visit so we don't leave orphans in the visits table
+                      if (c.visit_id) {
+                        await supabase.from('visits').delete().eq('id', c.visit_id)
+                      }
+                      if (c.check_id) {
+                        await supabase
+                          .from('crm_route_client_checks')
+                          .update({ status: 'PENDENTE', checked_at: null, visit_id: null })
+                          .eq('id', c.check_id)
+                      }
+                      setChecks(prev => prev.map((x, j) => j === i ? { ...x, status: 'PENDENTE', expanded: false, visit_id: undefined } : x))
+                    }}
                     className="mt-2 text-[10px] text-slate-400 hover:text-slate-600 underline"
                   >
                     Desfazer

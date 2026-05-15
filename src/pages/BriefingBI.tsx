@@ -8,6 +8,11 @@ import type { Briefing, BriefingResult } from '../types'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
+async function authToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? ANON_KEY
+}
+
 export default function BriefingBI() {
   const [briefings, setBriefings] = useState<Briefing[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,23 +44,24 @@ export default function BriefingBI() {
     setGenerating(true)
     setError(null)
     try {
+      const token = await authToken()
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/generate-briefing`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'apikey': ANON_KEY,
-          'Authorization': `Bearer ${ANON_KEY}`,
+          'Authorization': `Bearer ${token}`,
         },
       })
-      const json = await resp.json()
+      const json = await resp.json().catch(() => ({ error: 'Resposta inválida do servidor' }))
       if (!resp.ok || json.error) {
-        setError(json.error ?? 'Erro ao gerar briefing')
+        setError(json.error ?? `Erro ${resp.status} ao gerar briefing`)
         return
       }
       setCurrent(json as BriefingResult)
       await load()
     } catch (e) {
-      setError(String(e))
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setGenerating(false)
     }

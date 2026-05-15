@@ -22,15 +22,19 @@ export default function DealHistoryTimeline({ dealId }: Props) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let active = true
+    setLoading(true)
     supabase
       .from('crm_deal_history')
       .select('*')
       .eq('deal_id', dealId)
       .order('updated_at', { ascending: false })
       .then(({ data }) => {
-        setHistory(data as DealHistory[] ?? [])
+        if (!active) return
+        setHistory((data as DealHistory[]) ?? [])
         setLoading(false)
       })
+    return () => { active = false }
   }, [dealId])
 
   if (loading) return <p className="text-xs text-slate-400 py-2">Carregando histórico...</p>

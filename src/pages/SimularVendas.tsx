@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Calculator, ChevronLeft, MessageCircle, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { PriceItem } from '../types'

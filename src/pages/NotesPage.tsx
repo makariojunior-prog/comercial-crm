@@ -22,7 +22,7 @@ export default function NotesPage() {
   const [editNote, setEditNote]   = useState<Note | null>(null)
 
   async function load() {
-    if (!user?.id) return
+    if (!user?.id) { setLoading(false); return }
     setLoading(true)
 
     const [myRes, mentionRes] = await Promise.all([
@@ -70,8 +70,9 @@ export default function NotesPage() {
   })
 
   const unreadMentions = mentions.filter(m => !m.is_read)
-  const allMentionNotes = mentions.map(m => ({ ...m.note, _mention_id: m.id, _is_read: m.is_read }))
-    .filter(Boolean)
+  const allMentionNotes = mentions
+    .filter(m => m.note)
+    .map(m => ({ ...m.note, _mention_id: m.id, _is_read: m.is_read }))
 
   return (
     <div className="space-y-6">

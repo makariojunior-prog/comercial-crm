@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
-import { X, AlertCircle, Phone, MapPin, Package, User, Truck, CalendarClock } from 'lucide-react'
+import { X, AlertCircle, Phone, MapPin, User, Truck, CalendarClock, Clock } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { VarejoPedido } from '../types'
 import { TURNOS, EMPRESAS_ROTA } from '../types'
@@ -19,9 +21,9 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const ORIGEM_COLORS: Record<string, string> = {
-  'IFOOD':       'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
-  '99FOOD':      'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
-  'CARDAPIO WEB':'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+  'IFOOD':        'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+  '99FOOD':       'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  'CARDAPIO WEB': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
 }
 
 const firstName = (nome: string) => nome.trim().split(/\s+/)[0]
@@ -41,29 +43,29 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
   useEscKey(useCallback(onClose, [onClose]))
 
   const [form, setForm] = useState({
-    // Atendente
-    data_entrega:  pedido.data_entrega ?? '',
-    turno:         pedido.turno ?? '',
-    restricao:     pedido.restricao ?? '',
-    flag_restricao:pedido.flag_restricao ?? '',
-    atendente:     pedido.atendente ?? '',
-    // Logística
-    rota_definida: pedido.rota_definida ?? '',
-    entregador:    pedido.entregador ?? '',
-    empresa:       pedido.empresa ?? '',
-    status_icon:   pedido.status_icon ?? '⚠️',
+    data_entrega:   pedido.data_entrega ?? '',
+    turno:          pedido.turno ?? '',
+    restricao:      pedido.restricao ?? '',
+    flag_restricao: pedido.flag_restricao ?? '',
+    atendente:      pedido.atendente ?? '',
+    rota_definida:  pedido.rota_definida ?? '',
+    entregador:     pedido.entregador ?? '',
+    empresa:        pedido.empresa ?? '',
+    status_icon:    pedido.status_icon ?? '⚠️',
   })
 
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error,  setError]  = useState<string | null>(null)
   const [drivers, setDrivers] = useState<{ id: string; nome: string }[]>([])
   const [users,   setUsers]   = useState<{ id: string; nome: string }[]>([])
 
   useEffect(() => {
+    let active = true
     supabase.from('crm_drivers').select('id, nome').eq('ativo', true).order('nome')
-      .then(({ data }) => setDrivers(data ?? []))
-    supabase.from('crm_users').select('id, nome').eq('ativo', true).order('nome')
-      .then(({ data }) => setUsers(data ?? []))
+      .then(({ data }) => { if (active) setDrivers(data ?? []) })
+    supabase.from('crm_users').select('id, nome').order('nome')
+      .then(({ data }) => { if (active) setUsers(data ?? []) })
+    return () => { active = false }
   }, [])
 
   function set(field: string, value: string) {
@@ -99,6 +101,17 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
     ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : '—'
 
+  const recebidoEm = pedido.created_at
+    ? format(parseISO(pedido.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+    : null
+
+  // Nomes únicos para os selects (primeiro nome)
+  const userNames = users.map(u => firstName(u.nome))
+  const driverNames = drivers.map(d => firstName(d.nome))
+  // Se o valor salvo não está na lista, mostra como opção extra
+  const extraAtendente = form.atendente && !userNames.includes(form.atendente) ? form.atendente : null
+  const extraEntregador = form.entregador && !driverNames.includes(form.entregador) ? form.entregador : null
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -110,7 +123,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
             <span className="text-lg">{form.status_icon}</span>
             <div>
               <p className="font-bold text-slate-800 dark:text-slate-100">Pedido #{pedido.num_pedido}</p>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${ORIGEM_COLORS[pedido.origem] ?? 'bg-slate-100 text-slate-600'}`}>
                   {pedido.origem}
                 </span>
@@ -136,11 +149,18 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
           {/* Info do pedido (read-only) */}
           <div className="bg-slate-50 dark:bg-slate-700/40 rounded-xl p-3 space-y-2">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Dados do pedido</p>
-            <InfoRow icon={User}    label="Cliente"   value={pedido.cliente} />
-            <InfoRow icon={MapPin}  label="Bairro"    value={pedido.bairro} />
-            <InfoRow icon={MapPin}  label="Endereço"  value={pedido.endereco_completo} />
+            {recebidoEm && (
+              <div className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+                <Clock size={12} className="shrink-0 mt-0.5 text-slate-400" />
+                <span className="font-medium text-slate-400 w-16 shrink-0">Recebido</span>
+                <span className="flex-1 font-medium text-slate-600 dark:text-slate-300">{recebidoEm}</span>
+              </div>
+            )}
+            <InfoRow icon={User}   label="Cliente"   value={pedido.cliente} />
+            <InfoRow icon={Phone}  label="Telefone"  value={pedido.telefone} />
+            <InfoRow icon={MapPin} label="Bairro"    value={pedido.bairro} />
+            <InfoRow icon={MapPin} label="Endereço"  value={pedido.endereco_completo} />
             {pedido.complemento && <InfoRow icon={MapPin} label="Compl." value={pedido.complemento} />}
-            <InfoRow icon={Phone}   label="Telefone"  value={pedido.telefone} />
             {pedido.ponto_referencia && <InfoRow icon={MapPin} label="Referência" value={pedido.ponto_referencia} />}
             {pedido.sugestao_rota && <InfoRow icon={Truck} label="Sugestão" value={pedido.sugestao_rota} />}
             <div className="flex gap-4 pt-1">
@@ -171,10 +191,19 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
           <div>
             <p className="text-xs font-bold text-orange-500 uppercase tracking-wide mb-3">Atendente</p>
             <div className="grid grid-cols-2 gap-3">
+
+              {/* Data de entrega — pode ser diferente do dia do pedido */}
               <div>
                 <label className="label">Data de Entrega</label>
-                <input type="date" className="input" value={form.data_entrega} onChange={e => set('data_entrega', e.target.value)} />
+                <input
+                  type="date"
+                  className="input"
+                  value={form.data_entrega}
+                  onChange={e => set('data_entrega', e.target.value)}
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">Pode diferir da data do pedido</p>
               </div>
+
               <div>
                 <label className="label">Turno</label>
                 <select className="input" value={form.turno} onChange={e => set('turno', e.target.value)}>
@@ -182,6 +211,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                   {TURNOS.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
+
               <div className="col-span-2">
                 <label className="label">Restrição / Observação de Entrega</label>
                 <textarea className="input resize-none" rows={2}
@@ -189,6 +219,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                   onChange={e => set('restricao', e.target.value)}
                   placeholder="Ex.: Ligar antes, deixar com porteiro, horário específico..." />
               </div>
+
               <div>
                 <label className="label">Marcador</label>
                 <div className="flex gap-2">
@@ -205,13 +236,20 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                   ))}
                 </div>
               </div>
+
               <div>
                 <label className="label">Atendente responsável</label>
-                <input className="input" list="users-list" value={form.atendente} onChange={e => set('atendente', e.target.value)} placeholder="Nome da atendente" />
-                <datalist id="users-list">
-                  {users.map(u => <option key={u.id} value={firstName(u.nome)} />)}
-                </datalist>
+                <select className="input" value={form.atendente} onChange={e => set('atendente', e.target.value)}>
+                  <option value="">Selecione</option>
+                  {extraAtendente && (
+                    <option value={extraAtendente}>{extraAtendente}</option>
+                  )}
+                  {users.map(u => (
+                    <option key={u.id} value={firstName(u.nome)}>{firstName(u.nome)}</option>
+                  ))}
+                </select>
               </div>
+
             </div>
           </div>
 
@@ -226,10 +264,15 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
               </div>
               <div>
                 <label className="label">Entregador</label>
-                <input className="input" list="drivers-list" value={form.entregador} onChange={e => set('entregador', e.target.value)} placeholder="Nome do entregador" />
-                <datalist id="drivers-list">
-                  {drivers.map(d => <option key={d.id} value={firstName(d.nome)} />)}
-                </datalist>
+                <select className="input" value={form.entregador} onChange={e => set('entregador', e.target.value)}>
+                  <option value="">Selecione</option>
+                  {extraEntregador && (
+                    <option value={extraEntregador}>{extraEntregador}</option>
+                  )}
+                  {drivers.map(d => (
+                    <option key={d.id} value={firstName(d.nome)}>{firstName(d.nome)}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="label">Empresa da Rota</label>

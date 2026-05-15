@@ -53,28 +53,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading]   = useState(true)
 
   async function loadProfile(userId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('crm_users')
       .select('*')
       .eq('id', userId)
-      .single()
-    setProfile(data as CrmUser ?? null)
+      .maybeSingle()
+    if (error) {
+      console.error('Erro ao carregar perfil:', error.message)
+      setProfile(null)
+      return
+    }
+    setProfile((data as CrmUser) ?? null)
   }
 
   useEffect(() => {
+    let active = true
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active) return
       setSession(session)
-      if (session?.user) loadProfile(session.user.id).finally(() => setLoading(false))
+      if (session?.user) loadProfile(session.user.id).finally(() => active && setLoading(false))
       else setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return
       setSession(session)
-      if (session?.user) loadProfile(session.user.id)
-      else { setProfile(null); setLoading(false) }
+      if (session?.user) {
+        loadProfile(session.user.id).finally(() => active && setLoading(false))
+      } else {
+        setProfile(null)
+        setLoading(false)
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => { active = false; subscription.unsubscribe() }
   }, [])
 
   async function signIn(email: string, password: string): Promise<string | null> {

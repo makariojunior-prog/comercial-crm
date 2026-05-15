@@ -116,7 +116,13 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
 
   async function removePhoto(url: string) {
     const path = url.split('/object/public/visit-photos/')[1]
-    if (path) await supabase.storage.from('visit-photos').remove([decodeURIComponent(path)])
+    if (path) {
+      try {
+        await supabase.storage.from('visit-photos').remove([decodeURIComponent(path)])
+      } catch {
+        // ignore — we still want to detach the photo from the visit
+      }
+    }
     setPhotos(prev => prev.filter(u => u !== url))
   }
 

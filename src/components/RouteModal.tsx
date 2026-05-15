@@ -135,7 +135,8 @@ export default function RouteModal({ route, onClose, onSaved }: Props) {
       } else {
         const { data, error: e } = await supabase.from('crm_routes').insert(routeData).select()
         if (e) throw e
-        routeId = data![0].id
+        if (!data?.length) throw new Error('Nenhum dado retornado após criação da rota.')
+        routeId = data[0].id
       }
 
       // Sync clients: delete all then re-insert

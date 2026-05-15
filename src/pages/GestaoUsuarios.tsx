@@ -343,7 +343,6 @@ type Tab = 'usuarios' | 'equipe' | 'funcoes'
 
 export default function GestaoUsuarios() {
   const { session, isAdmin } = useAuth()
-  if (!isAdmin) return <Navigate to="/dashboard" replace />
 
   const [tab,       setTab]       = useState<Tab>('usuarios')
   const [users,     setUsers]     = useState<CrmUser[]>([])
@@ -371,19 +370,29 @@ export default function GestaoUsuarios() {
     setLoading(false)
   }
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { if (isAdmin) loadAll() }, [isAdmin])
+
+  if (!isAdmin) return <Navigate to="/dashboard" replace />
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 
   async function deleteUser(u: CrmUser) {
     if (!confirm(`Excluir o usuário "${u.nome}" permanentemente?`)) return
-    const res = await fetch(`${supabaseUrl}/functions/v1/crm-create-user`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ action: 'delete', userId: u.id }),
-    })
-    if (res.ok) setUsers(prev => prev.filter(x => x.id !== u.id))
-    else alert('Erro ao excluir usuário')
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/crm-create-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action: 'delete', userId: u.id }),
+      })
+      if (res.ok) {
+        setUsers(prev => prev.filter(x => x.id !== u.id))
+      } else {
+        const body = await res.json().catch(() => ({}))
+        alert('Erro ao excluir usuário: ' + (body?.error ?? res.statusText))
+      }
+    } catch (err: any) {
+      alert('Erro ao excluir usuário: ' + (err?.message ?? 'falha de rede'))
+    }
   }
 
   async function deleteStaff(id: string) {

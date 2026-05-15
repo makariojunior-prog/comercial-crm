@@ -17,7 +17,7 @@ export default function DashboardNotesWidget() {
   const [showModal, setShowModal]   = useState(false)
 
   async function load() {
-    if (!user?.id) return
+    if (!user?.id) { setLoading(false); return }
     setLoading(true)
 
     // My pinned notes + notes that mention me (unread)

@@ -55,8 +55,13 @@ export default function DashboardNegocios() {
     return [...saved, ...extra].filter(w => w.visible)
   }, [prefs.dashboardWidgets])
 
-  // Full-width widgets span both columns; half-width fit side-by-side in the grid
-  const FULL_WIDTH = new Set(['frota', 'tarefas_eventos', 'visitas_negocios'])
+  // Colspan por widget: lg = 2 colunas, xl = 3 colunas
+  // Widgets sem entrada aqui = 1 coluna em todos os breakpoints
+  const WIDGET_SPAN: Record<string, string> = {
+    frota:           'lg:col-span-2 xl:col-span-3',
+    tarefas_eventos: 'lg:col-span-2 xl:col-span-2',
+    visitas_negocios:'lg:col-span-2 xl:col-span-2',
+  }
 
   function renderWidget(id: string) {
     switch (id) {
@@ -139,9 +144,9 @@ export default function DashboardNegocios() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
         {orderedWidgets.map(w => (
-          <div key={w.id} className={FULL_WIDTH.has(w.id) ? 'lg:col-span-2' : ''}>
+          <div key={w.id} className={WIDGET_SPAN[w.id] ?? ''}>
             {renderWidget(w.id)}
           </div>
         ))}

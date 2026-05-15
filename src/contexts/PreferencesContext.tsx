@@ -96,11 +96,6 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPrefs(userId ? loadPrefs(userId) : DEFAULT_PREFS)
   }, [userId])
 
-  const persist = useCallback((next: UserPreferences) => {
-    setPrefs(next)
-    if (userId) localStorage.setItem(storageKey(userId), JSON.stringify(next))
-  }, [userId])
-
   const updateNavOrder = useCallback((navOrder: string[]) => {
     setPrefs(prev => {
       const next = { ...prev, navOrder }
@@ -126,9 +121,12 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   }, [userId])
 
   const resetDashboardWidgets = useCallback(() => {
-    const next: UserPreferences = { ...prefs, dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS }
-    persist(next)
-  }, [prefs, persist])
+    setPrefs(prev => {
+      const next = { ...prev, dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS }
+      if (userId) localStorage.setItem(storageKey(userId), JSON.stringify(next))
+      return next
+    })
+  }, [userId])
 
   return (
     <PreferencesContext.Provider value={{ prefs, updateNavOrder, updateDashboardWidgets, resetNavOrder, resetDashboardWidgets }}>

@@ -10,30 +10,38 @@ export default function TrackingWidget() {
   const [loading, setLoading] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [error, setError] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [hasCreds, setHasCreds] = useState(() => !!loadCredentials())
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const activeRef = useRef(true)
 
   async function load() {
+    if (!activeRef.current) return
     setLoading(true)
     setError(false)
     try {
       const data = await fetchPositions()
+      if (!activeRef.current) return
       setPositions(Array.isArray(data) ? data : [])
       setLastUpdate(new Date())
     } catch {
-      setError(true)
+      if (activeRef.current) setError(true)
     } finally {
-      setLoading(false)
+      if (activeRef.current) setLoading(false)
     }
   }
 
   useEffect(() => {
-    if (!loadCredentials()) return
+    activeRef.current = true
+    if (!hasCreds) return
     load()
     timerRef.current = setInterval(load, REFRESH_MS)
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [])
+    return () => {
+      activeRef.current = false
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [hasCreds])
 
-  if (!loadCredentials()) return null
+  if (!hasCreds) return null
   if (!loading && positions.length === 0 && !error) return null
 
   const moving  = positions.filter(p => p.connected && p.offline_hours <= 1)

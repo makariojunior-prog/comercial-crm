@@ -272,6 +272,10 @@ export default function SolicitarAmostras() {
     if (!empresa) return
     if (!vendedor.trim()) { setError('Informe seu nome.'); return }
     if (activeItems.length === 0) { setError('Selecione ao menos um produto.'); return }
+    if (entregaData && entregaData < minDate) {
+      setError(`Data de entrega precisa ser a partir de ${minDate} (2 dias úteis).`)
+      return
+    }
     setSending(true); setError(null)
 
     const payload = activeItems.map(([nome, v]) => ({

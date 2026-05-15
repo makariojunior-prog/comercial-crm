@@ -301,12 +301,19 @@ function RouteClientList({ routeId }: { routeId: string }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let active = true
+    setLoading(true)
     supabase
       .from('crm_route_clients')
       .select('*, client:crm_clients(nome, setor, telefone)')
       .eq('route_id', routeId)
       .order('visit_order')
-      .then(({ data }) => { setClients(data || []); setLoading(false) })
+      .then(({ data }) => {
+        if (!active) return
+        setClients(data || [])
+        setLoading(false)
+      })
+    return () => { active = false }
   }, [routeId])
 
   return (
