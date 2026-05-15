@@ -4,10 +4,12 @@ import { format, parseISO } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { PosVendaCliente } from '../types'
+import PosVendaInteracaoModal from './PosVendaInteracaoModal'
 
 export default function PosVendaWidget() {
   const [clientes, setClientes] = useState<PosVendaCliente[]>([])
   const [loading, setLoading]   = useState(true)
+  const [modal, setModal]       = useState<PosVendaCliente | null>(null)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -60,12 +62,10 @@ export default function PosVendaWidget() {
       {!loading && clientes.length > 0 && (
         <div className="space-y-1.5">
           {clientes.slice(0, 8).map(c => (
-            <a
+            <button
               key={c.telefone}
-              href={`https://wa.me/${c.telefone}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:border-sky-200 dark:hover:border-sky-800 transition-all text-left"
+              onClick={() => setModal(c)}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:border-sky-200 dark:hover:border-sky-800 active:scale-[.99] transition-all text-left"
             >
               <span className="w-2 h-2 rounded-full shrink-0 bg-sky-400" />
               <span className="text-xs text-slate-700 dark:text-slate-200 truncate flex-1 font-medium">
@@ -82,7 +82,7 @@ export default function PosVendaWidget() {
               <span className={`text-[10px] font-semibold shrink-0 ${c.dias_pos_compra >= 30 ? 'text-orange-500' : 'text-slate-400'}`}>
                 {c.dias_pos_compra}d
               </span>
-            </a>
+            </button>
           ))}
           {clientes.length > 8 && (
             <p className="text-[11px] text-center text-slate-400 pt-1">
@@ -99,6 +99,13 @@ export default function PosVendaWidget() {
         >
           Ver todos no Varejo → Pós-Venda
         </button>
+      )}
+
+      {modal && (
+        <PosVendaInteracaoModal
+          cliente={modal}
+          onClose={() => { setModal(null); load() }}
+        />
       )}
     </div>
   )
