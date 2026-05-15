@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { MessageSquare, RefreshCw, Eye, EyeOff, Search, X, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
+import { MessageSquare, RefreshCw, Eye, EyeOff, Search, X, ChevronDown, ChevronUp, AlertTriangle, RotateCcw } from 'lucide-react'
 import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -35,6 +35,8 @@ export default function ConversacoesPage() {
   const [search, setSearch] = useState('')
   const [hideVisto, setHideVisto] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [reprocessing, setReprocessing] = useState(false)
+  const [reprocessMsg, setReprocessMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -66,6 +68,28 @@ export default function ConversacoesPage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
+
+  const errosCount = useMemo(() => conversas.filter(c => c.status_ia === 'error').length, [conversas])
+
+  async function reprocessarErros() {
+    setReprocessing(true)
+    setReprocessMsg(null)
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reprocess-conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const json = await res.json() as { total?: number; ok?: number; failed?: number; error?: string }
+      if (json.error) throw new Error(json.error)
+      setReprocessMsg(`✓ ${json.ok}/${json.total} reprocessadas`)
+      setTimeout(() => { setReprocessMsg(null); load() }, 3000)
+    } catch (e) {
+      setReprocessMsg(e instanceof Error ? e.message : 'Erro')
+      setTimeout(() => setReprocessMsg(null), 5000)
+    } finally {
+      setReprocessing(false)
+    }
+  }
 
   async function marcarVisto(id: string) {
     setConversas(prev => prev.map(c => c.id === id ? { ...c, visto: true } : c))
@@ -136,7 +160,24 @@ export default function ConversacoesPage() {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          {errosCount > 0 && (
+            <button
+              onClick={reprocessarErros}
+              disabled={reprocessing}
+              title="Reprocessar mensagens com erro de IA"
+              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${
+                reprocessMsg?.startsWith('✓')
+                  ? 'text-green-600 bg-green-50 dark:bg-green-900/20'
+                  : reprocessMsg
+                  ? 'text-red-600 bg-red-50 dark:bg-red-900/20'
+                  : 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+              }`}
+            >
+              <RotateCcw size={13} className={reprocessing ? 'animate-spin' : ''} />
+              {reprocessing ? 'Reprocessando…' : (reprocessMsg ?? `Reprocessar ${errosCount} erro${errosCount > 1 ? 's' : ''}`)}
+            </button>
+          )}
           <button
             onClick={() => setHideVisto(v => !v)}
             title={hideVisto ? 'Mostrar todas' : 'Ocultar vistas'}
