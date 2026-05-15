@@ -456,8 +456,15 @@ async function syncFromSheets(): Promise<number> {
 
   function parseDateBR(val: unknown): string | null {
     const s = String(val ?? '').trim()
+    // Full: DD/MM/YYYY
     const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
     if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`
+    // Short: DD/MM (spreadsheet formatted without year) — assume current year
+    const m2 = s.match(/^(\d{1,2})\/(\d{1,2})$/)
+    if (m2) {
+      const year = new Date().getFullYear()
+      return `${year}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`
+    }
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
     return null
   }
@@ -487,7 +494,7 @@ async function syncFromSheets(): Promise<number> {
         marcador:             String(row[2]  ?? '').trim() || null,
         cliente:              String(row[4]  ?? '').trim() || null,
         bairro:               String(row[5]  ?? '').trim() || null,
-        turno:                String(row[6]  ?? '').trim() || null,
+        turno:                String(row[6]  ?? '').trim().toUpperCase() || null,
         rota_definida:        String(row[8]  ?? '').trim() || null,
         restricao:            String(row[9]  ?? '').trim() || null,
         entregador:           String(row[10] ?? '').trim() || null,
