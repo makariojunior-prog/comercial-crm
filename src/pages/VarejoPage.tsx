@@ -542,8 +542,8 @@ export default function VarejoPage() {
   const sheetsApiKey = typeof window !== 'undefined' ? localStorage.getItem('crm_sheets_api_key') ?? '' : ''
 
   const tomorrow = useMemo(() => nextBusinessDay(selectedDate), [selectedDate])
-  // "Amanhã" always means the real next business day from today, independent of selectedDate
-  const actualTomorrow = useMemo(() => nextBusinessDay(format(new Date(), 'yyyy-MM-dd')), [])
+  // "Amanhã" = actual next calendar day from today (not nextBusinessDay — varejo entrega aos fins de semana)
+  const actualTomorrow = useMemo(() => format(addDays(new Date(), 1), 'yyyy-MM-dd'), [])
 
   const load = useCallback(async () => {
     setLoading(true)

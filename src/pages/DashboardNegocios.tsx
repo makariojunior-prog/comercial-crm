@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, User } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -55,12 +55,8 @@ export default function DashboardNegocios() {
     return [...saved, ...extra].filter(w => w.visible)
   }, [prefs.dashboardWidgets])
 
-  // Compound widgets (legacy) span both columns; individual widgets = 1 col (50%)
-  const WIDGET_SPAN: Record<string, string> = {
-    frota:           'col-span-2',
-    tarefas_eventos: 'col-span-2',
-    visitas_negocios:'col-span-2',
-  }
+  // Widgets that always span both columns (full width)
+  const FULL_WIDTH = new Set(['frota', 'tarefas_eventos', 'visitas_negocios'])
 
   function renderWidget(id: string) {
     switch (id) {
@@ -143,12 +139,42 @@ export default function DashboardNegocios() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {orderedWidgets.map(w => (
-          <div key={w.id} className={WIDGET_SPAN[w.id] ?? ''}>
-            {renderWidget(w.id)}
-          </div>
-        ))}
+      <div className="space-y-5">
+        {(() => {
+          // Masonry layout: two independent flex columns eliminate row-height gaps.
+          // Full-width widgets (frota, legacy compounds) act as section separators.
+          const sections: React.ReactNode[] = []
+          let half: typeof orderedWidgets = []
+          let key = 0
+
+          function flushHalf() {
+            if (!half.length) return
+            const left  = half.filter((_, i) => i % 2 === 0)
+            const right = half.filter((_, i) => i % 2 === 1)
+            sections.push(
+              <div key={key++} className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+                <div className="flex flex-col gap-5">
+                  {left.map(w => <div key={w.id}>{renderWidget(w.id)}</div>)}
+                </div>
+                <div className="flex flex-col gap-5">
+                  {right.map(w => <div key={w.id}>{renderWidget(w.id)}</div>)}
+                </div>
+              </div>
+            )
+            half = []
+          }
+
+          for (const w of orderedWidgets) {
+            if (FULL_WIDTH.has(w.id)) {
+              flushHalf()
+              sections.push(<div key={w.id}>{renderWidget(w.id)}</div>)
+            } else {
+              half.push(w)
+            }
+          }
+          flushHalf()
+          return sections
+        })()}
       </div>
 
       {/* Modals */}
