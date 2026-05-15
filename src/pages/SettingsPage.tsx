@@ -273,8 +273,8 @@ export default function SettingsPage() {
         </p>
       </Section>
 
-      {/* ─── Planilha Google ────────────────────────────────────── */}
-      <SheetsSection />
+      {/* ─── Planilha Google — somente Admin ───────────────────── */}
+      {isAdmin && <SheetsSection />}
 
       {/* ─── Admin note ─────────────────────────────────────────── */}
       {isAdmin && (
