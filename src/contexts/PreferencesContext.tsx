@@ -12,25 +12,27 @@ export interface UserPreferences {
 }
 
 export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
-  tarefas_eventos:  'Tarefas & Eventos',  // legado — mantido para migração
-  tarefas:          'Tarefas',
-  eventos:          'Eventos',
-  visitas_negocios: 'Visitas & Negócios', // legado — mantido para migração
-  visitas:          'Visitas Recentes',
-  negocios:         'Negócios Ativos',
-  notas:            'Notas',
-  frota:            'Alertas de Frota & Rastreamento',
-  varejo_fila:      'Fila Varejo',
+  tarefas_eventos:     'Tarefas & Eventos',  // legado — mantido para migração
+  tarefas:             'Tarefas',
+  eventos:             'Eventos',
+  visitas_negocios:    'Visitas & Negócios', // legado — mantido para migração
+  visitas:             'Visitas Recentes',
+  negocios:            'Negócios Ativos',
+  notas:               'Notas',
+  conversas_alertas:   'Alertas de Conversas',
+  frota:               'Alertas de Frota & Rastreamento',
+  varejo_fila:         'Fila Varejo',
 }
 
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
-  { id: 'tarefas',   visible: true },
-  { id: 'eventos',   visible: true },
-  { id: 'visitas',   visible: true },
-  { id: 'negocios',  visible: true },
-  { id: 'notas',     visible: true },
-  { id: 'frota',     visible: true },
-  { id: 'varejo_fila', visible: true },
+  { id: 'tarefas',           visible: true },
+  { id: 'eventos',           visible: true },
+  { id: 'visitas',           visible: true },
+  { id: 'negocios',          visible: true },
+  { id: 'notas',             visible: true },
+  { id: 'conversas_alertas', visible: true },
+  { id: 'frota',             visible: true },
+  { id: 'varejo_fila',       visible: true },
 ]
 
 const DEFAULT_PREFS: UserPreferences = {

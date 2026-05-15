@@ -423,3 +423,25 @@ export const NOTE_COLORS: Record<NoteColor, { bg: string; border: string; dot: s
   purple: { bg: 'bg-purple-50',  border: 'border-purple-300', dot: 'bg-purple-500',  label: 'Roxo'    },
   slate:  { bg: 'bg-slate-50',   border: 'border-slate-300',  dot: 'bg-slate-400',   label: 'Cinza'   },
 }
+
+// ─── Conversas WhatsApp ────────────────────────────────────────
+export interface CrmConversation {
+  id: string
+  created_at: string
+  received_at: string
+  conexao: 'CANTINA' | 'LUMAR' | 'LUMAR_NOVOS'
+  nome: string | null
+  telefone: string | null
+  texto: string
+  msg_type: string | null
+  msg_id: string | null
+  contact_id: string | null
+  rota_origem: string | null
+  status_ia: string | null
+  categoria: string | null
+  resumo: string | null
+  confianca: string | null
+  alerta_enviado: boolean
+  visto: boolean
+  archived: boolean
+}
