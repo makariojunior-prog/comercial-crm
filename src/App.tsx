@@ -22,6 +22,7 @@ import SimularVendas from './pages/SimularVendas'
 import LogisticaPage from './pages/LogisticaPage'
 import VarejoPage from './pages/VarejoPage'
 import ConversacoesPage from './pages/ConversacoesPage'
+import SocialPage from './pages/SocialPage'
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="/logistica"    element={<LogisticaPage />} />
               <Route path="/varejo"       element={<VarejoPage />} />
               <Route path="/conversas"    element={<ConversacoesPage />} />
+              <Route path="/social"       element={<SocialPage />} />
             </Route>
           </Route>
         </Routes>

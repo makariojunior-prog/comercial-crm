@@ -454,6 +454,31 @@ export interface PosVendaInteracao {
   observacao: string
 }
 
+// ─── Comentários Redes Sociais ─────────────────────────────────
+export interface CrmSocialComment {
+  id: string
+  created_at: string
+  received_at: string
+  platform: string
+  account: string
+  comment_id: string | null
+  comment_type: string
+  username: string | null
+  nome: string | null
+  mensagem: string
+  post_link: string | null
+  post_caption: string | null
+  media_id: string | null
+  status: 'NOVO' | 'RESPONDIDO' | 'IGNORADO'
+  resposta: string | null
+  respondido_por: string | null
+  respondido_em: string | null
+  categoria: string | null
+  resumo_ia: string | null
+  sugestao_resposta: string | null
+  alerta_enviado: boolean
+}
+
 // ─── Conversas WhatsApp ────────────────────────────────────────
 export interface CrmConversation {
   id: string

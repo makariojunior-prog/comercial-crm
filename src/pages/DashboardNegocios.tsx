@@ -16,6 +16,7 @@ import VehicleAlertsWidget from '../components/VehicleAlertsWidget'
 import TrackingWidget from '../components/TrackingWidget'
 import VarejoFilaWidget from '../components/VarejoFilaWidget'
 import ConversacoesAlertasWidget from '../components/ConversacoesAlertasWidget'
+import SocialWidget from '../components/SocialWidget'
 import PosVendaWidget from '../components/PosVendaWidget'
 import { usePreferences, DEFAULT_DASHBOARD_WIDGETS } from '../contexts/PreferencesContext'
 
@@ -112,6 +113,8 @@ export default function DashboardNegocios() {
         return <div className="card p-5"><PosVendaWidget /></div>
       case 'conversas_alertas':
         return <div className="card p-5"><ConversacoesAlertasWidget /></div>
+      case 'social_comentarios':
+        return <div className="card p-5"><SocialWidget /></div>
       case 'frota':
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
