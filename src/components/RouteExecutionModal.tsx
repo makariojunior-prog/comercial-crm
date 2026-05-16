@@ -138,14 +138,15 @@ export default function RouteExecutionModal({ route, onClose, onSaved }: Props) 
         const { data: visitData, error: ve } = await supabase
           .from('visits')
           .insert({
-            visit_date:   new Date().toISOString().split('T')[0],
-            visit_type:   'Acompanhamento',
-            client_name:  check.client_name,
-            responsible:  responsible || profile?.nome || 'Equipe',
-            demand:       check.demand || null,
-            report:       check.report || null,
-            priority:     check.priority,
-            status:       'Realizada',
+            visit_date:    new Date().toISOString().split('T')[0],
+            visit_type:    'Acompanhamento',
+            client_name:   check.client_name,
+            responsible:   responsible || profile?.nome || 'Equipe',
+            responsaveis:  responsible ? [responsible] : (profile?.nome ? [profile.nome] : []),
+            demand:        check.demand || null,
+            report:        check.report || null,
+            priority:      check.priority,
+            status:        'Realizada',
           })
           .select()
           .single()

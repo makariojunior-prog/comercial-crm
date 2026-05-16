@@ -40,6 +40,7 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
   const [data, setData]         = useState(format(new Date(), 'yyyy-MM-dd'))
   const [obs, setObs]           = useState('')
   const [saving, setSaving]     = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [hist, setHist]         = useState<PosVendaInteracao[]>([])
   const [loadHist, setLoadHist] = useState(true)
   const cfg = P[cliente.prioridade] ?? P[3]
@@ -61,13 +62,15 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
   async function salvar() {
     if (!obs.trim()) return
     setSaving(true)
-    await supabase.from('crm_posvendas_interacoes').insert({
+    setSaveError(null)
+    const { error } = await supabase.from('crm_posvendas_interacoes').insert({
       telefone:       cliente.telefone,
       nome:           cliente.nome,
       data_interacao: data,
       observacao:     obs.trim(),
     })
     setSaving(false)
+    if (error) { setSaveError(error.message); return }
     onClose()
   }
 
@@ -144,6 +147,9 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
               onChange={e => setObs(e.target.value)}
               autoFocus
             />
+            {saveError && (
+              <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveError}</p>
+            )}
             <div className="flex gap-2 justify-end">
               <button onClick={onClose} className="btn-ghost px-4 py-2 text-sm">Cancelar</button>
               <button

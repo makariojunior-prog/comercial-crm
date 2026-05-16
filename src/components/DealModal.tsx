@@ -11,37 +11,44 @@ interface Props {
   onSaved: () => void
 }
 
-const emptyForm = {
-  start_date:       new Date().toISOString().split('T')[0],
-  client_name:      '',
-  contact_name:     '',
-  contact_phone:    '',
-  deal_type:        'CANTINA REVENDA',
-  interest:         '',
-  last_contact_date: new Date().toISOString().split('T')[0],
-  status:           'NOVO' as DealStatus,
-  priority:         'MÉDIA' as DealPriority,
-  follow_up:        '',
-  end_date:         '',
-  potential_notes:  '',
+function todayLocal() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function makeEmptyForm() {
+  return {
+    start_date:        todayLocal(),
+    client_name:       '',
+    contact_name:      '',
+    contact_phone:     '',
+    deal_type:         'CANTINA REVENDA',
+    interest:          '',
+    last_contact_date: todayLocal(),
+    status:            'NOVO' as DealStatus,
+    priority:          'MÉDIA' as DealPriority,
+    follow_up:         '',
+    end_date:          '',
+    potential_notes:   '',
+  }
 }
 
 export default function DealModal({ deal, onClose, onSaved }: Props) {
   const [form, setForm] = useState(
     deal ? {
-      start_date:       deal.start_date        ?? emptyForm.start_date,
-      client_name:      deal.client_name,
-      contact_name:     deal.contact_name       ?? '',
-      contact_phone:    deal.contact_phone      ?? '',
-      deal_type:        deal.deal_type          ?? emptyForm.deal_type,
-      interest:         deal.interest           ?? '',
-      last_contact_date: deal.last_contact_date ?? emptyForm.last_contact_date,
-      status:           deal.status             ?? emptyForm.status,
-      priority:         deal.priority           ?? emptyForm.priority,
-      follow_up:        deal.follow_up          ?? '',
-      end_date:         deal.end_date           ?? '',
-      potential_notes:  deal.potential_notes    ?? '',
-    } : emptyForm
+      start_date:        deal.start_date        ?? todayLocal(),
+      client_name:       deal.client_name,
+      contact_name:      deal.contact_name       ?? '',
+      contact_phone:     deal.contact_phone      ?? '',
+      deal_type:         deal.deal_type          ?? 'CANTINA REVENDA',
+      interest:          deal.interest           ?? '',
+      last_contact_date: deal.last_contact_date ?? todayLocal(),
+      status:            deal.status             ?? 'NOVO' as DealStatus,
+      priority:          deal.priority           ?? 'MÉDIA' as DealPriority,
+      follow_up:         deal.follow_up          ?? '',
+      end_date:          deal.end_date           ?? '',
+      potential_notes:   deal.potential_notes    ?? '',
+    } : makeEmptyForm()
   )
 
   const initResponsaveis = (): string[] => {

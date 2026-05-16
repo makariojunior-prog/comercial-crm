@@ -197,14 +197,18 @@ function DealRow({
           {deal.contact_name && (
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Contato</p>
-              {deal.contact_phone ? (
-                <a href={`https://wa.me/${(d => d.startsWith('55') ? d : '55' + d)(deal.contact_phone.replace(/\D/g, ''))}`} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
-                  📱 {deal.contact_name} · {deal.contact_phone}
-                </a>
-              ) : (
-                <p className="text-sm text-slate-700">{deal.contact_name}</p>
-              )}
+              {deal.contact_phone ? (() => {
+                  const digits = deal.contact_phone.replace(/\D/g, '')
+                  const waNum  = digits.length >= 10 ? (digits.startsWith('55') ? digits : '55' + digits) : null
+                  return waNum ? (
+                    <a href={`https://wa.me/${waNum}`} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
+                      📱 {deal.contact_name} · {deal.contact_phone}
+                    </a>
+                  ) : (
+                    <p className="text-sm text-slate-700">📱 {deal.contact_name} · {deal.contact_phone}</p>
+                  )
+                })() : null}
             </div>
           )}
           {deal.interest && (

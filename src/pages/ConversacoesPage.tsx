@@ -59,7 +59,9 @@ export default function ConversacoesPage() {
     const channel = supabase
       .channel('crm-conversas-rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crm_conversations' }, (payload) => {
-        setConversas(prev => [payload.new as CrmConversation, ...prev])
+        const msg = payload.new as CrmConversation
+        if (msg.archived) return
+        setConversas(prev => [msg, ...prev])
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'crm_conversations' }, (payload) => {
         const updated = payload.new as CrmConversation

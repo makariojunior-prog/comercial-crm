@@ -22,32 +22,39 @@ function maskPhone(value: string) {
 const MAX_PHOTOS = 3
 const COMPRESS_OPTIONS = { maxSizeMB: 0.3, maxWidthOrHeight: 1200, useWebWorker: true }
 
-const emptyForm = {
-  visit_date:    new Date().toISOString().split('T')[0],
-  visit_type:    'Prospecção',
-  client_name:   '',
-  contact_name:  '',
-  contact_phone: '',
-  demand:        '',
-  report:        '',
-  priority:      'MÉDIA',
-  status:        'Realizada',
+function todayLocal() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function makeEmptyForm() {
+  return {
+    visit_date:    todayLocal(),
+    visit_type:    'Prospecção',
+    client_name:   '',
+    contact_name:  '',
+    contact_phone: '',
+    demand:        '',
+    report:        '',
+    priority:      'MÉDIA',
+    status:        'Realizada',
+  }
 }
 
 export default function VisitModal({ visit, onClose, onSaved }: Props) {
   useEscKey(useCallback(onClose, [onClose]))
   const [form, setForm] = useState(
     visit ? {
-      visit_date:    visit.visit_date    ?? emptyForm.visit_date,
-      visit_type:    visit.visit_type    ?? emptyForm.visit_type,
+      visit_date:    visit.visit_date    ?? todayLocal(),
+      visit_type:    visit.visit_type    ?? 'Prospecção',
       client_name:   visit.client_name,
       contact_name:  visit.contact_name  ?? '',
       contact_phone: visit.contact_phone ? maskPhone(visit.contact_phone) : '',
       demand:        visit.demand        ?? '',
       report:        visit.report        ?? '',
-      priority:      visit.priority      ?? emptyForm.priority,
-      status:        visit.status        ?? emptyForm.status,
-    } : emptyForm
+      priority:      visit.priority      ?? 'MÉDIA',
+      status:        visit.status        ?? 'Realizada',
+    } : makeEmptyForm()
   )
 
   const initResponsaveis = (): string[] => {

@@ -49,7 +49,7 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
   useEffect(() => {
     async function loadData() {
       const { data: cData } = await supabase.from('crm_clients').select('id, nome').eq('status', 'ATIVO').order('nome')
-      const { data: sData } = await supabase.from('crm_staff').select('*').eq('active', true).order('name')
+      const { data: sData } = await supabase.from('crm_staff').select('*, role:crm_roles(name)').eq('active', true).order('name')
       if (cData) setClients(cData as Client[])
       if (sData) setAllStaff(sData as Staff[])
     }
@@ -268,7 +268,7 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
                 {allStaff.map(s => (
                   <button key={s.id} onClick={() => toggleStaff(s.id)} className={`p-2 rounded-lg border text-left transition-all ${selectedStaff.includes(s.id) ? 'bg-orange-50 border-orange-300 ring-1 ring-orange-500' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
                     <p className="text-xs font-bold text-slate-800">{s.name}</p>
-                    <p className="text-[10px] text-slate-400">{s.role_name}</p>
+                    <p className="text-[10px] text-slate-400">{(s as any).role?.name ?? ''}</p>
                   </button>
                 ))}
               </div>
