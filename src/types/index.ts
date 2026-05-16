@@ -519,6 +519,7 @@ export interface AtacadoPedido {
   ocorrencia: string | null
   data_emissao: string | null
   atualizacao: string
+  data_entrega: string | null
   recebimento: string | null
   conferencia: string | null
   created_at: string

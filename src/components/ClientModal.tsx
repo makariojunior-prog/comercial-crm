@@ -10,10 +10,11 @@ interface ClientModalProps {
   onSaved: () => void
 }
 
-const CARTEIRAS = ['THIAGO', 'MAKÁRIO', 'MARCO'] as const
+const CARTEIRAS   = ['THIAGO', 'MAKÁRIO', 'MARCO'] as const
 const MANUTENCOES = ['MENSAL', 'SEMANAL', 'INATIVO'] as const
 const FREQUENCIAS = ['1X', '2X'] as const
-const TIPOS = ['LUMAR', 'LUMAR REVENDA', 'CANTINA REVENDA', 'LUMAR / CANTINA'] as const
+const TIPOS       = ['LUMAR', 'LUMAR REVENDA', 'CANTINA REVENDA', 'LUMAR / CANTINA'] as const
+const DIAS_SEMANA = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO'] as const
 
 export default function ClientModal({ client, onClose, onSaved }: ClientModalProps) {
   useEscKey(useCallback(onClose, [onClose]))
@@ -24,7 +25,9 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
   const [setor, setSetor]             = useState(client?.setor ?? '')
   const [pgto, setPgto]               = useState(client?.pgto ?? '')
   const [localizacao, setLocalizacao] = useState(client?.localizacao ?? '')
-  const [dia_entrega, setDiaEntrega]  = useState(client?.dia_entrega ?? '')
+  const [diasEntrega, setDiasEntrega] = useState<string[]>(
+    (client?.dia_entrega ?? '').split(',').map(d => d.trim()).filter(Boolean)
+  )
   const [observacoes, setObservacoes] = useState(client?.observacoes ?? '')
   const [tipo, setTipo]               = useState(client?.tipo ?? '')
   const [status, setStatus]           = useState<ClientStatus>(client?.status ?? 'ATIVO')
@@ -55,7 +58,7 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
       setor:         setor.trim() || null,
       pgto:          pgto.trim() || null,
       localizacao:   localizacao.trim() || null,
-      dia_entrega:   dia_entrega.trim() || null,
+      dia_entrega:   diasEntrega.length ? diasEntrega.join(', ') : null,
       observacoes:   observacoes.trim() || null,
       tipo:          tipo.trim() || null,
       status,
@@ -179,7 +182,30 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
               </div>
               <div>
                 <label className="label text-xs font-black uppercase text-slate-400">Dias de Entrega</label>
-                <input className="input" value={dia_entrega} onChange={e => setDiaEntrega(e.target.value)} placeholder="Ex: SEGUNDA, QUARTA" />
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {DIAS_SEMANA.map(dia => {
+                    const sel = diasEntrega.includes(dia)
+                    return (
+                      <button
+                        key={dia}
+                        type="button"
+                        onClick={() => setDiasEntrega(prev =>
+                          sel ? prev.filter(d => d !== dia) : [...prev, dia]
+                        )}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border-2 transition-all ${
+                          sel
+                            ? 'bg-orange-500 border-orange-500 text-white'
+                            : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-orange-300'
+                        }`}
+                      >
+                        {dia.slice(0, 3)}
+                      </button>
+                    )
+                  })}
+                </div>
+                {diasEntrega.length > 0 && (
+                  <p className="text-[10px] text-slate-400 mt-1">{diasEntrega.join(', ')}</p>
+                )}
               </div>
             </div>
             <div>
