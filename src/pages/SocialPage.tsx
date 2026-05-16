@@ -90,7 +90,7 @@ export default function SocialPage() {
 
   async function salvarResposta(id: string, resposta: string) {
     const now = new Date().toISOString()
-    const update = { status: 'RESPONDIDO', resposta, respondido_por: profile?.nome ?? profile?.email ?? null, respondido_em: now }
+    const update: Partial<CrmSocialComment> = { status: 'RESPONDIDO', resposta, respondido_por: profile?.nome ?? profile?.email ?? null, respondido_em: now }
     setComments(prev => prev.map(c => c.id === id ? { ...c, ...update } : c))
     await supabase.from('crm_social_comments').update(update).eq('id', id)
     setReplyModal(null)
