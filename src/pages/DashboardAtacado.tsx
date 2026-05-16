@@ -211,8 +211,13 @@ export default function DashboardAtacado() {
     try {
       const { data, error } = await supabase.functions.invoke('sync-atacado', { body: { type } })
       if (error) { setSyncMsg(`Erro: ${error.message}`); return }
+      if (data?.ok === false) {
+        setSyncMsg(`Erro: ${data.error}${data.hint ? ' — ' + data.hint : ''}`)
+        return
+      }
       if (type === 'pedidos') {
-        setSyncMsg(`✓ ${data.upserted} pedidos sincronizados (${data.skipped} ignorados)`)
+        const cols = data.sheetHeaders?.join(', ') ?? 'n/a'
+        setSyncMsg(`✓ ${data.upserted} pedidos importados (${data.skipped} ignorados) — colunas detectadas: ${cols}`)
         await loadNovos()
       } else {
         setSyncMsg(`✓ ${data.updated} atualizados (${data.skipped} ignorados)`)
