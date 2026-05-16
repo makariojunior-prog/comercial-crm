@@ -479,6 +479,66 @@ export interface CrmSocialComment {
   alerta_enviado: boolean
 }
 
+// ─── Módulo Atacado (Lumar) ────────────────────────────────────
+export interface AtacadoCliente {
+  id: number
+  cliente: string
+  cnpj_cpf: string | null
+  telefone: string | null
+  rota: string | null
+  setor: string | null
+  pgto_padrao: string | null
+  localizacao: string | null
+  observacoes: string | null
+  dias_entrega: string[]
+  enviar_mensagem: boolean
+  bonificacao: string | null
+  restricao: string | null
+  tipo: string
+  carteira: string | null
+  status: string
+  frequencia: string | null
+  comodato: string | null
+  comodato_valor: number | null
+  comodato_data: string | null
+  comodato_obs: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AtacadoPedido {
+  id: number
+  id_venda: number
+  numero_pedido: number | null
+  cliente_id: number | null
+  cliente_nome: string | null
+  valor: number
+  turno: string | null
+  entregador: string | null
+  tipo: string
+  ocorrencia: string | null
+  data_emissao: string | null
+  atualizacao: string
+  recebimento: string | null
+  conferencia: string | null
+  created_at: string
+  updated_at: string
+  cliente?: AtacadoCliente | null
+}
+
+export interface AtacadoContatoLog {
+  id: number
+  cliente_id: number
+  data_contato: string
+  tipo: string
+  atendente: string | null
+  feito: boolean
+  feito_em: string | null
+  resultado: string | null
+  observacoes: string | null
+  created_at: string
+}
+
 // ─── Conversas WhatsApp ────────────────────────────────────────
 export interface CrmConversation {
   id: string

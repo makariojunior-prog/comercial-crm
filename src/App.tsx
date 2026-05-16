@@ -23,6 +23,7 @@ import LogisticaPage from './pages/LogisticaPage'
 import VarejoPage from './pages/VarejoPage'
 import ConversacoesPage from './pages/ConversacoesPage'
 import SocialPage from './pages/SocialPage'
+import DashboardAtacado from './pages/DashboardAtacado'
 
 export default function App() {
   return (
@@ -54,6 +55,7 @@ export default function App() {
               <Route path="/varejo"       element={<VarejoPage />} />
               <Route path="/conversas"    element={<ConversacoesPage />} />
               <Route path="/social"       element={<SocialPage />} />
+              <Route path="/atacado"      element={<DashboardAtacado />} />
             </Route>
           </Route>
         </Routes>

@@ -21,6 +21,7 @@ export const ALL_MODULES = [
   { id: 'varejo',     label: 'Varejo' },
   { id: 'conversas',  label: 'Conversas' },
   { id: 'social',     label: 'Redes Sociais' },
+  { id: 'atacado',    label: 'Atacado' },
 ] as const
 
 export type ModuleId = typeof ALL_MODULES[number]['id']
