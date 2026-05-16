@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut, CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Gift, Calculator, Truck, ShoppingBag, MessageSquare, Instagram, Package2 } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut, CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Gift, Calculator, Truck, ShoppingBag, MessageSquare, Instagram, Package2, Store } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
 import type { ModuleId } from '../contexts/AuthContext'
@@ -10,7 +10,7 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/negocios',      icon: ClipboardList,   label: 'Negócios',       module: 'negocios'   },
   { to: '/visitas',       icon: MapPin,          label: 'Visitas',        module: 'visitas'    },
   { to: '/tarefas',       icon: CheckCircle2,    label: 'Tarefas',        module: 'tarefas'    },
-  { to: '/clientes',      icon: Users,           label: 'Clientes',       module: 'clientes'   },
+  { to: '/clientes',      icon: Users,           label: 'Cli. Atacado',  module: 'clientes'   },
   { to: '/rotas',         icon: Route,           label: 'Rotas',          module: 'rotas'      },
   { to: '/notas',         icon: StickyNote,      label: 'Notas',          module: 'notas'      },
   { to: '/promotoria',    icon: Calendar,        label: 'Promotoria',     module: 'promotoria' },
@@ -20,8 +20,9 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/varejo',        icon: ShoppingBag,     label: 'Varejo',         module: 'varejo'     },
   { to: '/conversas',     icon: MessageSquare,   label: 'Conversas',      module: 'conversas'  },
   { to: '/social',        icon: Instagram,       label: 'Social',         module: 'social'     },
-  { to: '/atacado',       icon: Package2,        label: 'Atacado',        module: 'atacado'    },
-  { to: '/logistica',     icon: Truck,           label: 'Logística',      module: 'logistica'  },
+  { to: '/atacado',          icon: Package2, label: 'Atacado',       module: 'atacado'         },
+  { to: '/clientes-varejo', icon: Store,    label: 'Cli. Varejo',   module: 'varejo_clientes' },
+  { to: '/logistica',        icon: Truck,    label: 'Logística',     module: 'logistica'       },
   { to: '/briefing',      icon: Sparkles,        label: 'Briefing IA',    module: 'briefing'   },
   { to: '/usuarios',      icon: ShieldCheck,     label: 'Usuários',       module: 'admin'      },
   { to: '/configuracoes', icon: Settings,        label: 'Configurações',  module: 'personal'   },

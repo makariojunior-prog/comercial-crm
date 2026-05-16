@@ -24,6 +24,7 @@ import VarejoPage from './pages/VarejoPage'
 import ConversacoesPage from './pages/ConversacoesPage'
 import SocialPage from './pages/SocialPage'
 import DashboardAtacado from './pages/DashboardAtacado'
+import ClientesVarejo from './pages/ClientesVarejo'
 
 export default function App() {
   return (
@@ -55,7 +56,8 @@ export default function App() {
               <Route path="/varejo"       element={<VarejoPage />} />
               <Route path="/conversas"    element={<ConversacoesPage />} />
               <Route path="/social"       element={<SocialPage />} />
-              <Route path="/atacado"      element={<DashboardAtacado />} />
+              <Route path="/atacado"          element={<DashboardAtacado />} />
+              <Route path="/clientes-varejo" element={<ClientesVarejo />} />
             </Route>
           </Route>
         </Routes>

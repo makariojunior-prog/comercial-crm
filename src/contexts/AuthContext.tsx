@@ -9,7 +9,7 @@ export const ALL_MODULES = [
   { id: 'negocios',   label: 'Negócios' },
   { id: 'visitas',    label: 'Visitas' },
   { id: 'tarefas',    label: 'Tarefas' },
-  { id: 'clientes',   label: 'Clientes' },
+  { id: 'clientes',   label: 'Clientes Atacado' },
   { id: 'rotas',      label: 'Rotas' },
   { id: 'notas',      label: 'Notas' },
   { id: 'promotoria', label: 'Promotoria' },
@@ -21,7 +21,8 @@ export const ALL_MODULES = [
   { id: 'varejo',     label: 'Varejo' },
   { id: 'conversas',  label: 'Conversas' },
   { id: 'social',     label: 'Redes Sociais' },
-  { id: 'atacado',    label: 'Atacado' },
+  { id: 'atacado',         label: 'Atacado' },
+  { id: 'varejo_clientes', label: 'Clientes Varejo' },
 ] as const
 
 export type ModuleId = typeof ALL_MODULES[number]['id']

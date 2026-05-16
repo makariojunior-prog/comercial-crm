@@ -4,7 +4,7 @@ import { ptBR } from 'date-fns/locale'
 import {
   RefreshCw, ChevronLeft, ChevronRight, Calendar,
   Phone, CheckCircle2, Package2, AlertTriangle,
-  Truck, MessageCircle,
+  Truck, MessageCircle, Settings, Download, X, Plus,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { AtacadoPedido, AtacadoCliente, AtacadoContatoLog } from '../types'
@@ -61,6 +61,9 @@ export default function DashboardAtacado() {
   const [posVendaLog, setPosVendaLog]   = useState<AtacadoContatoLog[]>([])
   const [rotinaDate, setRotinaDate]     = useState(new Date())
   const [loading, setLoading]           = useState(true)
+  const [syncing, setSyncing]           = useState<string | null>(null)
+  const [syncMsg, setSyncMsg]           = useState<string | null>(null)
+  const [showConfig, setShowConfig]     = useState(false)
 
   // KPIs
   const semEntregador = useMemo(() => pedidos.filter(p => !p.entregador).length, [pedidos])
@@ -185,13 +188,33 @@ export default function DashboardAtacado() {
     })
   }
 
+  async function syncSheet(type: 'pedidos' | 'reg_lumar') {
+    setSyncing(type)
+    setSyncMsg(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-atacado', { body: { type } })
+      if (error) { setSyncMsg(`Erro: ${error.message}`); return }
+      if (type === 'pedidos') {
+        setSyncMsg(`✓ ${data.upserted} pedidos sincronizados (${data.skipped} ignorados)`)
+        await loadPedidos()
+      } else {
+        setSyncMsg(`✓ ${data.updated} registros atualizados (${data.skipped} ignorados)`)
+        await loadPedidos()
+      }
+    } catch (e: unknown) {
+      setSyncMsg(`Erro: ${e instanceof Error ? e.message : 'desconhecido'}`)
+    } finally {
+      setSyncing(null)
+    }
+  }
+
   const rotinaTitle = `ROTINA DE ${PT_DAY_LABELS[rotinaDate.getDay()]}`
   const isRotinaHoje = format(rotinaDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
 
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
           <Package2 size={22} className="text-orange-500" />
           <div>
@@ -201,10 +224,46 @@ export default function DashboardAtacado() {
             </p>
           </div>
         </div>
-        <button onClick={load} className="btn-ghost p-2" title="Recarregar">
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => syncSheet('reg_lumar')} disabled={!!syncing}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+            title="Atualizar turno/entregador do REG-LUMAR"
+          >
+            <RefreshCw size={13} className={syncing === 'reg_lumar' ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">REG-LUMAR</span>
+          </button>
+          <button
+            onClick={() => syncSheet('pedidos')} disabled={!!syncing}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50"
+            title="Importar pedidos da planilha de recepção"
+          >
+            <Download size={13} className={syncing === 'pedidos' ? 'animate-bounce' : ''} />
+            <span className="hidden sm:inline">Importar</span>
+          </button>
+          <button
+            onClick={() => setShowConfig(c => !c)}
+            className={`p-1.5 rounded-lg border transition-colors ${showConfig ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 text-orange-500' : 'border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+            title="Configurações"
+          >
+            <Settings size={15} />
+          </button>
+          <button onClick={load} className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" title="Recarregar">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
+
+      {/* Sync feedback */}
+      {syncMsg && (
+        <div className={`text-xs font-medium px-3 py-2 rounded-lg ${syncMsg.startsWith('Erro') ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
+          {syncMsg}
+          <button onClick={() => setSyncMsg(null)} className="ml-2 opacity-60 hover:opacity-100"><X size={11} /></button>
+        </div>
+      )}
+
+      {/* Config panel */}
+      {showConfig && <IdsIgnoradosPanel />}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -478,6 +537,72 @@ function ContatoRow({ cliente: c, feito, onToggle }: {
           <MessageCircle size={13} />
         </a>
       )}
+    </div>
+  )
+}
+
+function IdsIgnoradosPanel() {
+  const [ids, setIds]     = useState<number[]>([])
+  const [input, setInput] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    supabase.from('atacado_config').select('value').eq('key', 'ids_ignorados').maybeSingle()
+      .then(({ data }) => setIds(((data?.value ?? []) as unknown[]).map(Number).filter(Boolean)))
+  }, [])
+
+  async function persist(newIds: number[]) {
+    setSaving(true)
+    await supabase.from('atacado_config')
+      .upsert({ key: 'ids_ignorados', value: newIds, updated_at: new Date().toISOString() })
+    setIds(newIds)
+    setSaving(false)
+  }
+
+  function addId() {
+    const n = parseInt(input.trim())
+    if (!n || isNaN(n) || ids.includes(n)) { setInput(''); return }
+    persist([...ids, n])
+    setInput('')
+  }
+
+  return (
+    <div className="card p-4 space-y-2">
+      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+        IDs de clientes ignorados na importação
+      </p>
+      <div className="flex flex-wrap gap-1.5 min-h-[24px]">
+        {ids.length === 0 && <p className="text-xs text-slate-400 italic">Nenhum ID configurado</p>}
+        {ids.map(id => (
+          <span key={id} className="inline-flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded px-2 py-0.5 font-mono">
+            {id}
+            <button
+              onClick={() => persist(ids.filter(i => i !== id))}
+              disabled={saving}
+              className="text-slate-400 hover:text-red-500 transition-colors"
+            >
+              <X size={10} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1.5 max-w-xs">
+        <input
+          type="number"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addId()}
+          placeholder="ID do cliente"
+          className="flex-1 text-xs border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
+        />
+        <button
+          onClick={addId}
+          disabled={saving || !input.trim()}
+          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
+        >
+          <Plus size={12} /> Adicionar
+        </button>
+      </div>
     </div>
   )
 }

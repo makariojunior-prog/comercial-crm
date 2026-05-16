@@ -193,7 +193,7 @@ export default function ClientsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <User className="text-orange-500" /> Clientes
+            <User className="text-orange-500" /> Clientes Atacado
           </h1>
           <p className="text-sm text-slate-500">Base de dados unificada de clientes Lumar e Cantina</p>
         </div>
