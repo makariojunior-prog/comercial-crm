@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import type { CrmConversation } from '../types'
+import ConversaHistoricoModal from './ConversaHistoricoModal'
 
 const CRITICAS = ['QUALIDADE', 'LOGÍSTICA', 'RECLAMAÇÃO']
 
@@ -16,6 +17,7 @@ const CAT_BADGE: Record<string, string> = {
 export default function ConversacoesAlertasWidget() {
   const [items, setItems] = useState<CrmConversation[]>([])
   const [loading, setLoading] = useState(true)
+  const [modalConversa, setModalConversa] = useState<CrmConversation | null>(null)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -97,7 +99,7 @@ export default function ConversacoesAlertasWidget() {
           {items.slice(0, 5).map(c => (
             <button
               key={c.id}
-              onClick={() => navigate('/conversas')}
+              onClick={() => setModalConversa(c)}
               className="w-full flex items-start gap-2 px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-900/10 hover:border-red-200 dark:hover:border-red-800 active:scale-[.99] transition-all text-left"
             >
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 whitespace-nowrap ${CAT_BADGE[c.categoria ?? ''] ?? 'bg-slate-100 text-slate-500'}`}>
@@ -121,6 +123,18 @@ export default function ConversacoesAlertasWidget() {
           Ver todas as conversas →
         </button>
       </div>
+
+      {modalConversa && (
+        <ConversaHistoricoModal
+          conversa={modalConversa}
+          onClose={() => setModalConversa(null)}
+          onMarcarVisto={async (id) => {
+            setItems(prev => prev.filter(c => c.id !== id))
+            setModalConversa(null)
+            await supabase.from('crm_conversations').update({ visto: true }).eq('id', id)
+          }}
+        />
+      )}
     </div>
   )
 }

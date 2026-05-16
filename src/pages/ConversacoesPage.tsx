@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { MessageSquare, RefreshCw, Eye, EyeOff, Search, X, ChevronDown, ChevronUp, AlertTriangle, RotateCcw } from 'lucide-react'
+import { MessageSquare, RefreshCw, Eye, EyeOff, Search, X, ChevronDown, ChevronUp, AlertTriangle, RotateCcw, History } from 'lucide-react'
+import ConversaHistoricoModal from '../components/ConversaHistoricoModal'
 import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -35,6 +36,7 @@ export default function ConversacoesPage() {
   const [search, setSearch] = useState('')
   const [hideVisto, setHideVisto] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [modalConversa, setModalConversa] = useState<CrmConversation | null>(null)
   const [reprocessing, setReprocessing] = useState(false)
   const [reprocessMsg, setReprocessMsg] = useState<string | null>(null)
 
@@ -303,21 +305,34 @@ export default function ConversacoesPage() {
                 expanded={expandedId === c.id}
                 onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
                 onMarcarVisto={() => marcarVisto(c.id)}
+                onVerHistorico={() => setModalConversa(c)}
               />
             ))}
           </div>
         </div>
       ))}
+
+      {modalConversa && (
+        <ConversaHistoricoModal
+          conversa={modalConversa}
+          onClose={() => setModalConversa(null)}
+          onMarcarVisto={(id) => {
+            marcarVisto(id)
+            setModalConversa(prev => prev?.id === id ? { ...prev, visto: true } : prev)
+          }}
+        />
+      )}
     </div>
   )
 }
 
 // ─── ConversaCard ───────────────────────────────────────────────
-function ConversaCard({ conversa: c, expanded, onToggle, onMarcarVisto }: {
+function ConversaCard({ conversa: c, expanded, onToggle, onMarcarVisto, onVerHistorico }: {
   conversa: CrmConversation
   expanded: boolean
   onToggle: () => void
   onMarcarVisto: () => void
+  onVerHistorico: () => void
 }) {
   const style = CAT_STYLES[c.categoria ?? '']
   const isCritical = CRITICAS.has(c.categoria ?? '')
@@ -379,6 +394,12 @@ function ConversaCard({ conversa: c, expanded, onToggle, onMarcarVisto }: {
             {c.confianca && expanded && (
               <span className="text-[11px] text-slate-400">confiança: {c.confianca}</span>
             )}
+            <button
+              onClick={onVerHistorico}
+              className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1 transition-colors"
+            >
+              <History size={12} /> Ver histórico
+            </button>
             {!c.visto && (
               <button
                 onClick={onMarcarVisto}
