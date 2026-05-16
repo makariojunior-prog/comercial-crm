@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import type { Task } from '../types'
 import { TASK_PRIORITIES } from '../types'
 import TaskModal from '../components/TaskModal'
+import TaskDetailModal from '../components/TaskDetailModal'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -14,6 +15,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [search, setSearch] = useState('')
   const [viewAll, setViewAll] = useState(false) // Toggle for Admins
 
@@ -144,11 +146,11 @@ export default function TasksPage() {
               <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pendentes ({pending.length})</h2>
               <div className="grid gap-3">
                 {pending.map(task => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
+                  <TaskCard
+                    key={task.id}
+                    task={task}
                     onToggle={() => toggleStatus(task)}
-                    onEdit={() => { setEditingTask(task); setShowModal(true) }}
+                    onEdit={() => setDetailTask(task)}
                     onDelete={() => deleteTask(task.id)}
                   />
                 ))}
@@ -161,11 +163,11 @@ export default function TasksPage() {
               <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Concluídas ({completed.length})</h2>
               <div className="grid gap-3 opacity-60">
                 {completed.map(task => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
+                  <TaskCard
+                    key={task.id}
+                    task={task}
                     onToggle={() => toggleStatus(task)}
-                    onEdit={() => { setEditingTask(task); setShowModal(true) }}
+                    onEdit={() => setDetailTask(task)}
                     onDelete={() => deleteTask(task.id)}
                   />
                 ))}
@@ -175,11 +177,19 @@ export default function TasksPage() {
         </div>
       )}
 
-      {(showModal || editingTask) && (
-        <TaskModal 
-          task={editingTask} 
-          onClose={() => { setShowModal(false); setEditingTask(null) }} 
-          onSaved={loadTasks} 
+      {showModal && (
+        <TaskModal
+          task={editingTask}
+          onClose={() => { setShowModal(false); setEditingTask(null) }}
+          onSaved={loadTasks}
+        />
+      )}
+
+      {detailTask && (
+        <TaskDetailModal
+          task={detailTask}
+          onClose={() => setDetailTask(null)}
+          onSaved={() => { loadTasks(); setDetailTask(null) }}
         />
       )}
     </div>
@@ -198,23 +208,26 @@ function TaskCard({ task, onToggle, onEdit, onDelete }: {
   return (
     <div className={`card p-4 transition-all hover:shadow-md group ${isCompleted ? 'bg-slate-50' : 'bg-white'}`}>
       <div className="flex items-start gap-3">
-        <button 
+        <button
           onClick={onToggle}
           className={`mt-1 shrink-0 transition-colors ${isCompleted ? 'text-green-500' : 'text-slate-300 hover:text-orange-500'}`}
         >
           {isCompleted ? <CheckCircle2 size={22} /> : <Circle size={22} />}
         </button>
-        
+
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <h3 className={`font-semibold text-slate-800 ${isCompleted ? 'line-through text-slate-400' : ''}`}>
+            <button
+              onClick={onEdit}
+              className={`font-semibold text-left hover:text-orange-600 transition-colors ${isCompleted ? 'line-through text-slate-400' : 'text-slate-800'}`}
+            >
               {task.title}
-            </h3>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={onEdit} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600">
+            </button>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <button onClick={onEdit} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600" title="Abrir tarefa">
                 <Edit2 size={14} />
               </button>
-              <button onClick={onDelete} className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500">
+              <button onClick={onDelete} className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title="Excluir">
                 <Trash2 size={14} />
               </button>
             </div>

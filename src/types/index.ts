@@ -65,6 +65,15 @@ export interface Task {
   assignees?: { user_id: string; user_nome: string }[]
 }
 
+export interface TaskComment {
+  id: string
+  created_at: string
+  task_id: string
+  author_id: string | null
+  content: string
+  author?: { nome: string }
+}
+
 export interface DealHistory {
   id: string
   deal_id: string

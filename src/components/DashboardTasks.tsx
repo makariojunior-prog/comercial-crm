@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import type { Task, TaskPriority } from '../types'
 import { TASK_PRIORITIES } from '../types'
 import TaskModal from './TaskModal'
+import TaskDetailModal from './TaskDetailModal'
 import { Link } from 'react-router-dom'
 
 export default function DashboardTasks() {
@@ -13,12 +14,12 @@ export default function DashboardTasks() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [selectedPriority, setSelectedPriority] = useState<TaskPriority | null>(null)
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
 
   async function loadTasks() {
     if (!user?.id) { setLoading(false); return }
     setLoading(true)
 
-    // Step 1: get task IDs assigned to the current user
     const { data: assignments } = await supabase
       .from('crm_task_assignees')
       .select('task_id')
@@ -27,7 +28,6 @@ export default function DashboardTasks() {
     const taskIds = (assignments || []).map((a: any) => a.task_id)
     if (!taskIds.length) { setTasks([]); setLoading(false); return }
 
-    // Step 2: get those pending tasks
     const { data } = await supabase
       .from('crm_tasks')
       .select('*')
@@ -41,15 +41,13 @@ export default function DashboardTasks() {
 
   useEffect(() => { loadTasks() }, [user?.id])
 
-  async function toggleStatus(task: Task) {
+  async function toggleStatus(task: Task, e: React.MouseEvent) {
+    e.stopPropagation()
     const { error } = await supabase
       .from('crm_tasks')
       .update({ status: 'CONCLUIDA' })
       .eq('id', task.id)
-    
-    if (!error) {
-      setTasks(prev => prev.filter(t => t.id !== task.id))
-    }
+    if (!error) setTasks(prev => prev.filter(t => t.id !== task.id))
   }
 
   const quadrants: { id: TaskPriority; label: string; bg: string; border: string; text: string }[] = [
@@ -62,7 +60,7 @@ export default function DashboardTasks() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold text-slate-700 flex items-center gap-2">
+        <h2 className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
           🎯 Matriz Eisenhower
         </h2>
         <Link to="/tarefas" className="text-xs font-semibold text-orange-500 hover:underline flex items-center gap-0.5">
@@ -77,33 +75,39 @@ export default function DashboardTasks() {
               <span className={`text-[10px] font-black uppercase tracking-wider ${q.text}`}>
                 {q.label}
               </span>
-              <button 
+              <button
                 onClick={() => { setSelectedPriority(q.id); setShowModal(true) }}
                 className={`p-1 rounded-lg hover:bg-white/50 transition-colors ${q.text}`}
+                title="Nova tarefa"
               >
                 <Plus size={14} />
               </button>
             </div>
 
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 space-y-1.5">
               {tasks.filter(t => t.priority === q.id).slice(0, 3).map(task => (
-                <div key={task.id} className="flex items-start gap-2 group">
-                  <button 
-                    onClick={() => toggleStatus(task)}
+                <button
+                  key={task.id}
+                  onClick={() => setDetailTask(task)}
+                  className="w-full flex items-start gap-2 group text-left rounded-lg px-1.5 py-1 hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+                >
+                  <span
+                    role="button"
+                    onClick={e => toggleStatus(task, e)}
                     className="mt-0.5 shrink-0 text-slate-300 hover:text-orange-500 transition-colors"
                   >
                     <Circle size={14} />
-                  </button>
-                  <p className="text-xs text-slate-700 dark:text-slate-200 line-clamp-2 leading-tight flex-1">
+                  </span>
+                  <p className="text-xs text-slate-700 dark:text-slate-200 line-clamp-2 leading-tight flex-1 text-left group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                     {task.title}
                   </p>
-                </div>
+                </button>
               ))}
               {tasks.filter(t => t.priority === q.id).length === 0 && (
-                <p className="text-[10px] text-slate-400 italic">Nenhuma tarefa pendente</p>
+                <p className="text-[10px] text-slate-400 italic px-1.5">Nenhuma tarefa pendente</p>
               )}
               {tasks.filter(t => t.priority === q.id).length > 3 && (
-                <p className="text-[10px] text-slate-400 font-medium">
+                <p className="text-[10px] text-slate-400 font-medium px-1.5">
                   + {tasks.filter(t => t.priority === q.id).length - 3} outras
                 </p>
               )}
@@ -113,10 +117,18 @@ export default function DashboardTasks() {
       </div>
 
       {showModal && (
-        <TaskModal 
+        <TaskModal
           task={selectedPriority ? { priority: selectedPriority } as any : null}
           onClose={() => { setShowModal(false); setSelectedPriority(null) }}
           onSaved={loadTasks}
+        />
+      )}
+
+      {detailTask && (
+        <TaskDetailModal
+          task={detailTask}
+          onClose={() => setDetailTask(null)}
+          onSaved={() => { loadTasks(); setDetailTask(null) }}
         />
       )}
     </div>
