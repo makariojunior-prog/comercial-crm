@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Store, Plus, Search, Phone, MapPin, Edit2, Trash2, X, Check } from 'lucide-react'
+import { Store, Plus, Search, Phone, MapPin, Edit2, Trash2, X, Check, RefreshCw, Info } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -59,6 +59,8 @@ export default function ClientesVarejo() {
   const [form, setForm]         = useState<FormData>(EMPTY_FORM)
   const [saving, setSaving]     = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [syncing, setSyncing]   = useState(false)
+  const [syncMsg, setSyncMsg]   = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -66,6 +68,7 @@ export default function ClientesVarejo() {
       .from('varejo_clientes')
       .select('*')
       .order('nome')
+      .range(0, 9999)
     setClientes((data ?? []) as VarejoCliente[])
     setLoading(false)
   }
@@ -140,6 +143,20 @@ export default function ClientesVarejo() {
     load()
   }
 
+  async function syncClientes() {
+    setSyncing(true)
+    setSyncMsg(null)
+    const { data, error } = await supabase.rpc('sync_varejo_clientes')
+    if (error) {
+      setSyncMsg('Erro ao sincronizar: ' + error.message)
+    } else {
+      setSyncMsg(`Base sincronizada — ${(data as { total: number }).total} clientes no total`)
+      load()
+    }
+    setSyncing(false)
+    setTimeout(() => setSyncMsg(null), 5000)
+  }
+
   function set(k: keyof FormData, v: unknown) {
     setForm(f => ({ ...f, [k]: v }))
   }
@@ -155,14 +172,25 @@ export default function ClientesVarejo() {
             <p className="text-xs text-slate-400">{clientes.length} clientes cadastrados</p>
           </div>
         </div>
-        {canEdit && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={openNew}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
+            onClick={syncClientes}
+            disabled={syncing}
+            title="Atualizar base com dados dos pedidos"
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors disabled:opacity-50"
           >
-            <Plus size={16} /> Novo cliente
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Sincronizando...' : 'Sync pedidos'}
           </button>
-        )}
+          {canEdit && (
+            <button
+              onClick={openNew}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
+            >
+              <Plus size={16} /> Novo cliente
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -198,6 +226,32 @@ export default function ClientesVarejo() {
             {chip.label}: {chip.value}
           </span>
         ))}
+      </div>
+
+      {/* Sync feedback */}
+      {syncMsg && (
+        <p className="text-xs text-center text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+          {syncMsg}
+        </p>
+      )}
+
+      {/* Status legend */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5 text-xs bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
+        <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
+          <Info size={11} /> Critérios de status:
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="font-bold text-amber-600 dark:text-amber-400">VIP</span>
+          <span className="text-slate-400 dark:text-slate-500">— 5 ou mais pedidos realizados</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="font-bold text-green-600 dark:text-green-400">ATIVO</span>
+          <span className="text-slate-400 dark:text-slate-500">— pedido nos últimos 90 dias</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="font-bold text-red-500 dark:text-red-400">INATIVO</span>
+          <span className="text-slate-400 dark:text-slate-500">— sem pedidos há mais de 90 dias</span>
+        </span>
       </div>
 
       {/* Table */}
