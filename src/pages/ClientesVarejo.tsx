@@ -64,12 +64,21 @@ export default function ClientesVarejo() {
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase
-      .from('varejo_clientes')
-      .select('*')
-      .order('nome')
-      .range(0, 9999)
-    setClientes((data ?? []) as VarejoCliente[])
+    const PAGE = 1000
+    let all: VarejoCliente[] = []
+    let page = 0
+    while (true) {
+      const { data } = await supabase
+        .from('varejo_clientes')
+        .select('*')
+        .order('nome')
+        .range(page * PAGE, (page + 1) * PAGE - 1)
+      if (!data || data.length === 0) break
+      all = [...all, ...(data as VarejoCliente[])]
+      if (data.length < PAGE) break
+      page++
+    }
+    setClientes(all)
     setLoading(false)
   }
 
