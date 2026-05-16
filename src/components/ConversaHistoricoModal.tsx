@@ -128,7 +128,7 @@ export default function ConversaHistoricoModal({ conversa, onClose, onMarcarVist
                   </span>
                 )}
                 <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed">
-                  {h.resumo ?? h.texto}
+                  {h.texto}
                 </p>
               </div>
             </div>
