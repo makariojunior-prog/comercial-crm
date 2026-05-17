@@ -93,14 +93,13 @@ export default function DashboardAtacado() {
   const JOIN = '*, cliente:atacado_clientes(id,cliente,telefone,rota,setor,pgto_padrao,restricao,observacoes)'
 
   const loadNovos = useCallback(async () => {
-    const cutoff = new Date(Date.now() - 30 * 86400000).toISOString()
     const { data } = await supabase
       .from('atacado_pedidos')
       .select(JOIN)
       .is('data_entrega', null)
-      .gte('atualizacao', cutoff)
       .neq('tipo', 'CANCELADO')
       .order('atualizacao', { ascending: false })
+      .limit(500)
     setPedidosNovos((data ?? []) as AtacadoPedido[])
   }, [])
 
