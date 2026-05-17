@@ -142,7 +142,7 @@ Deno.serve(async (req: Request) => {
       batch.push({
         id_venda:      idVenda,
         numero_pedido: parseInt(row.numeropedido ?? row.numero ?? row.numpedido ?? '', 10) || null,
-        cliente_id:    !isNaN(clienteId) && clienteId ? clienteId : null,
+        // cliente_id NÃO é preenchido da planilha — IDs do ERP não existem na tabela clients do Supabase
         cliente_nome:  row.cliente ?? row.nomecliente ?? row.nome ?? null,
         valor:         parseValor(row.valor ?? row.total ?? row.valorliquido ?? row.valortotal ?? ''),
         turno:         row.turno         ? row.turno.toUpperCase()      : null,
