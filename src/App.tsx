@@ -49,12 +49,12 @@ export default function App() {
           closeButton
           toastOptions={{ duration: 4000 }}
         />
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route element={<PrivateRoute />}>
-            <Route element={<Layout />}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Suspense fallback={<PageLoader />}>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<PrivateRoute />}>
+              <Route element={<Layout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard"     element={<DashboardNegocios />} />
                 <Route path="/negocios"      element={<RegistroNegocios />} />
                 <Route path="/registro"      element={<Navigate to="/negocios" replace />} />
@@ -76,10 +76,10 @@ export default function App() {
                 <Route path="/social"        element={<SocialPage />} />
                 <Route path="/atacado"       element={<DashboardAtacado />} />
                 <Route path="/clientes-varejo" element={<ClientesVarejo />} />
-              </Suspense>
+              </Route>
             </Route>
-          </Route>
-        </Routes>
+          </Routes>
+        </Suspense>
       </HashRouter>
     </PreferencesProvider>
     </AuthProvider>
