@@ -61,15 +61,16 @@ function parseValor(v: string): number {
 
 function parseDate(v: string): string | null {
   if (!v || !v.trim()) return null
-  let d = new Date(v)
-  if (!isNaN(d.getTime())) return d.toISOString()
+  // Tenta formato BR dd/mm/yyyy primeiro (evita que JS interprete como mm/dd/yyyy)
   const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/)
   if (m) {
     const [, dd, mm, yyyy, hh = '00', mi = '00', ss = '00'] = m
-    d = new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}-03:00`)
+    const d = new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}-03:00`)
     return isNaN(d.getTime()) ? null : d.toISOString()
   }
-  return null
+  // Formato ISO ou outro reconhecido pelo JS
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
 Deno.serve(async (req: Request) => {
@@ -166,7 +167,6 @@ Deno.serve(async (req: Request) => {
       upserted,
       skipped,
       sheetHeaders,
-      // 'error' (string) em vez de 'errors' (array) — compatível com o frontend
       error: upsertErrors.length ? upsertErrors[0] : undefined,
     })
   }
@@ -194,18 +194,33 @@ Deno.serve(async (req: Request) => {
 
     const rows = parseCSV(text)
     const sheetHeaders = rows.length > 0 ? Object.keys(rows[0]) : []
-    let updated = 0, skipped = 0
+    let updated = 0, skipped = 0, datesSet = 0
 
     for (const row of rows) {
       const idVenda = parseInt(row.idvenda ?? row.venda ?? row.id ?? '', 10)
       if (!idVenda || isNaN(idVenda)) { skipped++; continue }
 
       const patch: Record<string, string | null> = { updated_at: new Date().toISOString() }
+
+      // Coluna A: data de entrega definida pela atendente
+      // Tenta os nomes mais comuns para o header da coluna A
+      const rawDataEntrega = row.dataentrega ?? row.entrega ?? row.data ??
+        row.dtentrega ?? row.dataentregaprevista ?? row.entregaprevista ??
+        row.previsao ?? row.dataprevista ?? row.previsaoentrega ?? null
+      if (rawDataEntrega && rawDataEntrega.trim()) {
+        const parsedDate = parseDate(rawDataEntrega)
+        if (parsedDate) {
+          patch.data_entrega = parsedDate.substring(0, 10) // YYYY-MM-DD
+          datesSet++
+        }
+      }
+
       if (row.turno)      patch.turno      = row.turno.toUpperCase()
       if (row.entregador) patch.entregador = row.entregador.toUpperCase()
       if (row.tipo)       patch.tipo       = row.tipo.toUpperCase()
       if (row.ocorrencia) patch.ocorrencia = row.ocorrencia
 
+      // Apenas updated_at = sem dados úteis
       if (Object.keys(patch).length === 1) { skipped++; continue }
 
       const { error } = await supabase
@@ -213,7 +228,7 @@ Deno.serve(async (req: Request) => {
       if (error) skipped++; else updated++
     }
 
-    return json200({ ok: true, type, total: rows.length, updated, skipped, sheetHeaders })
+    return json200({ ok: true, type, total: rows.length, updated, skipped, datesSet, sheetHeaders })
   }
 
   return json200({ ok: false, error: 'type must be "pedidos" or "reg_lumar"' })

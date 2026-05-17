@@ -63,6 +63,7 @@ function fmtRelative(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
   if (diff === 0) return 'hoje'
   if (diff === 1) return 'ontem'
+  if (diff < 0) return `em ${Math.abs(diff)} d`
   return `há ${diff} d`
 }
 
@@ -97,8 +98,9 @@ export default function DashboardAtacado() {
       .from('atacado_pedidos')
       .select(JOIN)
       .is('data_entrega', null)
+      .eq('ignorado', false)
       .neq('tipo', 'CANCELADO')
-      .order('atualizacao', { ascending: false })
+      .order('id_venda', { ascending: false })
       .limit(500)
     setPedidosNovos((data ?? []) as AtacadoPedido[])
   }, [])
@@ -144,6 +146,7 @@ export default function DashboardAtacado() {
       .from('atacado_pedidos')
       .select('*, cliente:atacado_clientes(id,cliente,rota)')
       .not('data_entrega', 'is', null)
+      .eq('ignorado', false)
       .neq('tipo', 'CANCELADO')
       .order('data_entrega', { ascending: false })
       .limit(200)
@@ -190,6 +193,11 @@ export default function DashboardAtacado() {
     setSetDateId(null)
   }
 
+  async function ignorarPedido(id: number) {
+    await supabase.from('atacado_pedidos').update({ ignorado: true, updated_at: new Date().toISOString() }).eq('id', id)
+    setPedidosNovos(prev => prev.filter(p => p.id !== id))
+  }
+
   async function toggleContato(clientId: string, feito: boolean) {
     const dateStr = format(rotinaDate, 'yyyy-MM-dd')
     const { data } = await supabase
@@ -216,11 +224,12 @@ export default function DashboardAtacado() {
       }
       if (type === 'pedidos') {
         const cols = data.sheetHeaders?.join(', ') ?? 'n/a'
-        setSyncMsg(`✓ ${data.upserted} pedidos importados (${data.skipped} ignorados) — colunas detectadas: ${cols}`)
+        setSyncMsg(`✓ ${data.upserted} pedidos importados (${data.skipped} ignorados) — colunas: ${cols}`)
         await loadNovos()
       } else {
-        setSyncMsg(`✓ ${data.updated} atualizados (${data.skipped} ignorados)`)
-        await loadRotas()
+        const cols = data.sheetHeaders?.join(', ') ?? 'n/a'
+        setSyncMsg(`✓ ${data.updated} atualizados, ${data.datesSet ?? 0} datas de entrega definidas (${data.skipped} ignorados) — colunas: ${cols}`)
+        await Promise.all([loadNovos(), loadRotas(), showHistorico ? loadHistorico() : Promise.resolve()])
       }
     } catch (e: unknown) {
       setSyncMsg(`Erro: ${e instanceof Error ? e.message : 'desconhecido'}`)
@@ -351,7 +360,7 @@ export default function DashboardAtacado() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {pedidosNovos.map(p => (
-                      <NovoPedidoRow key={p.id} pedido={p} onSetDate={() => setSetDateId(p.id)} />
+                      <NovoPedidoRow key={p.id} pedido={p} onSetDate={() => setSetDateId(p.id)} onIgnorar={() => ignorarPedido(p.id)} />
                     ))}
                   </tbody>
                 </table>
@@ -542,12 +551,14 @@ function KPICard({ label, value, sub, color, icon }: {
   )
 }
 
-function NovoPedidoRow({ pedido: p, onSetDate }: { pedido: AtacadoPedido; onSetDate: () => void }) {
+function NovoPedidoRow({ pedido: p, onSetDate, onIgnorar }: {
+  pedido: AtacadoPedido; onSetDate: () => void; onIgnorar: () => void
+}) {
   const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
   return (
     <tr className="hover:bg-amber-50/40 dark:hover:bg-amber-900/10 transition-colors">
       <td className="px-3 py-2.5 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
-        {p.numero_pedido ?? `#${p.id_venda}`}
+        #{p.id_venda}
       </td>
       <td className="px-3 py-2.5 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
         {fmtCurrency(p.valor)}
@@ -567,12 +578,21 @@ function NovoPedidoRow({ pedido: p, onSetDate }: { pedido: AtacadoPedido; onSetD
         {fmtRelative(p.atualizacao)}
       </td>
       <td className="px-3 py-2.5">
-        <button
-          onClick={onSetDate}
-          className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors whitespace-nowrap"
-        >
-          <Calendar size={11} /> Definir data
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={onSetDate}
+            className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors whitespace-nowrap"
+          >
+            <Calendar size={11} /> Definir data
+          </button>
+          <button
+            onClick={onIgnorar}
+            title="Ignorar pedido (retirada na fábrica, correção, etc.)"
+            className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors whitespace-nowrap"
+          >
+            <X size={11} /> Ignorar
+          </button>
+        </div>
       </td>
     </tr>
   )

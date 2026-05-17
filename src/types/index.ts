@@ -522,6 +522,7 @@ export interface AtacadoPedido {
   data_entrega: string | null
   recebimento: string | null
   conferencia: string | null
+  ignorado: boolean
   created_at: string
   updated_at: string
   cliente?: AtacadoCliente | null
