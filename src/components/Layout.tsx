@@ -11,7 +11,7 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/visitas',       icon: MapPin,          label: 'Visitas',        module: 'visitas'    },
   { to: '/tarefas',       icon: CheckCircle2,    label: 'Tarefas',        module: 'tarefas'    },
   { to: '/clientes',      icon: Users,           label: 'Cli. Atacado',  module: 'clientes'   },
-  { to: '/rotas',         icon: Route,           label: 'Rotas',          module: 'rotas'      },
+  { to: '/rotas',         icon: Route,           label: 'Rotas Comerciais', module: 'rotas'   },
   { to: '/notas',         icon: StickyNote,      label: 'Notas',          module: 'notas'      },
   { to: '/promotoria',    icon: Calendar,        label: 'Promotoria',     module: 'promotoria' },
   { to: '/tabelas',       icon: DollarSign,      label: 'Tabelas',        module: 'tabelas'    },
@@ -23,7 +23,7 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/atacado',          icon: Package2, label: 'Atacado',       module: 'atacado'         },
   { to: '/clientes-varejo', icon: Store,    label: 'Cli. Varejo',   module: 'varejo_clientes' },
   { to: '/logistica',        icon: Truck,    label: 'Logística',     module: 'logistica'       },
-  { to: '/briefing',      icon: Sparkles,        label: 'Briefing IA',    module: 'briefing'   },
+  { to: '/briefing',      icon: Sparkles,        label: 'IA',             module: 'briefing'   },
   { to: '/usuarios',      icon: ShieldCheck,     label: 'Usuários',       module: 'admin'      },
   { to: '/configuracoes', icon: Settings,        label: 'Configurações',  module: 'personal'   },
 ]

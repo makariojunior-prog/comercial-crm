@@ -146,8 +146,8 @@ Deno.serve(async (req: Request) => {
         // cliente_id NÃO é preenchido da planilha — IDs do ERP não existem na tabela clients do Supabase
         cliente_nome:  row.cliente ?? row.nomecliente ?? row.nome ?? null,
         valor:         parseValor(row.valor ?? row.total ?? row.valorliquido ?? row.valortotal ?? ''),
-        turno:         row.turno         ? row.turno.toUpperCase()      : null,
-        entregador:    row.entregador    ? row.entregador.toUpperCase() : null,
+        // turno e entregador NÃO são preenchidos pelo sync ERP — são gerenciados manualmente
+        // pela atendente (via UI ou sync reg_lumar). Incluí-los aqui apagaria os valores manuais.
         tipo:          row.tipo          ? row.tipo.toUpperCase()       : 'PEDIDO',
         ocorrencia:    row.ocorrencia    ?? null,
         data_emissao:  dataEmissao,

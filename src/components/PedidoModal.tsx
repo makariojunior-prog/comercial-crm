@@ -52,6 +52,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
     entregador:     pedido.entregador ?? '',
     empresa:        pedido.empresa ?? '',
     status_icon:    pedido.status_icon ?? '⚠️',
+    origem:         pedido.origem ?? 'CARDAPIO WEB',
   })
 
   const [saving, setSaving] = useState(false)
@@ -88,6 +89,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
         empresa:               form.empresa        || null,
         status_icon:           form.status_icon,
         data_entrega_definida: !!(form.data_entrega && form.turno),
+        origem:                form.origem || null,
       })
       .eq('id', pedido.id)
 
@@ -169,21 +171,31 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* Status */}
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Status</p>
-            <div className="flex gap-2 flex-wrap">
-              {Object.entries(STATUS_LABELS).map(([icon, label]) => (
-                <button key={icon} type="button"
-                  onClick={() => set('status_icon', icon)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                    form.status_icon === icon
-                      ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
-                      : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                  }`}>
-                  <span>{icon}</span> {label}
-                </button>
-              ))}
+          {/* Status + Origem */}
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Status</p>
+              <div className="flex gap-2 flex-wrap">
+                {Object.entries(STATUS_LABELS).map(([icon, label]) => (
+                  <button key={icon} type="button"
+                    onClick={() => set('status_icon', icon)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                      form.status_icon === icon
+                        ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
+                        : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}>
+                    <span>{icon}</span> {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="label">Origem do pedido</label>
+              <select className="input" value={form.origem} onChange={e => set('origem', e.target.value)}>
+                <option value="CARDAPIO WEB">CARDÁPIO WEB</option>
+                <option value="IFOOD">IFOOD</option>
+                <option value="99FOOD">99FOOD</option>
+              </select>
             </div>
           </div>
 

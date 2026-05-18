@@ -328,21 +328,38 @@ export default function DashboardAtacado() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Buscar pedido por número ou cliente..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-8 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
-        />
-        {searchQuery && (
-          <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-            <X size={13} />
+      {/* Search bar + date navigator */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Buscar pedido por número ou cliente..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-8 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl px-1 py-1 shrink-0">
+          <button onClick={() => setRotasDate(d => subDays(d, 1))} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+            <ChevronLeft size={14} />
           </button>
-        )}
+          <button
+            onClick={() => setRotasDate(new Date())}
+            className={`px-2 py-0.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${isRotasHoje ? 'text-orange-500 font-bold' : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'}`}
+          >
+            <Calendar size={10} className="inline mr-1" />
+            {isRotasHoje ? 'Hoje' : format(rotasDate, "dd/MM", { locale: ptBR })}
+          </button>
+          <button onClick={() => setRotasDate(d => addDays(d, 1))} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+            <ChevronRight size={14} />
+          </button>
+        </div>
       </div>
 
       {syncMsg && (
