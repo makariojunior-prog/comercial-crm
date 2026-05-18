@@ -132,7 +132,7 @@ export default function DashboardAtacado() {
   )
 
   // ─── Loaders ────────────────────────────────────────────
-  const JOIN = '*, cliente:atacado_clientes(id,cliente,telefone,rota,setor,pgto_padrao,restricao,observacoes)'
+  const JOIN = '*, cliente:atacado_clientes(id,cliente,telefone,rota,setor,pgto_padrao,turno,restricao,observacoes)'
 
   const loadNovos = useCallback(async () => {
     const { data } = await supabase
@@ -228,6 +228,11 @@ export default function DashboardAtacado() {
   }
 
   async function savePedidoEdit(id: number, patch: Partial<AtacadoPedido>) {
+    // Auto-preenche turno/pgto do cliente se o pedido não tiver explicitamente definido
+    if (!patch.turno) {
+      const pedido = [...pedidosNovos, ...pedidosDia, ...historico].find(p => p.id === id)
+      if (pedido?.cliente?.turno) patch.turno = pedido.cliente.turno
+    }
     await supabase.from('atacado_pedidos').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
     await Promise.all([loadNovos(), loadRotas()])
     if (showHistorico) await loadHistorico()
@@ -756,10 +761,16 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
   const setor = p.cliente?.setor
   const pgto = p.cliente?.pgto_padrao ?? '—'
 
-  const turnoColor = p.turno === 'MANHÃ'
-    ? 'text-yellow-600 dark:text-yellow-400'
-    : p.turno === 'TARDE' ? 'text-orange-500'
-    : p.turno === 'NOITE' ? 'text-blue-500'
+  // Turno efetivo: usa o do pedido se definido, senão o padrão do cliente
+  const turnoEfetivo = p.turno ?? p.cliente?.turno ?? ''
+  const turnoEhDoCliente = !p.turno && !!p.cliente?.turno
+
+  const turnoColor = turnoEfetivo === 'MANHÃ'
+    ? turnoEhDoCliente ? 'text-yellow-400/60 dark:text-yellow-500/60' : 'text-yellow-600 dark:text-yellow-400'
+    : turnoEfetivo === 'TARDE'
+    ? turnoEhDoCliente ? 'text-orange-400/60' : 'text-orange-500'
+    : turnoEfetivo === 'NOITE'
+    ? turnoEhDoCliente ? 'text-blue-400/60' : 'text-blue-500'
     : 'text-slate-400'
 
   return (
@@ -775,8 +786,12 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
         {setor && <p className="text-[10px] text-slate-400">{setor}</p>}
       </td>
       <td className="px-3 py-2">
-        <select value={p.turno ?? ''} onChange={e => onUpdate({ turno: e.target.value || null })}
-          className={`text-xs font-semibold bg-transparent border-0 outline-none cursor-pointer ${turnoColor} w-full`}>
+        <select
+          value={turnoEfetivo}
+          onChange={e => onUpdate({ turno: e.target.value || null })}
+          title={turnoEhDoCliente ? 'Turno padrão do cliente (clique para fixar)' : undefined}
+          className={`text-xs font-semibold bg-transparent border-0 outline-none cursor-pointer w-full ${turnoColor}`}
+        >
           <option value="">— turno —</option>
           {TURNOS_LIST.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -849,10 +864,13 @@ function EditPedidoModal({ pedido: p, onClose, onSave }: {
   onSave: (patch: Partial<AtacadoPedido>) => void
 }) {
   const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
-  const [date, setDate]           = useState(p.data_entrega ?? format(new Date(), 'yyyy-MM-dd'))
-  const [turno, setTurno]         = useState(p.turno ?? '')
+  const turnoEfetivo = p.turno ?? p.cliente?.turno ?? ''
+  const pgtoCliente  = p.cliente?.pgto_padrao ?? null
+
+  const [date, setDate]             = useState(p.data_entrega ?? format(new Date(), 'yyyy-MM-dd'))
+  const [turno, setTurno]           = useState(turnoEfetivo)
   const [entregador, setEntregador] = useState(p.entregador ?? '')
-  const [valor, setValor]         = useState(p.valor > 0 ? String(p.valor) : '')
+  const [valor, setValor]           = useState(p.valor > 0 ? String(p.valor) : '')
   const [saving, setSaving]       = useState(false)
 
   async function handleSave() {
@@ -912,7 +930,12 @@ function EditPedidoModal({ pedido: p, onClose, onSave }: {
 
           {/* Turno */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Turno</label>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+              Turno
+              {!p.turno && p.cliente?.turno && (
+                <span className="ml-1.5 font-normal text-[10px] text-blue-500">(padrão do cliente)</span>
+              )}
+            </label>
             <select value={turno} onChange={e => setTurno(e.target.value)}
               className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400">
               <option value="">— sem turno —</option>
@@ -930,6 +953,14 @@ function EditPedidoModal({ pedido: p, onClose, onSave }: {
               {ENTREGADORES.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
           </div>
+
+          {/* Pgto */}
+          {pgtoCliente && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-lg">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Pagamento padrão:</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{pgtoCliente}</span>
+            </div>
+          )}
 
           {/* Valor */}
           <div>

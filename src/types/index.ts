@@ -488,6 +488,7 @@ export interface AtacadoCliente {
   rota: string | null
   setor: string | null
   pgto_padrao: string | null
+  turno: string | null
   localizacao: string | null
   observacoes: string | null
   dias_entrega: string[]
