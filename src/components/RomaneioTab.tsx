@@ -209,15 +209,15 @@ export default function RomaneioTab() {
       {/* CSS de impressão — esconde tudo exceto #romaneio-print */}
       <style>{`
         @media print {
-          body > * { display: none !important; }
-          #romaneio-print-root { display: block !important; position: fixed; inset: 0; background: white; z-index: 9999; overflow: auto; }
+          body > * { visibility: hidden; }
+          #romaneio-print-root { visibility: visible; position: fixed; inset: 0; background: white; z-index: 9999; overflow: visible; }
+          #romaneio-print-root * { visibility: visible; }
           @page { size: A4 portrait; margin: 10mm 8mm; }
           .no-print { display: none !important; }
           .print-input { border: none !important; background: transparent !important; box-shadow: none !important; }
           tr { page-break-inside: avoid; }
         }
         @media screen {
-          #romaneio-print-root { display: contents; }
           .print-only { display: none !important; }
         }
       `}</style>
