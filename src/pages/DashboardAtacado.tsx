@@ -5,7 +5,7 @@ import {
   RefreshCw, ChevronLeft, ChevronRight, Calendar,
   Phone, CheckCircle2, Package2, AlertTriangle,
   Truck, MessageCircle, Settings, Download, X, Plus,
-  Clock, History, ChevronDown,
+  Clock, History, ChevronDown, Search, Pencil,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { AtacadoPedido, Client } from '../types'
@@ -15,6 +15,7 @@ const PT_DAYS       = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXT
 const PT_DAY_LABELS = ['DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO']
 const TURNOS_LIST   = ['MANHÃ', 'TARDE', 'NOITE']
 const ENTREGADORES  = ['THALES', 'DIOGO', 'PAULO', 'VINICIUS', 'JOSELITO', 'GABRIEL', 'HIOGO', 'ALEXANDER']
+const RETIRADA_VALS = ['RETIRADA', 'BALCÃO', 'RETIRADA/BALCÃO']
 const MSG_PADRAO    = 'Bom dia! ☀️\n\nQual será o seu pedido de hoje? 🥖❄️\n\n_*Lumar Alimentos*_'
 
 // ─── Types ────────────────────────────────────────────────────
@@ -67,28 +68,68 @@ function fmtRelative(iso: string): string {
   return `há ${diff} d`
 }
 
+// Exibe o número do pedido — usa numero_pedido quando existe, senão id_venda
+function pedNum(p: AtacadoPedido): string {
+  if (p.numero_pedido) return String(p.numero_pedido)
+  if (p.id_venda)      return `#${p.id_venda}`
+  return '—'
+}
+
 // ─── Main Component ───────────────────────────────────────────
 export default function DashboardAtacado() {
-  const [activeTab, setActiveTab]       = useState<'novos' | 'rotas'>('novos')
+  const [activeTab, setActiveTab]       = useState<'novos' | 'rotas' | 'retirada'>('novos')
   const [pedidosNovos, setPedidosNovos] = useState<AtacadoPedido[]>([])
   const [pedidosDia, setPedidosDia]     = useState<AtacadoPedido[]>([])
   const [historico, setHistorico]       = useState<AtacadoPedido[]>([])
   const [rotinaClientes, setRotinaClientes] = useState<Client[]>([])
   const [rotinaLog, setRotinaLog]       = useState<RotinaLog[]>([])
   const [rotinaDate, setRotinaDate]     = useState(new Date())
+  const [rotasDate, setRotasDate]       = useState(new Date())
   const [loading, setLoading]           = useState(true)
   const [showHistorico, setShowHistorico] = useState(false)
-  const [setDateId, setSetDateId]       = useState<number | null>(null)
+  const [editPedidoId, setEditPedidoId] = useState<number | null>(null)
   const [syncing, setSyncing]           = useState<string | null>(null)
   const [syncMsg, setSyncMsg]           = useState<string | null>(null)
   const [showConfig, setShowConfig]     = useState(false)
+  const [searchQuery, setSearchQuery]   = useState('')
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const todayStr    = format(new Date(), 'yyyy-MM-dd')
+  const rotasDateStr = format(rotasDate, 'yyyy-MM-dd')
+  const isRotasHoje  = rotasDateStr === todayStr
 
-  const sortedPedidosDia  = useMemo(() => circularSort(pedidosDia), [pedidosDia])
-  const kpiSemEntregador  = useMemo(() => pedidosDia.filter(p => !p.entregador).length, [pedidosDia])
-  const kpiValor          = useMemo(() => pedidosDia.reduce((s, p) => s + p.valor, 0), [pedidosDia])
+  const pedidosRota      = useMemo(() => pedidosDia.filter(p => !RETIRADA_VALS.includes(p.entregador ?? '')), [pedidosDia])
+  const pedidosRetirada  = useMemo(() => pedidosDia.filter(p =>  RETIRADA_VALS.includes(p.entregador ?? '')), [pedidosDia])
+  const sortedPedidosDia = useMemo(() => circularSort(pedidosRota), [pedidosRota])
+  const kpiSemEntregador = useMemo(() => pedidosRota.filter(p => !p.entregador).length, [pedidosRota])
+  const kpiValor         = useMemo(() => pedidosDia.reduce((s, p) => s + p.valor, 0), [pedidosDia])
   const isRotinaHoje      = format(rotinaDate, 'yyyy-MM-dd') === todayStr
+
+  // Filtered novos based on search
+  const filteredNovos = useMemo(() => {
+    if (!searchQuery.trim()) return pedidosNovos
+    const q = searchQuery.toLowerCase().trim()
+    return pedidosNovos.filter(p =>
+      String(p.numero_pedido ?? '').includes(q) ||
+      String(p.id_venda ?? '').includes(q) ||
+      (p.cliente?.cliente ?? p.cliente_nome ?? '').toLowerCase().includes(q)
+    )
+  }, [pedidosNovos, searchQuery])
+
+  const filteredHistorico = useMemo(() => {
+    if (!searchQuery.trim()) return historico
+    const q = searchQuery.toLowerCase().trim()
+    return historico.filter(p =>
+      String(p.numero_pedido ?? '').includes(q) ||
+      String(p.id_venda ?? '').includes(q) ||
+      (p.cliente?.cliente ?? p.cliente_nome ?? '').toLowerCase().includes(q)
+    )
+  }, [historico, searchQuery])
+
+  // Pedido currently being edited (from any list)
+  const pedidoParaEditar = useMemo(
+    () => [...pedidosNovos, ...pedidosDia, ...historico].find(p => p.id === editPedidoId) ?? null,
+    [editPedidoId, pedidosNovos, pedidosDia, historico],
+  )
 
   // ─── Loaders ────────────────────────────────────────────
   const JOIN = '*, cliente:atacado_clientes(id,cliente,telefone,rota,setor,pgto_padrao,restricao,observacoes)'
@@ -109,11 +150,11 @@ export default function DashboardAtacado() {
     const { data } = await supabase
       .from('atacado_pedidos')
       .select(JOIN)
-      .eq('data_entrega', todayStr)
+      .eq('data_entrega', rotasDateStr)
       .neq('tipo', 'CANCELADO')
       .order('atualizacao')
     setPedidosDia((data ?? []) as AtacadoPedido[])
-  }, [todayStr])
+  }, [rotasDateStr])
 
   const loadRotina = useCallback(async (date: Date) => {
     const nomeDia = PT_DAYS[date.getDay()]
@@ -161,15 +202,16 @@ export default function DashboardAtacado() {
 
   useEffect(() => { load() }, [])
   useEffect(() => { loadRotina(rotinaDate) }, [rotinaDate, loadRotina])
+  useEffect(() => { loadRotas() }, [loadRotas])
   useEffect(() => { if (showHistorico) loadHistorico() }, [showHistorico, loadHistorico])
 
-  // Auto-refresh every 90 s when page is open
+  // Auto-refresh every 90 s
   useEffect(() => {
     const id = setInterval(() => { loadNovos(); loadRotas() }, 90000)
     return () => clearInterval(id)
   }, [loadNovos, loadRotas])
 
-  // Realtime: any change to atacado_pedidos
+  // Realtime
   useEffect(() => {
     const ch = supabase.channel('atacado-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'atacado_pedidos' }, () => {
@@ -185,12 +227,12 @@ export default function DashboardAtacado() {
     setPedidosDia(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p))
   }
 
-  async function confirmarDataEntrega(id: number, date: string) {
-    await supabase.from('atacado_pedidos').update({ data_entrega: date, updated_at: new Date().toISOString() }).eq('id', id)
-    setPedidosNovos(prev => prev.filter(p => p.id !== id))
-    if (date === todayStr) { await loadRotas(); setActiveTab('rotas') }
+  async function savePedidoEdit(id: number, patch: Partial<AtacadoPedido>) {
+    await supabase.from('atacado_pedidos').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
+    await Promise.all([loadNovos(), loadRotas()])
     if (showHistorico) await loadHistorico()
-    setSetDateId(null)
+    setEditPedidoId(null)
+    if (patch.data_entrega === rotasDateStr) setActiveTab('rotas')
   }
 
   async function ignorarPedido(id: number) {
@@ -235,8 +277,6 @@ export default function DashboardAtacado() {
       setSyncMsg(`Erro: ${e instanceof Error ? e.message : 'desconhecido'}`)
     } finally { setSyncing(null) }
   }
-
-  const pedidoParaData = pedidosNovos.find(p => p.id === setDateId) ?? null
 
   // ─── Render ──────────────────────────────────────────────
   return (
@@ -283,6 +323,23 @@ export default function DashboardAtacado() {
         </div>
       </div>
 
+      {/* Search bar */}
+      <div className="relative max-w-sm">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Buscar pedido por número ou cliente..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full pl-8 pr-8 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
       {syncMsg && (
         <div className={`text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-2 ${syncMsg.startsWith('Erro') ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
           <span className="flex-1">{syncMsg}</span>
@@ -321,7 +378,7 @@ export default function DashboardAtacado() {
               onClick={() => setActiveTab('novos')}
               className={`flex-1 py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${activeTab === 'novos' ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-b-2 border-amber-500' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
             >
-              <Clock size={13} /> Novos Pedidos
+              <Clock size={13} /> Novos
               {pedidosNovos.length > 0 && (
                 <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pedidosNovos.length}</span>
               )}
@@ -330,20 +387,51 @@ export default function DashboardAtacado() {
               onClick={() => setActiveTab('rotas')}
               className={`flex-1 py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${activeTab === 'rotas' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border-b-2 border-orange-500' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
             >
-              <Truck size={13} /> Rotas de Hoje
+              <Truck size={13} />
+              {isRotasHoje ? 'Rotas' : format(rotasDate, 'dd/MM', { locale: ptBR })}
               {kpiSemEntregador > 0 && (
                 <span className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{kpiSemEntregador}!</span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('retirada')}
+              className={`flex-1 py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${activeTab === 'retirada' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-b-2 border-blue-500' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+            >
+              🏭 Retirada
+              {pedidosRetirada.length > 0 && (
+                <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pedidosRetirada.length}</span>
+              )}
+            </button>
           </div>
+
+          {/* Rotas date navigation bar */}
+          {(activeTab === 'rotas' || activeTab === 'retirada') && (
+            <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <button onClick={() => setRotasDate(d => subDays(d, 1))} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500">
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                onClick={() => setRotasDate(new Date())}
+                className={`flex-1 text-center text-xs py-0.5 rounded font-medium transition-colors ${isRotasHoje ? 'text-orange-500' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                <Calendar size={10} className="inline mr-1" />
+                {isRotasHoje ? 'Hoje' : format(rotasDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+              </button>
+              <button onClick={() => setRotasDate(d => addDays(d, 1))} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500">
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
 
           {/* Novos Pedidos */}
           {activeTab === 'novos' && (
-            pedidosNovos.length === 0 ? (
+            filteredNovos.length === 0 ? (
               <div className="py-10 text-center text-slate-400">
                 <CheckCircle2 size={28} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Nenhum pedido aguardando data de entrega</p>
-                <p className="text-xs mt-1 opacity-70">Dados atualizados automaticamente a cada 90 s</p>
+                <p className="text-sm">
+                  {searchQuery ? 'Nenhum pedido encontrado para essa busca' : 'Nenhum pedido aguardando data de entrega'}
+                </p>
+                {!searchQuery && <p className="text-xs mt-1 opacity-70">Dados atualizados automaticamente a cada 90 s</p>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -359,8 +447,8 @@ export default function DashboardAtacado() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                    {pedidosNovos.map(p => (
-                      <NovoPedidoRow key={p.id} pedido={p} onSetDate={() => setSetDateId(p.id)} onIgnorar={() => ignorarPedido(p.id)} />
+                    {filteredNovos.map(p => (
+                      <NovoPedidoRow key={p.id} pedido={p} onEdit={() => setEditPedidoId(p.id)} onIgnorar={() => ignorarPedido(p.id)} />
                     ))}
                   </tbody>
                 </table>
@@ -368,13 +456,13 @@ export default function DashboardAtacado() {
             )
           )}
 
-          {/* Rotas de Hoje */}
+          {/* Rotas */}
           {activeTab === 'rotas' && (
-            pedidosDia.length === 0 ? (
+            sortedPedidosDia.length === 0 ? (
               <div className="py-10 text-center text-slate-400">
                 <Package2 size={28} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Nenhuma entrega definida para hoje</p>
-                <p className="text-xs mt-1 opacity-70">Defina a data de entrega nos pedidos aguardando</p>
+                <p className="text-sm">Nenhuma entrega para {isRotasHoje ? 'hoje' : format(rotasDate, "dd/MM", { locale: ptBR })}</p>
+                {isRotasHoje && <p className="text-xs mt-1 opacity-70">Defina a data de entrega nos pedidos aguardando</p>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -388,12 +476,65 @@ export default function DashboardAtacado() {
                       <th className="px-3 py-2 font-semibold w-28">Turno</th>
                       <th className="px-3 py-2 font-semibold w-32">Entregador</th>
                       <th className="px-3 py-2 font-semibold">Pgto</th>
+                      <th className="px-3 py-2 font-semibold w-8"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {sortedPedidosDia.map(p => (
-                      <RotaRow key={p.id} pedido={p} onUpdate={patch => updatePedido(p.id, patch)} />
+                      <RotaRow key={p.id} pedido={p}
+                        onUpdate={patch => updatePedido(p.id, patch)}
+                        onEdit={() => setEditPedidoId(p.id)}
+                      />
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
+
+          {/* Retirada / Balcão */}
+          {activeTab === 'retirada' && (
+            pedidosRetirada.length === 0 ? (
+              <div className="py-10 text-center text-slate-400">
+                <Package2 size={28} className="mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Nenhuma retirada {isRotasHoje ? 'hoje' : `em ${format(rotasDate, "dd/MM", { locale: ptBR })}`}</p>
+                <p className="text-xs mt-1 opacity-70">Pedidos com entregador = RETIRADA aparecem aqui</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[560px]">
+                  <thead>
+                    <tr className="bg-blue-50 dark:bg-blue-900/20 text-slate-500 dark:text-slate-400 text-left">
+                      <th className="px-3 py-2 font-semibold">Ped.</th>
+                      <th className="px-3 py-2 font-semibold">Valor</th>
+                      <th className="px-3 py-2 font-semibold">Cliente</th>
+                      <th className="px-3 py-2 font-semibold">Turno</th>
+                      <th className="px-3 py-2 font-semibold">Pgto</th>
+                      <th className="px-3 py-2 font-semibold w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {pedidosRetirada.map(p => {
+                      const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
+                      return (
+                        <tr key={p.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
+                          <td className="px-3 py-2.5 font-mono font-bold text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
+                          <td className="px-3 py-2.5 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">{fmtCurrency(p.valor)}</td>
+                          <td className="px-3 py-2.5">
+                            <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[200px]">{nome}</p>
+                            {p.cliente?.restricao && <p className="text-[10px] text-amber-600">{p.cliente.restricao}</p>}
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{p.turno ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{p.cliente?.pgto_padrao ?? '—'}</td>
+                          <td className="px-3 py-2.5">
+                            <button onClick={() => setEditPedidoId(p.id)} title="Editar"
+                              className="text-slate-400 hover:text-blue-500 transition-colors">
+                              <Pencil size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -469,9 +610,9 @@ export default function DashboardAtacado() {
         </button>
 
         {showHistorico && (
-          historico.length === 0 ? (
+          filteredHistorico.length === 0 ? (
             <div className="py-8 text-center text-slate-400 border-t border-slate-100 dark:border-slate-700">
-              <p className="text-xs">Nenhum pedido com data de entrega definida</p>
+              <p className="text-xs">{searchQuery ? 'Nenhum pedido encontrado para essa busca' : 'Nenhum pedido com data de entrega definida'}</p>
             </div>
           ) : (
             <div className="overflow-x-auto border-t border-slate-100 dark:border-slate-700">
@@ -486,10 +627,11 @@ export default function DashboardAtacado() {
                     <th className="px-3 py-2 font-semibold">Turno</th>
                     <th className="px-3 py-2 font-semibold">Entregador</th>
                     <th className="px-3 py-2 font-semibold">Tipo</th>
+                    <th className="px-3 py-2 font-semibold w-8"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {historico.map(p => {
+                  {filteredHistorico.map(p => {
                     const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
                     const isHoje = p.data_entrega === todayStr
                     return (
@@ -501,7 +643,7 @@ export default function DashboardAtacado() {
                             <span className="text-slate-600 dark:text-slate-400">{p.data_entrega ? format(new Date(p.data_entrega + 'T12:00:00'), 'dd/MM', { locale: ptBR }) : '—'}</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{p.numero_pedido ?? '—'}</td>
+                        <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
                         <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{nome}</td>
                         <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.cliente?.rota ?? '—'}</td>
                         <td className="px-3 py-2 text-right font-medium text-green-600 dark:text-green-400">{fmtCurrency(p.valor)}</td>
@@ -511,6 +653,12 @@ export default function DashboardAtacado() {
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${p.tipo === 'BONIFICACAO' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
                             {p.tipo}
                           </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <button onClick={() => setEditPedidoId(p.id)} title="Editar pedido"
+                            className="text-slate-400 hover:text-orange-500 transition-colors">
+                            <Pencil size={12} />
+                          </button>
                         </td>
                       </tr>
                     )
@@ -522,12 +670,12 @@ export default function DashboardAtacado() {
         )}
       </div>
 
-      {/* Set data entrega modal */}
-      {setDateId !== null && pedidoParaData && (
-        <SetDataEntregaModal
-          pedido={pedidoParaData}
-          onClose={() => setSetDateId(null)}
-          onSave={date => confirmarDataEntrega(setDateId, date)}
+      {/* Edit pedido modal */}
+      {editPedidoId !== null && pedidoParaEditar && (
+        <EditPedidoModal
+          pedido={pedidoParaEditar}
+          onClose={() => setEditPedidoId(null)}
+          onSave={patch => savePedidoEdit(editPedidoId, patch)}
         />
       )}
     </div>
@@ -551,17 +699,17 @@ function KPICard({ label, value, sub, color, icon }: {
   )
 }
 
-function NovoPedidoRow({ pedido: p, onSetDate, onIgnorar }: {
-  pedido: AtacadoPedido; onSetDate: () => void; onIgnorar: () => void
+function NovoPedidoRow({ pedido: p, onEdit, onIgnorar }: {
+  pedido: AtacadoPedido; onEdit: () => void; onIgnorar: () => void
 }) {
   const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
   return (
     <tr className="hover:bg-amber-50/40 dark:hover:bg-amber-900/10 transition-colors">
       <td className="px-3 py-2.5 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
-        #{p.id_venda}
+        {pedNum(p)}
       </td>
       <td className="px-3 py-2.5 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
-        {fmtCurrency(p.valor)}
+        {p.valor > 0 ? p.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
       </td>
       <td className="px-3 py-2.5">
         <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[180px]">{nome}</p>
@@ -575,12 +723,12 @@ function NovoPedidoRow({ pedido: p, onSetDate, onIgnorar }: {
         </span>
       </td>
       <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-        {fmtRelative(p.atualizacao)}
+        {fmtCurrency(p.valor) && fmtRelative(p.atualizacao)}
       </td>
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           <button
-            onClick={onSetDate}
+            onClick={onEdit}
             className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors whitespace-nowrap"
           >
             <Calendar size={11} /> Definir data
@@ -598,7 +746,11 @@ function NovoPedidoRow({ pedido: p, onSetDate, onIgnorar }: {
   )
 }
 
-function RotaRow({ pedido: p, onUpdate }: { pedido: AtacadoPedido; onUpdate: (patch: Partial<AtacadoPedido>) => void }) {
+function RotaRow({ pedido: p, onUpdate, onEdit }: {
+  pedido: AtacadoPedido
+  onUpdate: (patch: Partial<AtacadoPedido>) => void
+  onEdit: () => void
+}) {
   const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
   const rota = p.cliente?.rota ?? '—'
   const setor = p.cliente?.setor
@@ -612,7 +764,7 @@ function RotaRow({ pedido: p, onUpdate }: { pedido: AtacadoPedido; onUpdate: (pa
 
   return (
     <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-      <td className="px-3 py-2 font-mono font-bold text-slate-700 dark:text-slate-300">{p.numero_pedido ?? '—'}</td>
+      <td className="px-3 py-2 font-mono font-bold text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
       <td className="px-3 py-2 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">{fmtCurrency(p.valor)}</td>
       <td className="px-3 py-2">
         <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[180px]">{nome}</p>
@@ -633,10 +785,17 @@ function RotaRow({ pedido: p, onUpdate }: { pedido: AtacadoPedido; onUpdate: (pa
         <select value={p.entregador ?? ''} onChange={e => onUpdate({ entregador: e.target.value || null })}
           className="text-xs bg-transparent border-0 outline-none cursor-pointer text-slate-700 dark:text-slate-300 w-full">
           <option value="">— entregador —</option>
+          <option value="RETIRADA">🏭 RETIRADA</option>
           {ENTREGADORES.map(e => <option key={e} value={e}>{e}</option>)}
         </select>
       </td>
       <td className="px-3 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{pgto}</td>
+      <td className="px-3 py-2">
+        <button onClick={onEdit} title="Editar pedido"
+          className="text-slate-400 hover:text-orange-500 transition-colors">
+          <Pencil size={13} />
+        </button>
+      </td>
     </tr>
   )
 }
@@ -683,56 +842,113 @@ function ContatoRow({ cliente: c, feito, onToggle }: {
   )
 }
 
-function SetDataEntregaModal({ pedido: p, onClose, onSave }: {
-  pedido: AtacadoPedido; onClose: () => void; onSave: (date: string) => void
+// ─── Edit Pedido Modal ────────────────────────────────────────
+function EditPedidoModal({ pedido: p, onClose, onSave }: {
+  pedido: AtacadoPedido
+  onClose: () => void
+  onSave: (patch: Partial<AtacadoPedido>) => void
 }) {
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
+  const [date, setDate]           = useState(p.data_entrega ?? format(new Date(), 'yyyy-MM-dd'))
+  const [turno, setTurno]         = useState(p.turno ?? '')
+  const [entregador, setEntregador] = useState(p.entregador ?? '')
+  const [valor, setValor]         = useState(p.valor > 0 ? String(p.valor) : '')
+  const [saving, setSaving]       = useState(false)
+
+  async function handleSave() {
+    if (!date) return
+    setSaving(true)
+    const patch: Partial<AtacadoPedido> = {
+      data_entrega: date,
+      turno:        turno || null,
+      entregador:   entregador || null,
+    }
+    const parsedValor = parseFloat(valor.replace(',', '.'))
+    if (!isNaN(parsedValor) && parsedValor > 0) patch.valor = parsedValor
+    await onSave(patch)
+    setSaving(false)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
-          <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Definir data de entrega</h2>
+          <div>
+            <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Editar pedido</h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">{pedNum(p)}</p>
+          </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={18} /></button>
         </div>
         <div className="p-5 space-y-4">
-          <div className="bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2.5 space-y-1">
+          {/* Info */}
+          <div className="bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2.5">
             <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{nome}</p>
-            <div className="flex gap-3 text-xs text-slate-500 dark:text-slate-400">
-              <span>Ped. {p.numero_pedido ?? `#${p.id_venda}`}</span>
-              <span className="font-medium text-green-600 dark:text-green-400">{fmtCurrency(p.valor)}</span>
+            <div className="flex gap-3 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               <span>{p.tipo}</span>
+              {p.cliente?.rota && <span className="text-orange-500">{p.cliente.rota}</span>}
             </div>
           </div>
+
+          {/* Data entrega */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Data de entrega</label>
             <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
+              type="date" value={date} onChange={e => setDate(e.target.value)}
               className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
             />
+            <div className="flex gap-2 mt-2">
+              {[0, 1, 2].map(d => {
+                const dt = format(addDays(new Date(), d), 'yyyy-MM-dd')
+                const label = d === 0 ? 'Hoje' : d === 1 ? 'Amanhã' : format(addDays(new Date(), d), 'EEE', { locale: ptBR })
+                return (
+                  <button key={d} onClick={() => setDate(dt)}
+                    className={`flex-1 text-xs py-1.5 rounded-lg border font-medium transition-colors ${date === dt ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-          <div className="flex gap-2 pt-1">
-            {/* Quick picks */}
-            {[0, 1, 2].map(d => {
-              const dt = format(addDays(new Date(), d), 'yyyy-MM-dd')
-              const label = d === 0 ? 'Hoje' : d === 1 ? 'Amanhã' : format(addDays(new Date(), d), 'EEE', { locale: ptBR })
-              return (
-                <button key={d} onClick={() => setDate(dt)}
-                  className={`flex-1 text-xs py-1.5 rounded-lg border font-medium transition-colors ${date === dt ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
-                  {label}
-                </button>
-              )
-            })}
+
+          {/* Turno */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Turno</label>
+            <select value={turno} onChange={e => setTurno(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400">
+              <option value="">— sem turno —</option>
+              {TURNOS_LIST.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          {/* Entregador */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Entregador</label>
+            <select value={entregador} onChange={e => setEntregador(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400">
+              <option value="">— sem entregador —</option>
+              <option value="RETIRADA">🏭 RETIRADA / BALCÃO</option>
+              {ENTREGADORES.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </div>
+
+          {/* Valor */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+              Valor (R$) <span className="font-normal text-slate-400">— atual: {fmtCurrency(p.valor)}</span>
+            </label>
+            <input
+              type="number" step="0.01" min="0"
+              value={valor} onChange={e => setValor(e.target.value)}
+              placeholder={String(p.valor)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
+            />
           </div>
         </div>
         <div className="flex gap-2 px-5 py-4 border-t border-slate-100 dark:border-slate-700">
           <button onClick={onClose} className="flex-1 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
-          <button onClick={() => onSave(date)} disabled={!date}
+          <button onClick={handleSave} disabled={!date || saving}
             className="flex-1 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors">
-            Confirmar entrega
+            {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
       </div>
