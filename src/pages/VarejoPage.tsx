@@ -686,9 +686,9 @@ export default function VarejoPage() {
   const TABS = [
     { id: 'fila'      as Tab, label: 'Fila',           count: fila.length,         alert: fila.length > 0 },
     { id: 'dashboard' as Tab, label: 'Hoje',           count: today.length },
+    { id: 'retirada'  as Tab, label: 'Retiradas',      count: retiradaTotal,        alert: retiradaFila.length > 0 },
     { id: 'delivery'  as Tab, label: 'iFood / 99Food', count: todayDelivery.length },
     { id: 'amanha'    as Tab, label: `Amanhã ${format(parseISO(actualTomorrow), 'dd/MM')}`, count: amanha.length },
-    { id: 'retirada'  as Tab, label: 'Retiradas',      count: retiradaTotal,        alert: retiradaFila.length > 0 },
     { id: 'historico' as Tab, label: 'Histórico',      count: 0 },
     { id: 'posvendas' as Tab, label: 'Pós-Venda',      count: posVendaAtivos, alert: posVendaAtivos > 0 },
   ]
@@ -761,23 +761,36 @@ export default function VarejoPage() {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
-              tab === t.id
-                ? 'border-orange-500 text-orange-600 dark:text-orange-400'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
-            }`}>
-            {t.label}
-            {t.count > 0 && (
-              <span className={`text-[10px] px-1.5 rounded-full font-bold ${
-                (t as any).alert
-                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                  : tab === t.id
-                  ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
-              }`}>{t.count}</span>
+          <div key={t.id} className="flex items-stretch shrink-0">
+            {t.id === 'posvendas' && (
+              <div className="w-px bg-slate-200 dark:bg-slate-600 self-stretch my-1.5 mr-1" />
             )}
-          </button>
+            <button onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
+                t.id === 'posvendas'
+                  ? tab === t.id
+                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                    : 'border-transparent text-purple-400 dark:text-purple-500 hover:text-purple-600 dark:hover:text-purple-400'
+                  : tab === t.id
+                  ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
+              }`}>
+              {t.label}
+              {t.count > 0 && (
+                <span className={`text-[10px] px-1.5 rounded-full font-bold ${
+                  (t as any).alert
+                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                    : t.id === 'posvendas'
+                    ? tab === t.id
+                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600'
+                      : 'bg-purple-50 dark:bg-purple-900/20 text-purple-400'
+                    : tab === t.id
+                    ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                }`}>{t.count}</span>
+              )}
+            </button>
+          </div>
         ))}
       </div>
 

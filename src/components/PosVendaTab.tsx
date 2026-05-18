@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { MessageCircle, RefreshCw, Plus, Download, CheckCircle2 } from 'lucide-react'
+import { MessageCircle, Plus, CheckCircle2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import type { PosVendaCliente } from '../types'
@@ -23,59 +23,13 @@ function parseDateBR(val: string): string | null {
   return null
 }
 
-async function importarHistorico(): Promise<{ imported: number; skipped: number }> {
-  const apiKey  = localStorage.getItem('crm_sheets_api_key') ?? ''
-  const sheetId = localStorage.getItem('crm_sheet_id') ?? '15ygrVoRh7cd8iVWn0eBXpEz-jBVsOa4jxemmmva2rnA'
-  if (!apiKey) throw new Error('Chave de API não configurada (Configurações → Planilha de Pedidos)')
-
-  // HISTORICO-CRM: A=created_at, B=telefone, C=nome, D=data_interacao, E=observacao
-  const range = encodeURIComponent('HISTORICO-CRM!B2:E')
-  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${encodeURIComponent(apiKey)}`
-  const res   = await fetch(url)
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
-    throw new Error(body?.error?.message ?? `Erro ${res.status}`)
-  }
-  const { values = [] } = await res.json() as { values?: string[][] }
-
-  const records = values
-    .filter(row => row[0] && row[2]) // precisa de telefone e data
-    .map(row => ({
-      telefone:       (row[0] ?? '').replace(/\D/g, ''),
-      nome:           (row[1] ?? '').trim() || null,
-      data_interacao: parseDateBR(row[2] ?? ''),
-      observacao:     (row[3] ?? '').trim() || '(sem observação)',
-    }))
-    .filter(r => r.telefone && r.data_interacao) as {
-      telefone: string; nome: string | null; data_interacao: string; observacao: string
-    }[]
-
-  if (!records.length) return { imported: 0, skipped: 0 }
-
-  const BATCH = 500
-  let imported = 0
-  for (let i = 0; i < records.length; i += BATCH) {
-    const { data, error } = await supabase
-      .from('crm_posvendas_interacoes')
-      .upsert(records.slice(i, i + BATCH), { onConflict: 'telefone,data_interacao,observacao', ignoreDuplicates: true })
-      .select('id')
-    if (error) throw new Error(error.message)
-    imported += data?.length ?? 0
-  }
-  return { imported, skipped: records.length - imported }
-}
-
 // ── Tab principal ─────────────────────────────────────────────────────────────
 
 export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: number, p2: number) => void }) {
   const [clientes, setClientes]         = useState<PosVendaCliente[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [filtro, setFiltro]             = useState<Filtro>('1')
-  const [modal, setModal]               = useState<PosVendaCliente | null>(null)
-  const [importing, setImporting]       = useState(false)
-  const [importStatus, setImportStatus] = useState<string | null>(null)
-
-  const hasApiKey = !!localStorage.getItem('crm_sheets_api_key')
+  const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro]   = useState<Filtro>('1')
+  const [modal, setModal]     = useState<PosVendaCliente | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -104,21 +58,6 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
     return clientes
   }, [clientes, filtro])
 
-  async function handleImport() {
-    setImporting(true)
-    setImportStatus(null)
-    try {
-      const { imported, skipped } = await importarHistorico()
-      setImportStatus(`✓ ${imported} importados${skipped > 0 ? `, ${skipped} já existiam` : ''}`)
-      load()
-    } catch (e) {
-      setImportStatus(e instanceof Error ? e.message : 'Erro ao importar')
-    } finally {
-      setImporting(false)
-      setTimeout(() => setImportStatus(null), 6000)
-    }
-  }
-
   const FILTROS: [Filtro, string][] = [
     ['1',      `📞 Pós-Venda ${counts.p1}`],
     ['2',      `🚨 Recompra ${counts.p2}`],
@@ -128,41 +67,17 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-2 flex-wrap justify-between">
-        <div className="flex gap-1.5 flex-wrap">
-          {FILTROS.map(([id, label]) => (
-            <button key={id} onClick={() => setFiltro(id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                filtro === id
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={load} disabled={loading} className="btn-ghost p-2" title="Atualizar">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+      <div className="flex gap-1.5 flex-wrap">
+        {FILTROS.map(([id, label]) => (
+          <button key={id} onClick={() => setFiltro(id)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              filtro === id
+                ? 'bg-orange-500 text-white'
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+            }`}>
+            {label}
           </button>
-          {hasApiKey && (
-            <button
-              onClick={handleImport}
-              disabled={importing}
-              title="Importar histórico de interações da aba HISTORICO-CRM da planilha"
-              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                importStatus?.startsWith('✓')
-                  ? 'text-green-600 bg-green-50 dark:bg-green-900/20'
-                  : importStatus
-                  ? 'text-red-600 bg-red-50 dark:bg-red-900/20'
-                  : 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30'
-              }`}
-            >
-              <Download size={13} className={importing ? 'animate-pulse' : ''} />
-              {importing ? 'Importando…' : (importStatus ?? 'Importar Histórico')}
-            </button>
-          )}
-        </div>
+        ))}
       </div>
 
       {/* List */}
