@@ -3,7 +3,7 @@ import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, Calendar, Printer,
-  RefreshCw, Share2, AlertCircle,
+  RefreshCw, Share2, AlertCircle, Truck, Check,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -52,9 +52,15 @@ export default function RomaneioTab() {
   const [turnoNoite, setN]          = useState(true)
 
   // Dados
-  const [items, setItems]     = useState<RomaneioItem[]>([])
+  const [items,   setItems]   = useState<RomaneioItem[]>([])
   const [loading, setLoading] = useState(false)
   const [drivers, setDrivers] = useState<{ id: string; nome: string }[]>([])
+  const [vehicles, setVehicles] = useState<{ id: string; apelido: string; placa: string | null }[]>([])
+
+  // Veículo do romaneio (persistido no banco)
+  const [veiculo,       setVeiculo]       = useState('')
+  const [savingVeiculo, setSavingVeiculo] = useState(false)
+  const [veiculoSalvo,  setVeiculoSalvo]  = useState(false)
 
   // Estado mutável por item
   const [seqMap,      setSeqMap]      = useState<Record<string, string>>({})
@@ -64,6 +70,8 @@ export default function RomaneioTab() {
   useEffect(() => {
     supabase.from('crm_drivers').select('id, nome').eq('ativo', true).order('nome')
       .then(({ data }) => setDrivers(data ?? []))
+    supabase.from('crm_vehicles').select('id, apelido, placa').eq('ativo', true).order('apelido')
+      .then(({ data }) => setVehicles(data ?? []))
   }, [])
 
   // ── Derivados ────────────────────────────────────────────────────
@@ -111,6 +119,7 @@ export default function RomaneioTab() {
   const load = useCallback(async () => {
     setLoading(true)
     setSeqMap({}); setEntregueMap({}); setOcorrMap({})
+    setVeiculoSalvo(false)
 
     const nenhum = !turnoManha && !turnoTarde && !turnoNoite
     const buildOr = () => {
@@ -125,7 +134,7 @@ export default function RomaneioTab() {
 
     let qL = supabase
       .from('atacado_pedidos')
-      .select('id, id_venda, numero_pedido, cliente_nome, turno, entregador, valor, ocorrencia, crm_client:crm_clients(nome,rota,pgto)')
+      .select('id, id_venda, numero_pedido, cliente_nome, turno, entregador, valor, ocorrencia, veiculo, crm_client:crm_clients(nome,rota,pgto)')
       .eq('data_entrega', date)
       .eq('ignorado', false)
       .neq('tipo', 'CANCELADO')
@@ -134,7 +143,7 @@ export default function RomaneioTab() {
 
     let qC = supabase
       .from('varejo_pedidos')
-      .select('id, num_pedido, cliente, turno, entregador, valor_liquido, restricao, rota_definida, sugestao_rota')
+      .select('id, num_pedido, cliente, turno, entregador, valor_liquido, restricao, rota_definida, sugestao_rota, veiculo')
       .eq('data_entrega', date)
       .neq('status_icon', '❌')
       .not('entregador', 'eq', 'RETIRADA')
@@ -169,9 +178,39 @@ export default function RomaneioTab() {
       ocorrencia_db: '',
     }))
 
+    // Detecta veículo já salvo nos pedidos (usa o primeiro valor encontrado)
+    const allRows = [...(atacado ?? []), ...(cantina ?? [])] as any[]
+    const veiculoDetectado = allRows.find(p => p.veiculo)?.veiculo ?? ''
+    setVeiculo(veiculoDetectado)
+
     setItems([...lumar, ...cant])
     setLoading(false)
   }, [date, entregador, turnoManha, turnoTarde, turnoNoite])
+
+  // ── Salvar veículo em todos os pedidos do romaneio ───────────────
+
+  async function handleVeiculoChange(novo: string) {
+    setVeiculo(novo)
+    if (!items.length) return
+    setSavingVeiculo(true)
+    setVeiculoSalvo(false)
+
+    const lumarIds  = items.filter(i => i.empresa === 'LUMAR')  .map(i => parseInt(i.uid.slice(1)))
+    const cantinaIds = items.filter(i => i.empresa === 'CANTINA').map(i => parseInt(i.uid.slice(1)))
+
+    await Promise.all([
+      lumarIds.length
+        ? supabase.from('atacado_pedidos').update({ veiculo: novo || null }).in('id', lumarIds)
+        : Promise.resolve(),
+      cantinaIds.length
+        ? supabase.from('varejo_pedidos').update({ veiculo: novo || null }).in('id', cantinaIds)
+        : Promise.resolve(),
+    ])
+
+    setSavingVeiculo(false)
+    setVeiculoSalvo(true)
+    setTimeout(() => setVeiculoSalvo(false), 2500)
+  }
 
   // Carrega automaticamente sempre que os filtros mudarem
   useEffect(() => { load() }, [load])
@@ -268,6 +307,26 @@ export default function RomaneioTab() {
                 <option key={d.id} value={firstName(d.nome)}>{firstName(d.nome)}</option>
               ))}
             </select>
+
+            {/* Veículo */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-[180px]">
+              <Truck size={14} className="text-slate-400 shrink-0" />
+              <select
+                className="input text-sm py-1.5 flex-1 dark:[color-scheme:dark]"
+                value={veiculo}
+                onChange={e => handleVeiculoChange(e.target.value)}
+                disabled={savingVeiculo || !items.length}
+              >
+                <option value="">— veículo —</option>
+                {vehicles.map(v => (
+                  <option key={v.id} value={v.apelido}>
+                    {v.apelido}{v.placa ? ` (${v.placa})` : ''}
+                  </option>
+                ))}
+              </select>
+              {savingVeiculo && <RefreshCw size={13} className="animate-spin text-slate-400 shrink-0" />}
+              {veiculoSalvo   && <Check size={13} className="text-green-500 shrink-0" />}
+            </div>
 
             <button
               onClick={load}
@@ -401,6 +460,11 @@ export default function RomaneioTab() {
                 <div className="text-right text-xs text-blue-200 shrink-0">
                   <p>{entregadorLabel}</p>
                   <p>Turno: {turnosLabel}</p>
+                  {veiculo && (
+                    <p className="flex items-center gap-1 justify-end">
+                      <Truck size={10} /> {veiculo}
+                    </p>
+                  )}
                   <p className="font-bold text-white">{items.length} pedido(s)</p>
                 </div>
               </div>
