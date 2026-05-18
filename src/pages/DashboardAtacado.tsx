@@ -792,9 +792,24 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
     }
   }, [p.turno, p.entregador])
 
+  function handleChange(field: 'turno' | 'entregador', value: string) {
+    const newTurno      = field === 'turno'      ? value : localTurno
+    const newEntregador = field === 'entregador' ? value : localEntregador
+    if (field === 'turno') setLocalTurno(value)
+    else setLocalEntregador(value)
+
+    if (newTurno && newEntregador) {
+      // Both defined → save and allow sort now
+      dirty.current = false
+      onUpdate({ turno: newTurno || null, entregador: newEntregador || null })
+    } else {
+      dirty.current = true
+    }
+  }
+
   function handleRowBlur(e: React.FocusEvent<HTMLTableRowElement>) {
-    // relatedTarget is the element receiving focus; if it's still inside this row, keep editing
     if (e.currentTarget.contains(e.relatedTarget as Node)) return
+    // Persist partial changes on blur so nothing is lost
     if (dirty.current) {
       onUpdate({ turno: localTurno || null, entregador: localEntregador || null })
       dirty.current = false
@@ -830,7 +845,7 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
       <td className="px-3 py-2">
         <select
           value={turnoDisplay}
-          onChange={e => { dirty.current = true; setLocalTurno(e.target.value) }}
+          onChange={e => handleChange('turno', e.target.value)}
           title={turnoEhDoCliente ? 'Turno padrão do cliente (clique para fixar)' : undefined}
           className={`text-xs font-semibold bg-transparent border-0 outline-none cursor-pointer w-full ${turnoColor}`}
         >
@@ -841,7 +856,7 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
       <td className="px-3 py-2">
         <select
           value={localEntregador}
-          onChange={e => { dirty.current = true; setLocalEntregador(e.target.value) }}
+          onChange={e => handleChange('entregador', e.target.value)}
           className="text-xs bg-transparent border-0 outline-none cursor-pointer text-slate-700 dark:text-slate-300 w-full"
         >
           <option value="">— entregador —</option>
