@@ -7,7 +7,10 @@ import type { VarejoPedido } from '../types'
 import PedidoModal from '../components/PedidoModal'
 import PosVendaTab from '../components/PosVendaTab'
 
-type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico' | 'posvendas'
+type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico' | 'posvendas' | 'retirada'
+
+const RETIRADA_VALS = ['RETIRADA']
+const isRetirada = (p: VarejoPedido) => RETIRADA_VALS.includes(p.entregador ?? '')
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -436,6 +439,54 @@ function HistoricoTab({ onEdit }: { onEdit: (p: VarejoPedido) => void }) {
   )
 }
 
+function RetiradaTab({ fila, hoje, amanha, onEdit }: {
+  fila:   VarejoPedido[]
+  hoje:   VarejoPedido[]
+  amanha: VarejoPedido[]
+  onEdit: (p: VarejoPedido) => void
+}) {
+  const total = fila.length + hoje.length + amanha.length
+
+  if (total === 0) {
+    return (
+      <div className="card p-10 text-center text-slate-400">
+        <Package size={32} className="mx-auto mb-3 opacity-40" />
+        <p className="text-sm">Nenhuma retirada pendente.</p>
+        <p className="text-xs mt-1">Pedidos marcados como RETIRADA aparecerão aqui.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {fila.length > 0 && (
+        <div>
+          <p className="text-sm font-bold text-amber-600 dark:text-amber-400 mb-2">⏳ Fila · {fila.length}</p>
+          <div className="space-y-1.5">
+            {fila.map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
+          </div>
+        </div>
+      )}
+      {hoje.length > 0 && (
+        <div>
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">📦 Hoje · {hoje.length}</p>
+          <div className="space-y-1.5">
+            {sortForDashboard(hoje).map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
+          </div>
+        </div>
+      )}
+      {amanha.length > 0 && (
+        <div>
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">📋 Amanhã · {amanha.length}</p>
+          <div className="space-y-1.5">
+            {sortForDashboard(amanha).map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Sync direto com Google Sheets API ───────────────────────────────────────
 
 async function syncFromSheets(): Promise<number> {
@@ -601,19 +652,26 @@ export default function VarejoPage() {
   }, [load])
 
   // ── Derivados ─────────────────────────────────────────────────────
-  const today = pedidos.filter(p => p.data_entrega === selectedDate)
+  const today = pedidos.filter(p => p.data_entrega === selectedDate && !isRetirada(p))
   const todayCW = today.filter(p => p.origem === 'CARDAPIO WEB')
   const todayDelivery = pedidos.filter(p =>
     p.data_entrega === selectedDate && (p.origem === 'IFOOD' || p.origem === '99FOOD')
   )
-  // Fila: CW orders pending turno assignment (⚠️ sem turno definido)
+  // Fila: CW orders pending turno assignment (⚠️ sem turno definido) — excludes retirada
   const fila = pedidos.filter(p =>
     p.status_icon === '⚠️' &&
     !p.turno &&
-    p.origem === 'CARDAPIO WEB'
+    p.origem === 'CARDAPIO WEB' &&
+    !isRetirada(p)
   )
   // Amanhã = always actual tomorrow (não relativo ao selectedDate)
-  const amanha = pedidos.filter(p => p.data_entrega === actualTomorrow)
+  const amanha = pedidos.filter(p => p.data_entrega === actualTomorrow && !isRetirada(p))
+
+  // Retirada
+  const retiradaFila  = pedidos.filter(p => isRetirada(p) && p.status_icon === '⚠️' && !p.data_entrega)
+  const retiradaHoje  = pedidos.filter(p => isRetirada(p) && p.data_entrega === selectedDate)
+  const retiradaAmanha = pedidos.filter(p => isRetirada(p) && p.data_entrega === actualTomorrow)
+  const retiradaTotal = retiradaFila.length + retiradaHoje.length + retiradaAmanha.length
 
   const stats = useMemo(() => {
     const base = todayCW
@@ -630,6 +688,7 @@ export default function VarejoPage() {
     { id: 'dashboard' as Tab, label: 'Hoje',           count: today.length },
     { id: 'delivery'  as Tab, label: 'iFood / 99Food', count: todayDelivery.length },
     { id: 'amanha'    as Tab, label: `Amanhã ${format(parseISO(actualTomorrow), 'dd/MM')}`, count: amanha.length },
+    { id: 'retirada'  as Tab, label: 'Retiradas',      count: retiradaTotal,        alert: retiradaFila.length > 0 },
     { id: 'historico' as Tab, label: 'Histórico',      count: 0 },
     { id: 'posvendas' as Tab, label: 'Pós-Venda',      count: posVendaAtivos, alert: posVendaAtivos > 0 },
   ]
@@ -729,6 +788,8 @@ export default function VarejoPage() {
         <HistoricoTab onEdit={setEditPedido} />
       ) : loading ? (
         <div className="flex justify-center py-12 text-slate-400 text-sm">Carregando...</div>
+      ) : tab === 'retirada' ? (
+        <RetiradaTab fila={retiradaFila} hoje={retiradaHoje} amanha={retiradaAmanha} onEdit={setEditPedido} />
       ) : tab === 'dashboard' ? (
         <DashboardTab pedidos={today} onEdit={setEditPedido} />
       ) : tab === 'fila' ? (

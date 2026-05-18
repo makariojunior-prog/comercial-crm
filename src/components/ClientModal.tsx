@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { X, User, Phone, MapPin, Building2, MessageSquare, Save, AlertCircle, CheckCircle2, AlertTriangle, UserX, Briefcase, Package, Wrench, MessageCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
@@ -10,9 +10,8 @@ interface ClientModalProps {
   onSaved: () => void
 }
 
-const CARTEIRAS   = ['THIAGO', 'MAKÁRIO', 'MARCO'] as const
 const MANUTENCOES = ['MENSAL', 'SEMANAL', 'INATIVO'] as const
-const FREQUENCIAS = ['1X', '2X'] as const
+const FREQUENCIAS = ['1X', '2X', '3X', '4X', '5X'] as const
 const TIPOS       = ['LUMAR', 'LUMAR REVENDA', 'CANTINA REVENDA', 'LUMAR / CANTINA'] as const
 const DIAS_SEMANA = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO'] as const
 
@@ -40,6 +39,16 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
   const [restricao, setRestricao]     = useState(client?.restricao ?? '')
   const [comodato, setComodato]       = useState(client?.comodato ?? '')
   const [valor, setValor]             = useState(client?.valor ?? '')
+
+  const [carteirasOptions, setCarteirasOptions] = useState<string[]>([])
+  const [pgtoOptions, setPgtoOptions]           = useState<string[]>([])
+
+  useEffect(() => {
+    supabase.from('crm_carteiras').select('nome').eq('ativo', true).order('nome')
+      .then(({ data }) => setCarteirasOptions((data ?? []).map(c => c.nome)))
+    supabase.from('crm_pgto_opcoes').select('nome').eq('ativo', true).order('ordem')
+      .then(({ data }) => setPgtoOptions((data ?? []).map(p => p.nome)))
+  }, [])
 
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
@@ -157,12 +166,21 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
                 <label className="label text-xs font-black uppercase text-slate-400">Carteira (Vendedor)</label>
                 <select className="input" value={carteira} onChange={e => setCarteira(e.target.value)}>
                   <option value="">Selecionar...</option>
-                  {CARTEIRAS.map(c => <option key={c} value={c}>{c}</option>)}
+                  {carteira && !carteirasOptions.includes(carteira) && (
+                    <option value={carteira}>{carteira}</option>
+                  )}
+                  {carteirasOptions.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label text-xs font-black uppercase text-slate-400">Forma de Pagamento</label>
-                <input className="input" value={pgto} onChange={e => setPgto(e.target.value)} placeholder="Ex: PIX - LUCIANO" />
+                <select className="input" value={pgto} onChange={e => setPgto(e.target.value)}>
+                  <option value="">Selecionar...</option>
+                  {pgto && !pgtoOptions.includes(pgto) && (
+                    <option value={pgto}>{pgto}</option>
+                  )}
+                  {pgtoOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -221,7 +239,7 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
                 <button
                   type="button"
                   onClick={() => setMensagem('NÃO')}
-                  className={`flex-1 py-2.5 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-2 transition-all ${mensagem === 'NÃO' ? 'bg-slate-100 border-slate-400 text-slate-600' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                  className={`flex-1 py-2.5 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-2 transition-all ${mensagem === 'NÃO' ? 'bg-red-50 border-red-500 text-red-700' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
                 >
                   <X size={14} /> NÃO
                 </button>

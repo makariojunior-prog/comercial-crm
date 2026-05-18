@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, FileSpreadsheet, Check } from 'lucide-react'
+import { useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
+import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, FileSpreadsheet, Check, CreditCard, Briefcase, Plus, Trash2 } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import type { ModuleId } from '../contexts/AuthContext'
@@ -276,6 +277,12 @@ export default function SettingsPage() {
       {/* ─── Planilha Google — somente Admin ───────────────────── */}
       {isAdmin && <SheetsSection />}
 
+      {/* ─── Formas de Pagamento — somente Admin ────────────────── */}
+      {isAdmin && <PgtoSection />}
+
+      {/* ─── Carteiras / Vendedores — somente Admin ─────────────── */}
+      {isAdmin && <CarteirasSection />}
+
       {/* ─── Admin note ─────────────────────────────────────────── */}
       {isAdmin && (
         <div className="text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-700">
@@ -334,6 +341,171 @@ function SheetsSection() {
         </button>
       </div>
       {apiKey && <p className="text-[11px] text-slate-400 mt-2">Botão <strong>☁ Sincronizar</strong> aparecerá no módulo Varejo.</p>}
+    </Section>
+  )
+}
+
+function PgtoSection() {
+  const [options, setOptions] = useState<{ id: number; nome: string; ativo: boolean; ordem: number }[]>([])
+  const [newNome, setNewNome] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function load() {
+    const { data } = await supabase.from('crm_pgto_opcoes').select('*').order('ordem').order('nome')
+    setOptions(data ?? [])
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function add() {
+    if (!newNome.trim()) return
+    setBusy(true)
+    const maxOrdem = options.length ? Math.max(...options.map(o => o.ordem)) + 1 : 1
+    await supabase.from('crm_pgto_opcoes').insert({ nome: newNome.trim().toUpperCase(), ordem: maxOrdem })
+    setNewNome('')
+    await load()
+    setBusy(false)
+  }
+
+  async function toggle(id: number, ativo: boolean) {
+    await supabase.from('crm_pgto_opcoes').update({ ativo: !ativo }).eq('id', id)
+    await load()
+  }
+
+  async function remove(id: number) {
+    await supabase.from('crm_pgto_opcoes').delete().eq('id', id)
+    await load()
+  }
+
+  return (
+    <Section icon={<CreditCard size={16} className="text-orange-500" />} title="Formas de Pagamento">
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        Gerencie as opções de forma de pagamento disponíveis no cadastro de clientes.
+      </p>
+      <div className="space-y-1.5 mb-3">
+        {options.map(opt => (
+          <div key={opt.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600">
+            <span className={`flex-1 text-sm font-medium ${opt.ativo ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500 line-through'}`}>{opt.nome}</span>
+            <button onClick={() => toggle(opt.id, opt.ativo)}
+              className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+              title={opt.ativo ? 'Desativar' : 'Ativar'}>
+              {opt.ativo
+                ? <Eye size={14} className="text-green-500" />
+                : <EyeOff size={14} className="text-slate-400" />}
+            </button>
+            <button onClick={() => remove(opt.id)}
+              className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-colors"
+              title="Remover">
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+        {options.length === 0 && <p className="text-xs text-slate-400 text-center py-2">Nenhuma forma cadastrada</p>}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="input flex-1 text-sm"
+          placeholder="Nova forma de pagamento..."
+          value={newNome}
+          onChange={e => setNewNome(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+        />
+        <button onClick={add} disabled={busy || !newNome.trim()}
+          className="btn-primary flex items-center gap-1.5 px-3 py-2 text-sm disabled:opacity-50">
+          <Plus size={15} /> Adicionar
+        </button>
+      </div>
+    </Section>
+  )
+}
+
+function CarteirasSection() {
+  const [carteiras, setCarteiras] = useState<{ id: number; nome: string; crm_user_id: string | null; ativo: boolean }[]>([])
+  const [users,     setUsers]     = useState<{ id: string; nome: string }[]>([])
+  const [newNome,   setNewNome]   = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function load() {
+    const [{ data: c }, { data: u }] = await Promise.all([
+      supabase.from('crm_carteiras').select('*').order('nome'),
+      supabase.from('crm_users').select('id, nome').order('nome'),
+    ])
+    setCarteiras(c ?? [])
+    setUsers(u ?? [])
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function add() {
+    if (!newNome.trim()) return
+    setBusy(true)
+    await supabase.from('crm_carteiras').insert({ nome: newNome.trim().toUpperCase() })
+    setNewNome('')
+    await load()
+    setBusy(false)
+  }
+
+  async function updateUser(id: number, crm_user_id: string) {
+    await supabase.from('crm_carteiras').update({ crm_user_id: crm_user_id || null }).eq('id', id)
+    await load()
+  }
+
+  async function toggle(id: number, ativo: boolean) {
+    await supabase.from('crm_carteiras').update({ ativo: !ativo }).eq('id', id)
+    await load()
+  }
+
+  async function remove(id: number) {
+    await supabase.from('crm_carteiras').delete().eq('id', id)
+    await load()
+  }
+
+  return (
+    <Section icon={<Briefcase size={16} className="text-orange-500" />} title="Carteiras / Vendedores">
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        Gerencie os vendedores e vincule a um usuário do sistema para controle de acesso.
+      </p>
+      <div className="space-y-1.5 mb-3">
+        {carteiras.map(c => (
+          <div key={c.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600">
+            <span className={`text-sm font-medium w-24 shrink-0 ${c.ativo ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500 line-through'}`}>{c.nome}</span>
+            <select
+              className="input flex-1 text-xs !py-1.5 h-auto"
+              value={c.crm_user_id ?? ''}
+              onChange={e => updateUser(c.id, e.target.value)}
+            >
+              <option value="">— Sem vínculo —</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+            <button onClick={() => toggle(c.id, c.ativo)}
+              className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0"
+              title={c.ativo ? 'Desativar' : 'Ativar'}>
+              {c.ativo
+                ? <Eye size={14} className="text-green-500" />
+                : <EyeOff size={14} className="text-slate-400" />}
+            </button>
+            <button onClick={() => remove(c.id)}
+              className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-colors shrink-0"
+              title="Remover">
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+        {carteiras.length === 0 && <p className="text-xs text-slate-400 text-center py-2">Nenhuma carteira cadastrada</p>}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="input flex-1 text-sm"
+          placeholder="Nome do vendedor..."
+          value={newNome}
+          onChange={e => setNewNome(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+        />
+        <button onClick={add} disabled={busy || !newNome.trim()}
+          className="btn-primary flex items-center gap-1.5 px-3 py-2 text-sm disabled:opacity-50">
+          <Plus size={15} /> Adicionar
+        </button>
+      </div>
     </Section>
   )
 }

@@ -266,7 +266,8 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                 <label className="label">Entregador</label>
                 <select className="input" value={form.entregador} onChange={e => set('entregador', e.target.value)}>
                   <option value="">Selecione</option>
-                  {extraEntregador && (
+                  <option value="RETIRADA">🏪 RETIRADA</option>
+                  {extraEntregador && extraEntregador !== 'RETIRADA' && (
                     <option value={extraEntregador}>{extraEntregador}</option>
                   )}
                   {drivers.map(d => (
