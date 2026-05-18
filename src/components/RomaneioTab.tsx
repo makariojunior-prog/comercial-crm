@@ -1,0 +1,642 @@
+import { useState, useMemo, useEffect } from 'react'
+import { format, addDays, subDays } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import {
+  ChevronLeft, ChevronRight, Calendar, Printer,
+  ArrowUpDown, RefreshCw, RotateCcw, Share2, AlertCircle,
+} from 'lucide-react'
+import { supabase } from '../lib/supabase'
+
+// ─── Types ───────────────────────────────────────────────────────────
+
+interface RomaneioItem {
+  uid: string
+  empresa: 'LUMAR' | 'CANTINA'
+  pedido: string
+  cliente: string
+  turno: string
+  rota: string
+  pgto: string
+  valor: number
+  obs: string
+  ocorrencia_db: string   // valor original do banco
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+function turnoOrd(t: string | null) {
+  const u = (t ?? '').toUpperCase()
+  if (u.includes('MAN')) return 1
+  if (u.includes('TARD')) return 2
+  if (u.includes('NOIT')) return 3
+  return 4
+}
+
+function firstName(nome: string) {
+  return nome.trim().split(/\s+/)[0].toUpperCase()
+}
+
+const fmt = (v: number) =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+// ─── Main component ───────────────────────────────────────────────────
+
+export default function RomaneioTab() {
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+
+  // Filtros
+  const [date, setDate]             = useState(todayStr)
+  const [entregador, setEntregador] = useState('')
+  const [turnoManha, setM]          = useState(true)
+  const [turnoTarde, setT]          = useState(true)
+  const [turnoNoite, setN]          = useState(true)
+
+  // Dados
+  const [items, setItems]         = useState<RomaneioItem[]>([])
+  const [loading, setLoading]     = useState(false)
+  const [generated, setGenerated] = useState(false)
+  const [drivers, setDrivers]     = useState<{ id: string; nome: string }[]>([])
+
+  // Estado mutável por item (sem gravar no banco durante o romaneio)
+  const [seqMap,       setSeqMap]       = useState<Record<string, string>>({})
+  const [entregueMap,  setEntregueMap]  = useState<Record<string, boolean>>({})
+  const [ocorrMap,     setOcorrMap]     = useState<Record<string, string>>({})
+  const [ordenado,     setOrdenado]     = useState(false)
+
+  useEffect(() => {
+    supabase.from('crm_drivers').select('id, nome').eq('ativo', true).order('nome')
+      .then(({ data }) => setDrivers(data ?? []))
+  }, [])
+
+  // ── Derivados ────────────────────────────────────────────────────
+
+  const dateObj    = useMemo(() => new Date(date + 'T12:00'), [date])
+  const isToday    = date === todayStr
+  const dateLabel  = format(dateObj, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+  const datePrint  = format(dateObj, 'dd/MM/yyyy')
+  const dateShort  = format(dateObj, 'dd/MM')
+
+  const entregadorLabel = entregador || 'TODOS OS ENTREGADORES'
+  const turnosLabel = [
+    turnoManha && 'MANHÃ', turnoTarde && 'TARDE', turnoNoite && 'NOITE',
+  ].filter(Boolean).join(' + ') || 'Todos'
+
+  const lumarItems   = useMemo(() => items.filter(i => i.empresa === 'LUMAR'),   [items])
+  const cantinaItems = useMemo(() => items.filter(i => i.empresa === 'CANTINA'), [items])
+  const totalLumar   = lumarItems.reduce((s, i) => s + i.valor, 0)
+  const totalCantina = cantinaItems.reduce((s, i) => s + i.valor, 0)
+  const totalGeral   = totalLumar + totalCantina
+  const qtdEntregues = items.filter(i => entregueMap[i.uid]).length
+
+  // Ordenação: padrão (LUMAR↓ turno, CANTINA↓ turno) ou por sequência manual
+  const displayItems = useMemo(() => {
+    const parseSeq = (uid: string) => {
+      const n = parseInt(seqMap[uid] ?? '', 10)
+      return isNaN(n) ? 9999 : n
+    }
+    const base = [
+      ...items.filter(i => i.empresa === 'LUMAR')  .sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)),
+      ...items.filter(i => i.empresa === 'CANTINA').sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)),
+    ]
+    if (!ordenado) return base
+    return [...base].sort((a, b) => {
+      const sa = parseSeq(a.uid), sb = parseSeq(b.uid)
+      if (sa !== sb) return sa - sb
+      if (a.empresa !== b.empresa) return a.empresa === 'LUMAR' ? -1 : 1
+      return turnoOrd(a.turno) - turnoOrd(b.turno)
+    })
+  }, [items, seqMap, ordenado])
+
+  // ── Gerar Romaneio ───────────────────────────────────────────────
+
+  async function gerar() {
+    setLoading(true)
+    setOrdenado(false)
+    setSeqMap({}); setEntregueMap({}); setOcorrMap({})
+
+    // Filtro de turno: null é sempre incluído
+    const nenhum = !turnoManha && !turnoTarde && !turnoNoite
+    const buildOr = () => {
+      if (nenhum) return undefined // sem filtro → inclui todos
+      const parts = ['turno.is.null']
+      if (turnoManha) parts.push('turno.eq.MANHÃ')
+      if (turnoTarde) parts.push('turno.eq.TARDE')
+      if (turnoNoite) parts.push('turno.eq.NOITE')
+      return parts.join(',')
+    }
+    const turnoOr = buildOr()
+
+    // ── Lumar (atacado_pedidos) ───────────────────────────────────
+    let qL = supabase
+      .from('atacado_pedidos')
+      .select('id, id_venda, numero_pedido, cliente_nome, turno, entregador, valor, ocorrencia, crm_client:crm_clients(nome,rota,pgto)')
+      .eq('data_entrega', date)
+      .eq('ignorado', false)
+      .neq('tipo', 'CANCELADO')
+    if (turnoOr) qL = qL.or(turnoOr)
+    if (entregador) qL = (qL as any).eq('entregador', entregador)
+
+    // ── Cantina (varejo_pedidos) ──────────────────────────────────
+    let qC = supabase
+      .from('varejo_pedidos')
+      .select('id, num_pedido, cliente, turno, entregador, valor_liquido, restricao, rota_definida, sugestao_rota')
+      .eq('data_entrega', date)
+      .neq('status_icon', '❌')
+      .not('entregador', 'eq', 'RETIRADA')
+    if (turnoOr) qC = qC.or(turnoOr)
+    if (entregador) qC = (qC as any).eq('entregador', entregador)
+
+    const [{ data: atacado }, { data: cantina }] = await Promise.all([qL, qC])
+
+    const lumar: RomaneioItem[] = ((atacado ?? []) as any[]).map(p => ({
+      uid:          `L${p.id}`,
+      empresa:      'LUMAR' as const,
+      pedido:       p.numero_pedido ? String(p.numero_pedido) : `#${p.id_venda}`,
+      cliente:      p.crm_client?.nome ?? p.cliente_nome ?? '—',
+      turno:        (p.turno ?? '').toUpperCase(),
+      rota:         p.crm_client?.rota ?? '',
+      pgto:         p.crm_client?.pgto ?? '',
+      valor:        Number(p.valor) || 0,
+      obs:          '',
+      ocorrencia_db: p.ocorrencia ?? '',
+    }))
+
+    const cant: RomaneioItem[] = ((cantina ?? []) as any[]).map(p => ({
+      uid:          `C${p.id}`,
+      empresa:      'CANTINA' as const,
+      pedido:       p.num_pedido ? String(p.num_pedido) : '—',
+      cliente:      p.cliente ?? '—',
+      turno:        (p.turno ?? '').toUpperCase(),
+      rota:         p.rota_definida ?? p.sugestao_rota ?? '',
+      pgto:         '',
+      valor:        Number(p.valor_liquido) || 0,
+      obs:          p.restricao ?? '',
+      ocorrencia_db: '',
+    }))
+
+    setItems([...lumar, ...cant])
+    setGenerated(true)
+    setLoading(false)
+  }
+
+  // ── Compartilhar (texto para WhatsApp) ───────────────────────────
+
+  function compartilhar() {
+    const linhas = [
+      `🚚 *ROMANEIO ${datePrint}*`,
+      `Entregador: ${entregadorLabel}   Turno: ${turnosLabel}`,
+      '',
+    ]
+    for (const emp of ['LUMAR', 'CANTINA'] as const) {
+      const grupo = displayItems.filter(i => i.empresa === emp)
+      if (!grupo.length) continue
+      linhas.push(`--- ${emp === 'LUMAR' ? '🏭 LUMAR' : '🛒 CANTINA'} ---`)
+      grupo.forEach((it, idx) => {
+        const seq = seqMap[it.uid] ? `${seqMap[it.uid]}. ` : `${idx + 1}. `
+        linhas.push(`${seq}${it.pedido} — ${it.cliente}${it.turno ? ` [${it.turno}]` : ''}${it.rota ? ` — ${it.rota}` : ''}`)
+      })
+      linhas.push('')
+    }
+    linhas.push(`📊 Total: ${items.length} pedido(s) — ${fmt(totalGeral)}`)
+    navigator.clipboard.writeText(linhas.join('\n'))
+      .then(() => alert('✅ Texto copiado! Cole no WhatsApp.'))
+  }
+
+  // ─── Render ──────────────────────────────────────────────────────
+
+  return (
+    <>
+      {/* CSS de impressão — esconde tudo exceto #romaneio-print */}
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          #romaneio-print-root { display: block !important; position: fixed; inset: 0; background: white; z-index: 9999; overflow: auto; }
+          @page { size: A4 portrait; margin: 10mm 8mm; }
+          .no-print { display: none !important; }
+          .print-input { border: none !important; background: transparent !important; box-shadow: none !important; }
+          tr { page-break-inside: avoid; }
+        }
+        @media screen {
+          #romaneio-print-root { display: contents; }
+          .print-only { display: none !important; }
+        }
+      `}</style>
+
+      <div className="space-y-4">
+
+        {/* ── Filtros ──────────────────────────────────────────────── */}
+        <div className="card p-4 space-y-3 no-print">
+          {/* Linha 1: data + entregador */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Navegação de data */}
+            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-700 rounded-xl p-1">
+              <button
+                onClick={() => setDate(format(subDays(dateObj, 1), 'yyyy-MM-dd'))}
+                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors text-slate-500"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button
+                onClick={() => setDate(todayStr)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  isToday
+                    ? 'bg-white dark:bg-slate-600 text-orange-600 dark:text-orange-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-600'
+                }`}
+              >
+                <Calendar size={10} className="inline mr-1" />
+                {isToday ? 'Hoje' : dateShort}
+              </button>
+              <button
+                onClick={() => setDate(format(addDays(dateObj, 1), 'yyyy-MM-dd'))}
+                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors text-slate-500"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            <input
+              type="date"
+              className="input text-sm py-1.5 w-auto"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+            />
+
+            <select
+              className="input text-sm py-1.5 flex-1 min-w-[160px]"
+              value={entregador}
+              onChange={e => setEntregador(e.target.value)}
+            >
+              <option value="">Todos os entregadores</option>
+              {drivers.map(d => (
+                <option key={d.id} value={firstName(d.nome)}>{firstName(d.nome)}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Linha 2: turnos + botão */}
+          <div className="flex items-center gap-5 flex-wrap">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Turno:</span>
+            {([
+              ['MANHÃ', turnoManha, setM],
+              ['TARDE', turnoTarde, setT],
+              ['NOITE', turnoNoite, setN],
+            ] as const).map(([label, val, set]) => (
+              <label key={label} className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={val}
+                  onChange={e => set(e.target.checked)}
+                  className="w-4 h-4 rounded accent-orange-500"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
+              </label>
+            ))}
+            <p className="text-[10px] text-slate-400 italic">Pedidos sem turno são sempre incluídos</p>
+            <button
+              onClick={gerar}
+              disabled={loading}
+              className="btn-primary ml-auto"
+            >
+              {loading
+                ? <><RefreshCw size={14} className="animate-spin" /> Gerando...</>
+                : '🚚 Gerar Romaneio'}
+            </button>
+          </div>
+
+          {generated && (
+            <p className="text-[11px] text-slate-400 italic capitalize">{dateLabel}</p>
+          )}
+        </div>
+
+        {/* ── KPIs ─────────────────────────────────────────────────── */}
+        {generated && items.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
+            <KPI label="Total de pedidos" value={String(items.length)} icon="📦" />
+            <KPI
+              label="🏭 Lumar"
+              value={fmt(totalLumar)}
+              sub={`${lumarItems.length} pedido(s)`}
+              color="text-blue-700 dark:text-blue-300"
+            />
+            <KPI
+              label="🛒 Cantina"
+              value={fmt(totalCantina)}
+              sub={`${cantinaItems.length} pedido(s)`}
+              color="text-purple-700 dark:text-purple-300"
+            />
+            <KPI
+              label="Total geral"
+              value={fmt(totalGeral)}
+              color="text-green-700 dark:text-green-300"
+              icon="💰"
+            />
+          </div>
+        )}
+
+        {/* ── Barra de ações ───────────────────────────────────────── */}
+        {generated && items.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap no-print">
+            <button
+              onClick={() => setOrdenado(true)}
+              disabled={ordenado}
+              className="btn-secondary text-xs py-1.5 gap-1 disabled:opacity-50"
+              title="Use os campos Nº para definir a sequência e clique aqui para reordenar"
+            >
+              <ArrowUpDown size={13} /> Ordenar por Sequência
+            </button>
+            {ordenado && (
+              <button
+                onClick={() => { setOrdenado(false); setSeqMap({}) }}
+                className="btn-secondary text-xs py-1.5 gap-1 text-orange-500"
+              >
+                <RotateCcw size={13} /> Restaurar ordem
+              </button>
+            )}
+            <button
+              onClick={compartilhar}
+              className="btn-secondary text-xs py-1.5 gap-1"
+              title="Copiar lista de pedidos para WhatsApp"
+            >
+              <Share2 size={13} /> Compartilhar
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="btn-primary text-xs py-1.5 gap-1 ml-auto"
+            >
+              <Printer size={13} /> Imprimir / PDF
+            </button>
+          </div>
+        )}
+
+        {/* ── Progressbar de entrega ───────────────────────────────── */}
+        {generated && items.length > 0 && qtdEntregues > 0 && (
+          <div className="flex items-center gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5 no-print">
+            <span className="text-green-700 dark:text-green-300 font-bold text-sm whitespace-nowrap">
+              ✅ {qtdEntregues}/{items.length}
+            </span>
+            <div className="flex-1 h-2 bg-green-200 dark:bg-green-900 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-green-500 rounded-full transition-all duration-300"
+                style={{ width: `${(qtdEntregues / items.length) * 100}%` }}
+              />
+            </div>
+            {qtdEntregues === items.length
+              ? <span className="text-green-700 dark:text-green-300 font-bold text-xs whitespace-nowrap">🎉 Rota concluída!</span>
+              : <span className="text-green-600 dark:text-green-400 text-xs whitespace-nowrap">{items.length - qtdEntregues} restante(s)</span>
+            }
+          </div>
+        )}
+
+        {/* ── Vazio ────────────────────────────────────────────────── */}
+        {generated && items.length === 0 && (
+          <div className="card p-14 text-center text-slate-400">
+            <AlertCircle size={28} className="mx-auto mb-3 opacity-30" />
+            <p className="font-medium">Nenhuma entrega encontrada</p>
+            <p className="text-xs mt-1">para {datePrint} com os filtros selecionados</p>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════
+            ROMANEIO — área de impressão
+            ══════════════════════════════════════════════════════════ */}
+        {generated && items.length > 0 && (
+          <div id="romaneio-print-root">
+            <div id="romaneio-print" className="card overflow-hidden">
+
+              {/* Cabeçalho (visível na impressão e na tela) */}
+              <div className="bg-[#1a237e] text-white px-4 py-3 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-bold">
+                    🚚 ROMANEIO DE ENTREGAS — CANTINA EM CASA & LUMAR ALIMENTOS
+                  </h2>
+                  <p className="text-xs text-blue-200 mt-0.5 capitalize">{dateLabel}</p>
+                </div>
+                <div className="text-right text-xs text-blue-200 shrink-0">
+                  <p>{entregadorLabel}</p>
+                  <p>Turno: {turnosLabel}</p>
+                  <p className="font-bold text-white">{items.length} pedido(s)</p>
+                </div>
+              </div>
+
+              {/* Tabela */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[740px] border-collapse">
+                  <colgroup>
+                    <col style={{ width: 40 }} />  {/* Nº */}
+                    <col style={{ width: 72 }} />  {/* PEDIDO */}
+                    <col style={{ minWidth: 160 }} /> {/* CLIENTE */}
+                    <col style={{ width: 68 }} />  {/* TURNO */}
+                    <col style={{ width: 100 }} /> {/* ROTA */}
+                    <col style={{ width: 80 }} />  {/* PGTO */}
+                    <col style={{ width: 88 }} />  {/* VALOR */}
+                    <col />                         {/* OBS */}
+                    <col style={{ width: 34 }} />  {/* ✓ */}
+                    <col style={{ width: 140 }} /> {/* OCORRÊNCIA */}
+                  </colgroup>
+
+                  {/* Grupos por empresa */}
+                  {(['LUMAR', 'CANTINA'] as const).map(emp => {
+                    const grupo = displayItems.filter(i => i.empresa === emp)
+                    if (!grupo.length) return null
+                    const isLumar = emp === 'LUMAR'
+                    const totalEmp = grupo.reduce((s, i) => s + i.valor, 0)
+
+                    return (
+                      <tbody key={emp}>
+                        {/* Cabeçalho da empresa */}
+                        <tr>
+                          <td
+                            colSpan={10}
+                            className={`px-3 py-2 font-bold text-white text-[11px] tracking-wide ${
+                              isLumar ? 'bg-blue-800' : 'bg-purple-900'
+                            }`}
+                          >
+                            {isLumar ? '🏭 LUMAR ALIMENTOS' : '🛒 CANTINA EM CASA'}
+                          </td>
+                        </tr>
+
+                        {/* Cabeçalho de colunas */}
+                        <tr className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-bold text-[10px] text-center">
+                          {['Nº', 'PEDIDO', 'CLIENTE', 'TURNO', 'ROTA', 'PGTO', 'VALOR (R$)', 'OBS / RESTRIÇÃO', '✓', 'OCORRÊNCIA'].map(h => (
+                            <td key={h} className={`px-2 py-1.5 border border-slate-300 dark:border-slate-600 ${h === 'CLIENTE' || h === 'OBS / RESTRIÇÃO' || h === 'OCORRÊNCIA' ? 'text-left' : ''}`}>
+                              {h}
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* Linhas de pedidos */}
+                        {grupo.map((item, idx) => {
+                          const entregue = entregueMap[item.uid] ?? false
+                          const semTurno = !item.turno
+                          const rowBg = idx % 2 === 0
+                            ? 'bg-white dark:bg-slate-800/10'
+                            : 'bg-slate-50 dark:bg-slate-800/30'
+
+                          return (
+                            <tr
+                              key={item.uid}
+                              className={`${rowBg} transition-colors ${entregue ? 'opacity-50' : 'hover:bg-orange-50/20 dark:hover:bg-orange-900/5'}`}
+                            >
+                              {/* Nº / Sequência */}
+                              <td className="px-1 py-1 border-b border-l border-slate-200 dark:border-slate-700 text-center">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="print-input w-9 text-center text-xs border border-slate-200 dark:border-slate-600 rounded px-1 py-0.5 bg-white dark:bg-slate-700 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  value={seqMap[item.uid] ?? ''}
+                                  onChange={e => setSeqMap(m => ({ ...m, [item.uid]: e.target.value }))}
+                                  placeholder="—"
+                                />
+                              </td>
+
+                              {/* PEDIDO */}
+                              <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-center font-mono font-bold text-slate-700 dark:text-slate-200">
+                                {item.pedido}
+                              </td>
+
+                              {/* CLIENTE */}
+                              <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-left font-medium text-slate-800 dark:text-slate-100">
+                                {item.cliente}
+                              </td>
+
+                              {/* TURNO */}
+                              <td className={`px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-center text-[10px] font-semibold ${
+                                semTurno
+                                  ? 'text-orange-500 bg-orange-50/50 dark:bg-orange-900/10'
+                                  : 'text-slate-600 dark:text-slate-300'
+                              }`}>
+                                {item.turno || '—'}
+                              </td>
+
+                              {/* ROTA */}
+                              <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-center text-slate-600 dark:text-slate-300 text-[10px]">
+                                {item.rota || '—'}
+                              </td>
+
+                              {/* PGTO */}
+                              <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-center text-slate-500 dark:text-slate-400 text-[10px]">
+                                {item.pgto || '—'}
+                              </td>
+
+                              {/* VALOR */}
+                              <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-center font-semibold text-green-700 dark:text-green-400 whitespace-nowrap">
+                                {item.valor > 0 ? fmt(item.valor) : '—'}
+                              </td>
+
+                              {/* OBS */}
+                              <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400 text-[10px] leading-tight">
+                                {item.obs || ''}
+                              </td>
+
+                              {/* Checkbox ✓ */}
+                              <td className="px-1 py-1 border-b border-slate-200 dark:border-slate-700 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={entregue}
+                                  onChange={() => setEntregueMap(m => ({ ...m, [item.uid]: !m[item.uid] }))}
+                                  className="w-4 h-4 accent-green-500 cursor-pointer no-print"
+                                />
+                                {/* Quadrado para impressão */}
+                                <span className="print-only inline-block w-3.5 h-3.5 border border-slate-500 rounded-sm" />
+                              </td>
+
+                              {/* OCORRÊNCIA */}
+                              <td className="px-1 py-1 border-b border-r border-slate-200 dark:border-slate-700">
+                                <input
+                                  type="text"
+                                  className="print-input w-full text-[10px] border border-transparent rounded px-1 py-0.5 bg-transparent text-slate-600 dark:text-slate-300 focus:outline-none focus:border-orange-300 focus:ring-1 focus:ring-orange-300"
+                                  value={ocorrMap[item.uid] ?? item.ocorrencia_db}
+                                  onChange={e => setOcorrMap(m => ({ ...m, [item.uid]: e.target.value }))}
+                                  placeholder="—"
+                                />
+                              </td>
+                            </tr>
+                          )
+                        })}
+
+                        {/* Subtotal da empresa */}
+                        <tr className={`font-bold text-[10px] ${
+                          isLumar
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200'
+                            : 'bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-200'
+                        }`}>
+                          <td colSpan={6} className="px-3 py-1.5 text-right border-b border-slate-300 dark:border-slate-600">
+                            {isLumar ? '🏭 LUMAR' : '🛒 CANTINA'} — {grupo.length} pedido(s)
+                          </td>
+                          <td className="px-2 py-1.5 text-center border-b border-slate-300 dark:border-slate-600 whitespace-nowrap font-bold">
+                            {fmt(totalEmp)}
+                          </td>
+                          <td colSpan={3} className="border-b border-slate-300 dark:border-slate-600" />
+                        </tr>
+                      </tbody>
+                    )
+                  })}
+
+                  {/* Total geral */}
+                  <tfoot>
+                    <tr className="bg-slate-800 dark:bg-slate-900 text-white text-[11px] font-bold">
+                      <td colSpan={2} className="px-3 py-2.5 text-center tracking-wide">
+                        TOTAIS
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-blue-300">
+                        🏭 {fmt(totalLumar)} ({lumarItems.length} ped.)
+                      </td>
+                      <td className="px-2 py-2.5" />
+                      <td colSpan={2} className="px-2 py-2.5 text-center text-purple-300">
+                        🛒 {fmt(totalCantina)} ({cantinaItems.length} ped.)
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-green-300 whitespace-nowrap text-sm">
+                        {fmt(totalGeral)}
+                      </td>
+                      <td colSpan={3} className="px-2 py-2.5 text-center text-slate-400 text-[10px]">
+                        {items.length} pedido(s) no total
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Rodapé — assinaturas (aparece na tela e na impressão) */}
+              <div className="px-4 pt-5 pb-4 grid grid-cols-2 gap-x-8 gap-y-4 text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 mt-2">
+                <div>
+                  <p className="mb-6 font-medium">Assinatura do Entregador:</p>
+                  <div className="border-b border-slate-400 dark:border-slate-500" />
+                </div>
+                <div>
+                  <p className="mb-6 font-medium">Assinatura do Recebedor:</p>
+                  <div className="border-b border-slate-400 dark:border-slate-500" />
+                </div>
+                <div className="flex gap-6">
+                  <span>Saída: <span className="border-b border-slate-400 inline-block w-24" /></span>
+                  <span>Retorno: <span className="border-b border-slate-400 inline-block w-24" /></span>
+                </div>
+                <div>
+                  <span>Conferência: <span className="border-b border-slate-400 inline-block w-48" /></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ─── KPI Card ────────────────────────────────────────────────────────
+
+function KPI({ label, value, sub, icon, color }: {
+  label: string; value: string; sub?: string; icon?: string; color?: string
+}) {
+  return (
+    <div className="card px-4 py-3">
+      <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">
+        {icon && <span className="mr-1">{icon}</span>}{label}
+      </p>
+      <p className={`text-lg font-bold mt-0.5 leading-tight ${color ?? 'text-slate-800 dark:text-slate-100'}`}>
+        {value}
+      </p>
+      {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
+    </div>
+  )
+}

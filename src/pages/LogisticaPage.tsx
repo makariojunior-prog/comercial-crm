@@ -1,14 +1,15 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Search, Truck, Users, Radio, Settings, AlertTriangle, CheckCircle, MapPin, Gauge, Wifi, WifiOff, ExternalLink } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Search, Truck, Users, Radio, Settings, AlertTriangle, CheckCircle, MapPin, Gauge, Wifi, WifiOff, ExternalLink, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Vehicle, Driver } from '../types'
 import { docExpiryStatus, daysUntil } from '../types'
 import VehicleModal from '../components/VehicleModal'
 import DriverModal from '../components/DriverModal'
+import RomaneioTab from '../components/RomaneioTab'
 import { fetchPositions, loadCredentials, saveCredentials, clearCredentials } from '../lib/velotrack'
 import type { VelotrackPosition } from '../types'
 
-type Tab = 'veiculos' | 'motoristas' | 'rastreamento'
+type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio'
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -248,7 +249,7 @@ function TrackingTab() {
 // ─── Página principal ─────────────────────────────────────────────
 
 export default function LogisticaPage() {
-  const [tab, setTab] = useState<Tab>('rastreamento')
+  const [tab, setTab] = useState<Tab>('romaneio')
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(true)
@@ -317,9 +318,10 @@ export default function LogisticaPage() {
   }, [vehicles, drivers])
 
   const TABS = [
-    { id: 'rastreamento' as Tab, label: 'Rastreamento', icon: Radio,  count: null },
-    { id: 'veiculos'     as Tab, label: 'Veículos',     icon: Truck,  count: vehicles.filter(v => v.ativo).length },
-    { id: 'motoristas'   as Tab, label: 'Motoristas',   icon: Users,  count: drivers.filter(d => d.ativo).length },
+    { id: 'romaneio'     as Tab, label: 'Romaneio',     icon: FileText, count: null },
+    { id: 'rastreamento' as Tab, label: 'Rastreamento', icon: Radio,    count: null },
+    { id: 'veiculos'     as Tab, label: 'Veículos',     icon: Truck,    count: vehicles.filter(v => v.ativo).length },
+    { id: 'motoristas'   as Tab, label: 'Motoristas',   icon: Users,    count: drivers.filter(d => d.ativo).length },
   ]
 
   return (
@@ -372,7 +374,7 @@ export default function LogisticaPage() {
       </div>
 
       {/* Search (veiculos/motoristas) */}
-      {tab !== 'rastreamento' && (
+      {tab !== 'rastreamento' && tab !== 'romaneio' && (
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -385,7 +387,9 @@ export default function LogisticaPage() {
       )}
 
       {/* Content */}
-      {loading ? (
+      {tab === 'romaneio' ? (
+        <RomaneioTab />
+      ) : loading ? (
         <div className="flex justify-center py-12 text-slate-400">Carregando...</div>
       ) : tab === 'rastreamento' ? (
         <TrackingTab />
