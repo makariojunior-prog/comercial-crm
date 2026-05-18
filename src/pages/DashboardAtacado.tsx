@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -778,20 +778,45 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
   const setor = p.crm_client?.setor
   const pgto = p.crm_client?.pgto ?? '—'
 
-  // Turno efetivo: usa o do pedido se definido, senão o padrão do cliente
-  const turnoEfetivo = p.turno ?? p.crm_client?.turno ?? ''
-  const turnoEhDoCliente = !p.turno && !!p.crm_client?.turno
+  // Local state prevents row from jumping while the user is still editing.
+  // onUpdate is only called when focus leaves the row (onBlur).
+  const [localTurno, setLocalTurno] = useState(p.turno ?? '')
+  const [localEntregador, setLocalEntregador] = useState(p.entregador ?? '')
+  const dirty = useRef(false)
 
-  const turnoColor = turnoEfetivo === 'MANHÃ'
+  // Sync external changes (realtime, etc.) only when not in the middle of editing
+  useEffect(() => {
+    if (!dirty.current) {
+      setLocalTurno(p.turno ?? '')
+      setLocalEntregador(p.entregador ?? '')
+    }
+  }, [p.turno, p.entregador])
+
+  function handleRowBlur(e: React.FocusEvent<HTMLTableRowElement>) {
+    // relatedTarget is the element receiving focus; if it's still inside this row, keep editing
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
+    if (dirty.current) {
+      onUpdate({ turno: localTurno || null, entregador: localEntregador || null })
+      dirty.current = false
+    }
+  }
+
+  const turnoDisplay = localTurno || p.crm_client?.turno || ''
+  const turnoEhDoCliente = !localTurno && !!p.crm_client?.turno
+
+  const turnoColor = turnoDisplay === 'MANHÃ'
     ? turnoEhDoCliente ? 'text-yellow-400/60 dark:text-yellow-500/60' : 'text-yellow-600 dark:text-yellow-400'
-    : turnoEfetivo === 'TARDE'
+    : turnoDisplay === 'TARDE'
     ? turnoEhDoCliente ? 'text-orange-400/60' : 'text-orange-500'
-    : turnoEfetivo === 'NOITE'
+    : turnoDisplay === 'NOITE'
     ? turnoEhDoCliente ? 'text-blue-400/60' : 'text-blue-500'
     : 'text-slate-400'
 
   return (
-    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+    <tr
+      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+      onBlur={handleRowBlur}
+    >
       <td className="px-3 py-2 font-mono font-bold text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
       <td className="px-3 py-2 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">{fmtCurrency(p.valor)}</td>
       <td className="px-3 py-2">
@@ -804,8 +829,8 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
       </td>
       <td className="px-3 py-2">
         <select
-          value={turnoEfetivo}
-          onChange={e => onUpdate({ turno: e.target.value || null })}
+          value={turnoDisplay}
+          onChange={e => { dirty.current = true; setLocalTurno(e.target.value) }}
           title={turnoEhDoCliente ? 'Turno padrão do cliente (clique para fixar)' : undefined}
           className={`text-xs font-semibold bg-transparent border-0 outline-none cursor-pointer w-full ${turnoColor}`}
         >
@@ -814,8 +839,11 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
         </select>
       </td>
       <td className="px-3 py-2">
-        <select value={p.entregador ?? ''} onChange={e => onUpdate({ entregador: e.target.value || null })}
-          className="text-xs bg-transparent border-0 outline-none cursor-pointer text-slate-700 dark:text-slate-300 w-full">
+        <select
+          value={localEntregador}
+          onChange={e => { dirty.current = true; setLocalEntregador(e.target.value) }}
+          className="text-xs bg-transparent border-0 outline-none cursor-pointer text-slate-700 dark:text-slate-300 w-full"
+        >
           <option value="">— entregador —</option>
           <option value="RETIRADA">🏭 RETIRADA</option>
           {ENTREGADORES.map(e => <option key={e} value={e}>{e}</option>)}
