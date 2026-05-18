@@ -14,6 +14,28 @@ const CAT_BADGE: Record<string, string> = {
   'RECLAMAÇÃO': 'bg-red-100 text-red-700',
 }
 
+// Cores por origem
+const CONEXAO_CARD: Record<string, { base: string; hover: string; label: string; tag: string }> = {
+  CANTINA:    {
+    base:  'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/50',
+    hover: 'hover:bg-amber-100 dark:hover:bg-amber-900/20 hover:border-amber-300 dark:hover:border-amber-700',
+    label: 'Cantina',
+    tag:   'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  },
+  LUMAR:      {
+    base:  'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50',
+    hover: 'hover:bg-blue-100 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700',
+    label: 'Lumar',
+    tag:   'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  },
+  LUMAR_NOVOS: {
+    base:  'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50',
+    hover: 'hover:bg-blue-100 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700',
+    label: 'Lumar N.',
+    tag:   'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  },
+}
+
 export default function ConversacoesAlertasWidget() {
   const [items, setItems] = useState<CrmConversation[]>([])
   const [loading, setLoading] = useState(true)
@@ -96,22 +118,28 @@ export default function ConversacoesAlertasWidget() {
 
       {!loading && items.length > 0 && (
         <div className="space-y-1.5">
-          {items.slice(0, 5).map(c => (
-            <button
-              key={c.id}
-              onClick={() => setModalConversa(c)}
-              className="w-full flex items-start gap-2 px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-900/10 hover:border-red-200 dark:hover:border-red-800 active:scale-[.99] transition-all text-left"
-            >
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 whitespace-nowrap ${CAT_BADGE[c.categoria ?? ''] ?? 'bg-slate-100 text-slate-500'}`}>
-                {c.categoria}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{c.nome ?? c.telefone ?? '—'}</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{c.resumo ?? c.texto}</p>
-              </div>
-              <span className="text-[10px] text-slate-400 shrink-0 mt-0.5">{format(parseISO(c.received_at), 'HH:mm')}</span>
-            </button>
-          ))}
+          {items.slice(0, 5).map(c => {
+            const cx = CONEXAO_CARD[c.conexao] ?? CONEXAO_CARD['CANTINA']
+            return (
+              <button
+                key={c.id}
+                onClick={() => setModalConversa(c)}
+                className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-lg border active:scale-[.99] transition-all text-left ${cx.base} ${cx.hover}`}
+              >
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 whitespace-nowrap ${CAT_BADGE[c.categoria ?? ''] ?? 'bg-slate-100 text-slate-500'}`}>
+                  {c.categoria}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{c.nome ?? c.telefone ?? '—'}</p>
+                    <span className={`text-[9px] font-semibold px-1 py-0.5 rounded shrink-0 ${cx.tag}`}>{cx.label}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{c.resumo ?? c.texto}</p>
+                </div>
+                <span className="text-[10px] text-slate-400 shrink-0 mt-0.5">{format(parseISO(c.received_at), 'HH:mm')}</span>
+              </button>
+            )
+          })}
           {items.length > 5 && (
             <p className="text-[11px] text-center text-slate-400 pt-1">+{items.length - 5} alertas não vistos</p>
           )}
