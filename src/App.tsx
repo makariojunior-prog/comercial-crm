@@ -28,6 +28,7 @@ const ConversacoesPage   = lazy(() => import('./pages/ConversacoesPage'))
 const SocialPage         = lazy(() => import('./pages/SocialPage'))
 const DashboardAtacado   = lazy(() => import('./pages/DashboardAtacado'))
 const ClientesVarejo     = lazy(() => import('./pages/ClientesVarejo'))
+const CobrancaPage       = lazy(() => import('./pages/CobrancaPage'))
 
 function PageLoader() {
   return (
@@ -76,6 +77,7 @@ export default function App() {
                 <Route path="/social"        element={<SocialPage />} />
                 <Route path="/atacado"       element={<DashboardAtacado />} />
                 <Route path="/clientes-varejo" element={<ClientesVarejo />} />
+                <Route path="/cobranca"        element={<CobrancaPage />} />
               </Route>
             </Route>
           </Routes>

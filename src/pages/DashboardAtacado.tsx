@@ -92,6 +92,7 @@ export default function DashboardAtacado() {
   const [syncMsg, setSyncMsg]           = useState<string | null>(null)
   const [showConfig, setShowConfig]     = useState(false)
   const [searchQuery, setSearchQuery]   = useState('')
+  const [cobrancaAberto, setCobrancaAberto] = useState<Map<string, number>>(new Map())
 
   const todayStr    = format(new Date(), 'yyyy-MM-dd')
   const rotasDateStr = format(rotasDate, 'yyyy-MM-dd')
@@ -130,6 +131,19 @@ export default function DashboardAtacado() {
     () => [...pedidosNovos, ...pedidosDia, ...historico].find(p => p.id === editPedidoId) ?? null,
     [editPedidoId, pedidosNovos, pedidosDia, historico],
   )
+
+  // Load cobrança open totals for alert badges
+  useEffect(() => {
+    supabase.from('cobranca').select('cliente_nome, valor').eq('situacao', 'EM ABERTO')
+      .then(({ data }) => {
+        const map = new Map<string, number>()
+        ;(data ?? []).forEach((r: { cliente_nome: string; valor: number }) => {
+          const key = r.cliente_nome.toUpperCase().trim()
+          map.set(key, (map.get(key) ?? 0) + r.valor)
+        })
+        setCobrancaAberto(map)
+      })
+  }, [])
 
   // ─── Loaders ────────────────────────────────────────────
   const JOIN = '*, crm_client:crm_clients(id,nome,rota,pgto,setor,restricao,observacoes,telefone,turno)'
@@ -470,7 +484,7 @@ export default function DashboardAtacado() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {filteredNovos.map(p => (
-                      <NovoPedidoRow key={p.id} pedido={p} onEdit={() => setEditPedidoId(p.id)} onIgnorar={() => ignorarPedido(p.id)} />
+                      <NovoPedidoRow key={p.id} pedido={p} onEdit={() => setEditPedidoId(p.id)} onIgnorar={() => ignorarPedido(p.id)} cobrancaAberto={cobrancaAberto} />
                     ))}
                   </tbody>
                 </table>
@@ -506,6 +520,7 @@ export default function DashboardAtacado() {
                       <RotaRow key={p.id} pedido={p}
                         onUpdate={patch => updatePedido(p.id, patch)}
                         onEdit={() => setEditPedidoId(p.id)}
+                        cobrancaAberto={cobrancaAberto}
                       />
                     ))}
                   </tbody>
@@ -607,6 +622,7 @@ export default function DashboardAtacado() {
                     cliente={c}
                     feito={log?.feito ?? false}
                     onToggle={feito => toggleContato(c.id, feito)}
+                    cobrancaAberto={cobrancaAberto}
                   />
                 )
               })}
@@ -721,10 +737,11 @@ function KPICard({ label, value, sub, color, icon }: {
   )
 }
 
-function NovoPedidoRow({ pedido: p, onEdit, onIgnorar }: {
-  pedido: AtacadoPedido; onEdit: () => void; onIgnorar: () => void
+function NovoPedidoRow({ pedido: p, onEdit, onIgnorar, cobrancaAberto }: {
+  pedido: AtacadoPedido; onEdit: () => void; onIgnorar: () => void; cobrancaAberto: Map<string, number>
 }) {
   const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
+  const divida = cobrancaAberto.get(nome.toUpperCase().trim()) ?? 0
   return (
     <tr className="hover:bg-amber-50/40 dark:hover:bg-amber-900/10 transition-colors">
       <td className="px-3 py-2.5 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
@@ -734,7 +751,15 @@ function NovoPedidoRow({ pedido: p, onEdit, onIgnorar }: {
         {p.valor > 0 ? p.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
       </td>
       <td className="px-3 py-2.5">
-        <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[180px]">{nome}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{nome}</p>
+          {divida > 0 && (
+            <span title={`Cobrança em aberto: ${fmtCurrency(divida)}`}
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 whitespace-nowrap shrink-0">
+              ⚠ {fmtCurrency(divida)}
+            </span>
+          )}
+        </div>
         {p.crm_client?.restricao && (
           <p className="text-[10px] text-amber-600 truncate">{p.crm_client?.restricao}</p>
         )}
@@ -768,12 +793,14 @@ function NovoPedidoRow({ pedido: p, onEdit, onIgnorar }: {
   )
 }
 
-function RotaRow({ pedido: p, onUpdate, onEdit }: {
+function RotaRow({ pedido: p, onUpdate, onEdit, cobrancaAberto }: {
   pedido: AtacadoPedido
   onUpdate: (patch: Partial<AtacadoPedido>) => void
   onEdit: () => void
+  cobrancaAberto: Map<string, number>
 }) {
   const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
+  const divida = cobrancaAberto.get(nome.toUpperCase().trim()) ?? 0
   const rota = p.crm_client?.rota ?? '—'
   const setor = p.crm_client?.setor
   const pgto = p.crm_client?.pgto ?? '—'
@@ -835,7 +862,15 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
       <td className="px-3 py-2 font-mono font-bold text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
       <td className="px-3 py-2 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">{fmtCurrency(p.valor)}</td>
       <td className="px-3 py-2">
-        <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[180px]">{nome}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[150px]">{nome}</p>
+          {divida > 0 && (
+            <span title={`Cobrança em aberto: ${fmtCurrency(divida)}`}
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 whitespace-nowrap shrink-0">
+              ⚠ {fmtCurrency(divida)}
+            </span>
+          )}
+        </div>
         {p.crm_client?.restricao && <p className="text-[10px] text-amber-600 truncate">{p.crm_client?.restricao}</p>}
       </td>
       <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
@@ -875,15 +910,16 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
   )
 }
 
-function ContatoRow({ cliente: c, feito, onToggle }: {
-  cliente: Client; feito: boolean; onToggle: (feito: boolean) => void
+function ContatoRow({ cliente: c, feito, onToggle, cobrancaAberto }: {
+  cliente: Client; feito: boolean; onToggle: (feito: boolean) => void; cobrancaAberto: Map<string, number>
 }) {
   const tel = c.telefone?.replace(/\D/g, '') ?? ''
   const waUrl = tel ? whatsappUrl(tel, MSG_PADRAO) : null
   const enviaMensagem = c.mensagem === 'SIM'
+  const divida = cobrancaAberto.get(c.nome.toUpperCase().trim()) ?? 0
 
   return (
-    <div className={`flex items-start gap-2 px-3 py-2.5 transition-colors ${feito ? 'bg-green-50 dark:bg-green-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'}`}>
+    <div className={`flex items-start gap-2 px-3 py-2.5 transition-colors ${feito ? 'bg-green-50 dark:bg-green-900/10' : divida > 0 ? 'bg-red-50/40 dark:bg-red-900/5 hover:bg-red-50/60 dark:hover:bg-red-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'}`}>
       <button
         onClick={() => onToggle(!feito)}
         className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${feito ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-600 hover:border-green-400'}`}
@@ -896,6 +932,12 @@ function ContatoRow({ cliente: c, feito, onToggle }: {
           <p className={`text-xs font-semibold truncate ${feito ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-100'}`}>
             {c.nome}
           </p>
+          {divida > 0 && (
+            <span title={`Cobrança em aberto: ${fmtCurrency(divida)}`}
+              className="text-[9px] font-bold px-1 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 whitespace-nowrap shrink-0">
+              ⚠ {fmtCurrency(divida)}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {c.rota && <span className="text-[10px] font-medium text-orange-500 dark:text-orange-400">{c.rota}</span>}

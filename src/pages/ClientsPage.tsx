@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench, LayoutGrid, List, RefreshCw, CloudDownload, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench, LayoutGrid, List, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
 import ClientModal from '../components/ClientModal'
@@ -88,6 +88,7 @@ export default function ClientsPage() {
   const [viewMode,      setViewMode]      = useState<'cards' | 'list'>('list')
   const [syncing,       setSyncing]       = useState(false)
   const [syncMsg,       setSyncMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [cobrancaMap,   setCobrancaMap]   = useState<Map<string, number>>(new Map())
 
   async function syncFromSheets() {
     setSyncing(true)
@@ -166,6 +167,18 @@ export default function ClientsPage() {
   }
 
   useEffect(() => { loadClients() }, [statusFilter])
+
+  useEffect(() => {
+    supabase.from('cobranca').select('cliente_nome, valor').eq('situacao', 'EM ABERTO')
+      .then(({ data }) => {
+        const map = new Map<string, number>()
+        ;(data ?? []).forEach((r: { cliente_nome: string; valor: number }) => {
+          const key = r.cliente_nome.toUpperCase().trim()
+          map.set(key, (map.get(key) ?? 0) + r.valor)
+        })
+        setCobrancaMap(map)
+      })
+  }, [])
 
   async function deleteClient(id: string) {
     if (!confirm('Excluir este cliente permanentemente?')) return
@@ -295,7 +308,18 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="min-w-0">
-                        <p className="font-semibold text-slate-800 truncate max-w-[200px]" title={client.nome}>{client.nome}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-semibold text-slate-800 truncate max-w-[180px]" title={client.nome}>{client.nome}</p>
+                          {(() => {
+                            const d = cobrancaMap.get(client.nome.toUpperCase().trim()) ?? 0
+                            return d > 0 ? (
+                              <span title={`Cobrança em aberto: ${d.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+                                className="text-[9px] font-bold px-1 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 whitespace-nowrap shrink-0 flex items-center gap-0.5">
+                                <AlertTriangle size={8} /> {d.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            ) : null
+                          })()}
+                        </div>
                         {client.observacoes && (
                           <p className="text-[10px] text-slate-400 italic truncate max-w-[200px]">{client.observacoes}</p>
                         )}
@@ -361,6 +385,15 @@ export default function ClientsPage() {
                     <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase border ${STATUS_COLORS[client.status]}`}>
                       {STATUS_LABELS[client.status]}
                     </span>
+                    {(() => {
+                      const d = cobrancaMap.get(client.nome.toUpperCase().trim()) ?? 0
+                      return d > 0 ? (
+                        <span title={`Cobrança em aberto: ${d.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 whitespace-nowrap flex items-center gap-0.5">
+                          <AlertTriangle size={9} /> {d.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      ) : null
+                    })()}
                   </div>
 
                   <div className="space-y-1">
