@@ -507,11 +507,24 @@ export interface AtacadoCliente {
   updated_at: string
 }
 
+export interface CrmClientLink {
+  id: string
+  nome: string
+  rota: string | null
+  pgto: string | null
+  setor: string | null
+  restricao: string | null
+  observacoes: string | null
+  telefone: string | null
+  turno: string | null
+}
+
 export interface AtacadoPedido {
   id: number
   id_venda: number
   numero_pedido: number | null
   cliente_id: number | null
+  crm_client_id: string | null
   cliente_nome: string | null
   valor: number
   turno: string | null
@@ -527,6 +540,7 @@ export interface AtacadoPedido {
   created_at: string
   updated_at: string
   cliente?: AtacadoCliente | null
+  crm_client?: CrmClientLink | null
 }
 
 export interface AtacadoContatoLog {

@@ -50,7 +50,7 @@ function circularSort(pedidos: AtacadoPedido[]): AtacadoPedido[] {
     const ca = sa >= now ? sa - now : sa + 3 - now
     const cb = sb >= now ? sb - now : sb + 3 - now
     if (ca !== cb) return ca - cb
-    return (a.cliente?.rota ?? '').localeCompare(b.cliente?.rota ?? '', 'pt-BR')
+    return (a.crm_client?.rota ?? '').localeCompare(b.cliente?.rota ?? '', 'pt-BR')
   })
 }
 
@@ -111,7 +111,7 @@ export default function DashboardAtacado() {
     return pedidosNovos.filter(p =>
       String(p.numero_pedido ?? '').includes(q) ||
       String(p.id_venda ?? '').includes(q) ||
-      (p.cliente?.cliente ?? p.cliente_nome ?? '').toLowerCase().includes(q)
+      (p.crm_client?.nome ?? p.cliente_nome ?? '').toLowerCase().includes(q)
     )
   }, [pedidosNovos, searchQuery])
 
@@ -121,7 +121,7 @@ export default function DashboardAtacado() {
     return historico.filter(p =>
       String(p.numero_pedido ?? '').includes(q) ||
       String(p.id_venda ?? '').includes(q) ||
-      (p.cliente?.cliente ?? p.cliente_nome ?? '').toLowerCase().includes(q)
+      (p.crm_client?.nome ?? p.cliente_nome ?? '').toLowerCase().includes(q)
     )
   }, [historico, searchQuery])
 
@@ -132,7 +132,7 @@ export default function DashboardAtacado() {
   )
 
   // ─── Loaders ────────────────────────────────────────────
-  const JOIN = '*, cliente:atacado_clientes(id,cliente,telefone,rota,setor,pgto_padrao,turno,restricao,observacoes)'
+  const JOIN = '*, crm_client:crm_clients(id,nome,rota,pgto,setor,restricao,observacoes,telefone,turno)'
 
   const loadNovos = useCallback(async () => {
     const { data } = await supabase
@@ -185,7 +185,7 @@ export default function DashboardAtacado() {
   const loadHistorico = useCallback(async () => {
     const { data } = await supabase
       .from('atacado_pedidos')
-      .select('*, cliente:atacado_clientes(id,cliente,rota)')
+      .select('*, crm_client:crm_clients(id,nome,rota)')
       .not('data_entrega', 'is', null)
       .eq('ignorado', false)
       .neq('tipo', 'CANCELADO')
@@ -231,7 +231,7 @@ export default function DashboardAtacado() {
     // Auto-preenche turno/pgto do cliente se o pedido não tiver explicitamente definido
     if (!patch.turno) {
       const pedido = [...pedidosNovos, ...pedidosDia, ...historico].find(p => p.id === id)
-      if (pedido?.cliente?.turno) patch.turno = pedido.cliente.turno
+      if (pedido?.crm_client?.turno) patch.turno = pedido.crm_client.turno
     }
     await supabase.from('atacado_pedidos').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
     await Promise.all([loadNovos(), loadRotas()])
@@ -520,17 +520,17 @@ export default function DashboardAtacado() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {pedidosRetirada.map(p => {
-                      const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
+                      const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
                       return (
                         <tr key={p.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
                           <td className="px-3 py-2.5 font-mono font-bold text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
                           <td className="px-3 py-2.5 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">{fmtCurrency(p.valor)}</td>
                           <td className="px-3 py-2.5">
                             <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[200px]">{nome}</p>
-                            {p.cliente?.restricao && <p className="text-[10px] text-amber-600">{p.cliente.restricao}</p>}
+                            {p.crm_client?.restricao && <p className="text-[10px] text-amber-600">{p.crm_client?.restricao}</p>}
                           </td>
                           <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{p.turno ?? '—'}</td>
-                          <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{p.cliente?.pgto_padrao ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{p.crm_client?.pgto ?? '—'}</td>
                           <td className="px-3 py-2.5">
                             <button onClick={() => setEditPedidoId(p.id)} title="Editar"
                               className="text-slate-400 hover:text-blue-500 transition-colors">
@@ -637,7 +637,7 @@ export default function DashboardAtacado() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {filteredHistorico.map(p => {
-                    const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
+                    const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
                     const isHoje = p.data_entrega === todayStr
                     return (
                       <tr key={p.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${isHoje ? 'bg-orange-50/50 dark:bg-orange-900/10' : ''}`}>
@@ -650,7 +650,7 @@ export default function DashboardAtacado() {
                         </td>
                         <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
                         <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{nome}</td>
-                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.cliente?.rota ?? '—'}</td>
+                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.crm_client?.rota ?? '—'}</td>
                         <td className="px-3 py-2 text-right font-medium text-green-600 dark:text-green-400">{fmtCurrency(p.valor)}</td>
                         <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.turno ?? '—'}</td>
                         <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.entregador ?? '—'}</td>
@@ -707,7 +707,7 @@ function KPICard({ label, value, sub, color, icon }: {
 function NovoPedidoRow({ pedido: p, onEdit, onIgnorar }: {
   pedido: AtacadoPedido; onEdit: () => void; onIgnorar: () => void
 }) {
-  const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
+  const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
   return (
     <tr className="hover:bg-amber-50/40 dark:hover:bg-amber-900/10 transition-colors">
       <td className="px-3 py-2.5 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
@@ -718,8 +718,8 @@ function NovoPedidoRow({ pedido: p, onEdit, onIgnorar }: {
       </td>
       <td className="px-3 py-2.5">
         <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[180px]">{nome}</p>
-        {p.cliente?.restricao && (
-          <p className="text-[10px] text-amber-600 truncate">{p.cliente.restricao}</p>
+        {p.crm_client?.restricao && (
+          <p className="text-[10px] text-amber-600 truncate">{p.crm_client?.restricao}</p>
         )}
       </td>
       <td className="px-3 py-2.5">
@@ -756,14 +756,14 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
   onUpdate: (patch: Partial<AtacadoPedido>) => void
   onEdit: () => void
 }) {
-  const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
-  const rota = p.cliente?.rota ?? '—'
-  const setor = p.cliente?.setor
-  const pgto = p.cliente?.pgto_padrao ?? '—'
+  const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
+  const rota = p.crm_client?.rota ?? '—'
+  const setor = p.crm_client?.setor
+  const pgto = p.crm_client?.pgto ?? '—'
 
   // Turno efetivo: usa o do pedido se definido, senão o padrão do cliente
-  const turnoEfetivo = p.turno ?? p.cliente?.turno ?? ''
-  const turnoEhDoCliente = !p.turno && !!p.cliente?.turno
+  const turnoEfetivo = p.turno ?? p.crm_client?.turno ?? ''
+  const turnoEhDoCliente = !p.turno && !!p.crm_client?.turno
 
   const turnoColor = turnoEfetivo === 'MANHÃ'
     ? turnoEhDoCliente ? 'text-yellow-400/60 dark:text-yellow-500/60' : 'text-yellow-600 dark:text-yellow-400'
@@ -779,7 +779,7 @@ function RotaRow({ pedido: p, onUpdate, onEdit }: {
       <td className="px-3 py-2 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">{fmtCurrency(p.valor)}</td>
       <td className="px-3 py-2">
         <p className="font-medium text-slate-800 dark:text-slate-100 truncate max-w-[180px]">{nome}</p>
-        {p.cliente?.restricao && <p className="text-[10px] text-amber-600 truncate">{p.cliente.restricao}</p>}
+        {p.crm_client?.restricao && <p className="text-[10px] text-amber-600 truncate">{p.crm_client?.restricao}</p>}
       </td>
       <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
         <p>{rota}</p>
@@ -863,9 +863,9 @@ function EditPedidoModal({ pedido: p, onClose, onSave }: {
   onClose: () => void
   onSave: (patch: Partial<AtacadoPedido>) => void
 }) {
-  const nome = p.cliente?.cliente ?? p.cliente_nome ?? `#${p.id_venda}`
-  const turnoEfetivo = p.turno ?? p.cliente?.turno ?? ''
-  const pgtoCliente  = p.cliente?.pgto_padrao ?? null
+  const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
+  const turnoEfetivo = p.turno ?? p.crm_client?.turno ?? ''
+  const pgtoCliente  = p.crm_client?.pgto ?? null
 
   const [date, setDate]             = useState(p.data_entrega ?? format(new Date(), 'yyyy-MM-dd'))
   const [turno, setTurno]           = useState(turnoEfetivo)
@@ -903,7 +903,7 @@ function EditPedidoModal({ pedido: p, onClose, onSave }: {
             <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{nome}</p>
             <div className="flex gap-3 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               <span>{p.tipo}</span>
-              {p.cliente?.rota && <span className="text-orange-500">{p.cliente.rota}</span>}
+              {p.crm_client?.rota && <span className="text-orange-500">{p.crm_client.rota}</span>}
             </div>
           </div>
 
@@ -932,7 +932,7 @@ function EditPedidoModal({ pedido: p, onClose, onSave }: {
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
               Turno
-              {!p.turno && p.cliente?.turno && (
+              {!p.turno && p.crm_client?.turno && (
                 <span className="ml-1.5 font-normal text-[10px] text-blue-500">(padrão do cliente)</span>
               )}
             </label>
