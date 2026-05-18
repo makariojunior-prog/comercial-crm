@@ -243,17 +243,110 @@ export default function RomaneioTab() {
   return (
     <>
       <style>{`
+        @media screen { .print-only { display: none !important; } }
+
         @media print {
+          /* ── Isolar área de impressão ── */
           body > * { visibility: hidden; }
-          #romaneio-print-root { visibility: visible; position: fixed; inset: 0; background: white; z-index: 9999; overflow: visible; }
+          #romaneio-print-root { visibility: visible; position: fixed; inset: 0; background: white; z-index: 9999; }
           #romaneio-print-root * { visibility: visible; }
-          @page { size: A4 portrait; margin: 10mm 8mm; }
+          @page { size: A4 portrait; margin: 8mm 7mm; }
           .no-print { display: none !important; }
-          .print-input { border: none !important; background: transparent !important; box-shadow: none !important; }
+
+          /* ── Reset geral → preto e branco ── */
+          #romaneio-print-root,
+          #romaneio-print-root * {
+            color: #000 !important;
+            background: white !important;
+            background-color: white !important;
+            background-image: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            text-shadow: none !important;
+          }
+
+          /* ── Tipografia compacta ── */
+          #romaneio-print-root table {
+            font-size: 7.5pt !important;
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          #romaneio-print-root td,
+          #romaneio-print-root th {
+            padding: 2px 4px !important;
+            border: 0.4pt solid #999 !important;
+            line-height: 1.3 !important;
+          }
+
+          /* ── Cabeçalho do romaneio ── */
+          .rom-header {
+            border-bottom: 1.5pt solid #000 !important;
+            padding: 0 0 4px 0 !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-start !important;
+            margin-bottom: 4px !important;
+          }
+          .rom-header h2 { font-size: 9.5pt !important; font-weight: bold !important; }
+          .rom-header p  { font-size: 7.5pt !important; margin: 1px 0 !important; }
+
+          /* ── Cabeçalho de grupo (LUMAR / CANTINA) ── */
+          .rom-group td {
+            background-color: #e8e8e8 !important;
+            font-size: 7.5pt !important;
+            font-weight: bold !important;
+            letter-spacing: 0.02em !important;
+            border-top: 1pt solid #555 !important;
+            padding: 3px 4px !important;
+          }
+
+          /* ── Cabeçalho de colunas ── */
+          .rom-cols td {
+            background-color: #f0f0f0 !important;
+            font-size: 6.5pt !important;
+            font-weight: bold !important;
+            text-transform: uppercase !important;
+            border: 0.4pt solid #888 !important;
+          }
+
+          /* ── Linha de dados ── */
+          .rom-row td { border: 0.3pt solid #ccc !important; }
+          .rom-row-alt td { background-color: #f9f9f9 !important; border: 0.3pt solid #ccc !important; }
+
+          /* ── Subtotal ── */
+          .rom-subtotal td {
+            background-color: #ececec !important;
+            font-size: 7pt !important;
+            font-weight: bold !important;
+            border-top: 0.8pt solid #777 !important;
+          }
+
+          /* ── Total geral ── */
+          .rom-total td {
+            background-color: #ddd !important;
+            font-weight: bold !important;
+            font-size: 7.5pt !important;
+            border-top: 1.5pt solid #000 !important;
+          }
+
+          /* ── Campos de formulário ── */
+          .print-input {
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            font-size: 7.5pt !important;
+            width: 100% !important;
+          }
+
+          /* ── Assinaturas ── */
+          .rom-signature {
+            margin-top: 6px !important;
+            padding-top: 4px !important;
+            border-top: 0.8pt solid #888 !important;
+            font-size: 7.5pt !important;
+          }
+
           tr { page-break-inside: avoid; }
-        }
-        @media screen {
-          .print-only { display: none !important; }
         }
       `}</style>
 
@@ -450,7 +543,7 @@ export default function RomaneioTab() {
             <div id="romaneio-print" className="card overflow-hidden">
 
               {/* Cabeçalho */}
-              <div className="bg-[#1a237e] text-white px-4 py-3 flex items-center justify-between gap-4">
+              <div className="rom-header bg-[#1a237e] text-white px-4 py-3 flex items-center justify-between gap-4">
                 <div>
                   <h2 className="text-sm font-bold">
                     🚚 ROMANEIO DE ENTREGAS — CANTINA EM CASA & LUMAR ALIMENTOS
@@ -493,13 +586,13 @@ export default function RomaneioTab() {
 
                     return (
                       <tbody key={emp}>
-                        <tr>
+                        <tr className="rom-group">
                           <td colSpan={10} className={`px-3 py-2 font-bold text-white text-[11px] tracking-wide ${isLumar ? 'bg-blue-800' : 'bg-purple-900'}`}>
                             {isLumar ? '🏭 LUMAR ALIMENTOS' : '🛒 CANTINA EM CASA'}
                           </td>
                         </tr>
 
-                        <tr className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-bold text-[10px] text-center">
+                        <tr className="rom-cols bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-bold text-[10px] text-center">
                           {['Nº', 'PEDIDO', 'CLIENTE', 'TURNO', 'ROTA', 'PGTO', 'VALOR (R$)', 'OBS / RESTRIÇÃO', '✓', 'OCORRÊNCIA'].map(h => (
                             <td key={h} className={`px-2 py-1.5 border border-slate-300 dark:border-slate-600 ${['CLIENTE', 'OBS / RESTRIÇÃO', 'OCORRÊNCIA'].includes(h) ? 'text-left' : ''}`}>
                               {h}
@@ -510,9 +603,10 @@ export default function RomaneioTab() {
                         {grupo.map((item, idx) => {
                           const entregue = entregueMap[item.uid] ?? false
                           const rowBg = idx % 2 === 0 ? 'bg-white dark:bg-slate-800/10' : 'bg-slate-50 dark:bg-slate-800/30'
+                          const rowPrint = idx % 2 === 0 ? 'rom-row' : 'rom-row-alt'
 
                           return (
-                            <tr key={item.uid} className={`${rowBg} transition-colors ${entregue ? 'opacity-50' : ''}`}>
+                            <tr key={item.uid} className={`${rowPrint} ${rowBg} transition-colors ${entregue ? 'opacity-50' : ''}`}>
                               <td className="px-1 py-1 border-b border-l border-slate-200 dark:border-slate-700 text-center">
                                 <input
                                   type="number"
@@ -566,7 +660,7 @@ export default function RomaneioTab() {
                           )
                         })}
 
-                        <tr className={`font-bold text-[10px] ${isLumar ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200' : 'bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-200'}`}>
+                        <tr className={`rom-subtotal font-bold text-[10px] ${isLumar ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200' : 'bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-200'}`}>
                           <td colSpan={6} className="px-3 py-1.5 text-right border-b border-slate-300 dark:border-slate-600">
                             {isLumar ? '🏭 LUMAR' : '🛒 CANTINA'} — {grupo.length} pedido(s)
                           </td>
@@ -580,7 +674,7 @@ export default function RomaneioTab() {
                   })}
 
                   <tfoot>
-                    <tr className="bg-slate-800 dark:bg-slate-900 text-white text-[11px] font-bold">
+                    <tr className="rom-total bg-slate-800 dark:bg-slate-900 text-white text-[11px] font-bold">
                       <td colSpan={2} className="px-3 py-2.5 text-center tracking-wide">TOTAIS</td>
                       <td className="px-2 py-2.5 text-center text-blue-300">🏭 {fmt(totalLumar)} ({lumarItems.length} ped.)</td>
                       <td className="px-2 py-2.5" />
@@ -593,7 +687,7 @@ export default function RomaneioTab() {
               </div>
 
               {/* Rodapé — assinaturas */}
-              <div className="px-4 pt-5 pb-4 grid grid-cols-2 gap-x-8 gap-y-4 text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 mt-2">
+              <div className="rom-signature px-4 pt-5 pb-4 grid grid-cols-2 gap-x-8 gap-y-4 text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 mt-2">
                 <div>
                   <p className="mb-6 font-medium">Assinatura do Entregador:</p>
                   <div className="border-b border-slate-400 dark:border-slate-500" />
