@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
-import { TrendingUp, Search, Download, RefreshCw, Users, Package, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { TrendingUp, Download, RefreshCw, Users, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 const COMMISSION_RATE = 0.01 // 1%
 
@@ -52,7 +53,6 @@ function exportExcel(
 ) {
   const wb = XLSX.utils.book_new()
 
-  // Aba detalhe
   const rows = pedidos.map(p => {
     const row: Record<string, string | number> = {
       'Pedido':        p.num_pedido,
@@ -77,7 +77,6 @@ function exportExcel(
   rows.push(totalRow)
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Pedidos')
 
-  // Aba resumo por atendente
   if (showAtendente && byAtendente.length > 0) {
     const resumo = byAtendente.map(([nome, d]) => ({
       'Atendente': nome,
@@ -92,37 +91,42 @@ function exportExcel(
 }
 
 export default function ComissaoPage() {
+  const { profile, isAdmin } = useAuth()
   const now = new Date()
 
-  const [mode, setMode]               = useState<'mensal' | 'periodo'>('mensal')
-  const [atendente, setAtendente]     = useState('TODOS')
-  const [mes, setMes]                 = useState(now.getMonth())
-  const [ano, setAno]                 = useState(now.getFullYear())
-  const [dataIni, setDataIni]         = useState('')
-  const [dataFim, setDataFim]         = useState('')
+  // Atendente fixo para não-admin: usa o próprio nome do usuário logado
+  const selfName = (profile?.nome ?? '').toUpperCase().trim()
 
-  const [atendentes, setAtendentes]   = useState<string[]>([])
-  const [pedidos, setPedidos]         = useState<PedidoComissao[]>([])
-  const [loading, setLoading]         = useState(false)
-  const [hasSearched, setHasSearched] = useState(false)
-  const [showDetail, setShowDetail]   = useState(true)
+  const [mode, setMode]           = useState<'mensal' | 'periodo'>('mensal')
+  const [atendente, setAtendente] = useState(() => isAdmin ? 'TODOS' : selfName)
+  const [mes, setMes]             = useState(now.getMonth())
+  const [ano, setAno]             = useState(now.getFullYear())
+  const [dataIni, setDataIni]     = useState('')
+  const [dataFim, setDataFim]     = useState('')
 
-  // Carrega atendentes distintos na montagem
+  const [atendentes, setAtendentes] = useState<string[]>([])
+  const [pedidos, setPedidos]       = useState<PedidoComissao[]>([])
+  const [loading, setLoading]       = useState(false)
+  const [showDetail, setShowDetail] = useState(true)
+
+  // Carrega equipe a partir dos usuários ativos do sistema
   useEffect(() => {
     supabase
-      .from('varejo_pedidos')
-      .select('atendente')
-      .eq('origem', 'CARDAPIO WEB')
-      .not('atendente', 'is', null)
+      .from('crm_users')
+      .select('nome')
+      .eq('ativo', true)
       .then(({ data }) => {
-        const set = new Set<string>()
-        ;(data ?? []).forEach((r: any) => {
-          const v = String(r.atendente ?? '').toUpperCase().trim()
-          if (v) set.add(v)
-        })
-        setAtendentes([...set].sort())
+        const nomes = (data ?? [])
+          .map((u: any) => String(u.nome ?? '').toUpperCase().trim())
+          .filter(Boolean)
+        setAtendentes([...new Set(nomes)].sort())
       })
   }, [])
+
+  // Garante que não-admin sempre fica fixo no próprio nome
+  useEffect(() => {
+    if (!isAdmin && selfName) setAtendente(selfName)
+  }, [isAdmin, selfName])
 
   function getDateRange() {
     if (mode === 'mensal') {
@@ -130,7 +134,7 @@ export default function ComissaoPage() {
       return {
         ini: startOfMonth(d).toISOString().split('T')[0],
         fim: endOfMonth(d).toISOString().split('T')[0],
-        titulo: `${MESES[mes].replace('ç','c').replace('ã','a')}_${ano}`,
+        titulo: `${MESES[mes]}_${ano}`,
         label: `${MESES[mes]} / ${ano}`,
       }
     }
@@ -141,12 +145,10 @@ export default function ComissaoPage() {
     }
   }
 
-  async function buscar() {
+  const buscar = useCallback(async () => {
     const { ini, fim } = getDateRange()
     if (!ini || !fim) return
     setLoading(true)
-    setPedidos([])
-    setHasSearched(false)
 
     let q = supabase
       .from('varejo_pedidos')
@@ -164,8 +166,14 @@ export default function ComissaoPage() {
     const { data } = await q
     setPedidos((data ?? []) as PedidoComissao[])
     setLoading(false)
-    setHasSearched(true)
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atendente, mes, ano, mode, dataIni, dataFim])
+
+  // Auto-busca sempre que os filtros mudarem
+  useEffect(() => {
+    if (mode === 'periodo' && (!dataIni || !dataFim)) return
+    buscar()
+  }, [buscar])
 
   const totalValor    = useMemo(() => pedidos.reduce((s, p) => s + (p.valor_liquido ?? 0), 0), [pedidos])
   const totalComissao = useMemo(() => totalValor * COMMISSION_RATE, [totalValor])
@@ -182,7 +190,7 @@ export default function ComissaoPage() {
   }, [pedidos])
 
   const { ini, fim, titulo, label: periodLabel } = getDateRange()
-  const canSearch        = Boolean(ini && fim)
+  const canExport        = pedidos.length > 0
   const showAtendenteCol = atendente === 'TODOS'
 
   return (
@@ -216,13 +224,19 @@ export default function ComissaoPage() {
         </div>
 
         <div className="flex flex-wrap gap-3 items-end">
-          {/* Atendente */}
+          {/* Atendente — admin escolhe, não-admin vê o próprio nome */}
           <div>
             <label className="label">Atendente</label>
-            <select className="input w-44" value={atendente} onChange={e => setAtendente(e.target.value)}>
-              <option value="TODOS">Todos</option>
-              {atendentes.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
+            {isAdmin ? (
+              <select className="input w-44" value={atendente} onChange={e => setAtendente(e.target.value)}>
+                <option value="TODOS">Todos</option>
+                {atendentes.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            ) : (
+              <div className="input w-44 bg-slate-50 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 cursor-default select-none">
+                {selfName || '—'}
+              </div>
+            )}
           </div>
 
           {mode === 'mensal' ? (
@@ -253,172 +267,184 @@ export default function ComissaoPage() {
             </>
           )}
 
-          <button onClick={buscar} disabled={!canSearch || loading}
-            className="btn-primary flex items-center gap-2">
-            {loading ? <RefreshCw size={15} className="animate-spin" /> : <Search size={15} />}
-            Calcular
+          {/* Botão de atualização manual */}
+          <button onClick={buscar} disabled={loading || (mode === 'periodo' && (!dataIni || !dataFim))}
+            className="btn-secondary flex items-center gap-2 py-2">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Buscando…' : 'Atualizar'}
           </button>
         </div>
       </div>
 
-      {/* ── Resultados ── */}
-      {hasSearched && (
-        <>
-          {/* KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="card p-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Pedidos</p>
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{pedidos.length}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5 truncate">{periodLabel}</p>
-            </div>
-            <div className="card p-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Bruto</p>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-100 mt-1 tabular-nums">{fmtBRL(totalValor)}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Ticket médio {fmtBRL(ticketMedio)}</p>
-            </div>
-            <div className="card p-4 border-orange-200 dark:border-orange-700/40 bg-orange-50 dark:bg-orange-900/20">
-              <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">Comissão Total (1%)</p>
-              <p className="text-lg font-bold text-orange-700 dark:text-orange-400 mt-1 tabular-nums">{fmtBRL(totalComissao)}</p>
-              <p className="text-[10px] text-orange-400 mt-0.5 truncate">
-                {atendente === 'TODOS' ? 'Todos os atendentes' : atendente}
-              </p>
-            </div>
-            <div className="card p-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Atendentes</p>
-              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{byAtendente.length}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">com pedidos no período</p>
-            </div>
+      {/* KPIs — sempre visíveis (mostram 0 enquanto carrega) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="card p-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Pedidos</p>
+          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">
+            {loading ? <span className="animate-pulse text-slate-300">—</span> : pedidos.length}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5 truncate">{periodLabel}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Bruto</p>
+          <p className="text-lg font-bold text-slate-800 dark:text-slate-100 mt-1 tabular-nums">
+            {loading ? <span className="animate-pulse text-slate-300">—</span> : fmtBRL(totalValor)}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">
+            {!loading && pedidos.length > 0 ? `Ticket médio ${fmtBRL(ticketMedio)}` : ''}
+          </p>
+        </div>
+        <div className="card p-4 border-orange-200 dark:border-orange-700/40 bg-orange-50 dark:bg-orange-900/20">
+          <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">Comissão Total (1%)</p>
+          <p className="text-lg font-bold text-orange-700 dark:text-orange-400 mt-1 tabular-nums">
+            {loading ? <span className="animate-pulse text-orange-200">—</span> : fmtBRL(totalComissao)}
+          </p>
+          <p className="text-[10px] text-orange-400 mt-0.5 truncate">
+            {atendente === 'TODOS' ? 'Todos os atendentes' : atendente}
+          </p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Atendentes</p>
+          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">
+            {loading ? <span className="animate-pulse text-slate-300">—</span> : byAtendente.length}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">com pedidos no período</p>
+        </div>
+      </div>
+
+      {/* Resumo por atendente (admin com "Todos") */}
+      {showAtendenteCol && byAtendente.length > 0 && !loading && (
+        <div className="card p-4">
+          <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+            <Users size={14} className="text-orange-500" /> Resumo por Atendente
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                  <th className="pb-2 font-medium">Atendente</th>
+                  <th className="pb-2 font-medium text-right">Pedidos</th>
+                  <th className="pb-2 font-medium text-right">Total Bruto</th>
+                  <th className="pb-2 font-medium text-right">Comissão 1%</th>
+                  <th className="pb-2 font-medium text-right hidden md:table-cell">% do total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                {byAtendente.map(([nome, d]) => (
+                  <tr key={nome} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="py-2.5 font-medium text-slate-700 dark:text-slate-200">{nome}</td>
+                    <td className="py-2.5 text-right text-slate-500 tabular-nums">{d.qtd}</td>
+                    <td className="py-2.5 text-right text-slate-700 dark:text-slate-200 tabular-nums">{fmtBRL(d.valor)}</td>
+                    <td className="py-2.5 text-right font-bold text-orange-600 tabular-nums">{fmtBRL(d.valor * COMMISSION_RATE)}</td>
+                    <td className="py-2.5 text-right text-slate-400 tabular-nums hidden md:table-cell">
+                      {totalValor ? (d.valor / totalValor * 100).toFixed(1) + '%' : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t-2 border-slate-200 dark:border-slate-600">
+                <tr>
+                  <td className="pt-2.5 font-bold text-slate-800 dark:text-slate-100">Total</td>
+                  <td className="pt-2.5 text-right font-bold tabular-nums">{pedidos.length}</td>
+                  <td className="pt-2.5 text-right font-bold text-slate-800 dark:text-slate-100 tabular-nums">{fmtBRL(totalValor)}</td>
+                  <td className="pt-2.5 text-right font-bold text-orange-600 tabular-nums">{fmtBRL(totalComissao)}</td>
+                  <td className="pt-2.5 hidden md:table-cell"></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
-
-          {/* Resumo por atendente */}
-          {showAtendenteCol && byAtendente.length > 0 && (
-            <div className="card p-4">
-              <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
-                <Users size={14} className="text-orange-500" /> Resumo por Atendente
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-slate-400 border-b border-slate-100 dark:border-slate-700">
-                      <th className="pb-2 font-medium">Atendente</th>
-                      <th className="pb-2 font-medium text-right">Pedidos</th>
-                      <th className="pb-2 font-medium text-right">Total Bruto</th>
-                      <th className="pb-2 font-medium text-right">Comissão 1%</th>
-                      <th className="pb-2 font-medium text-right hidden md:table-cell">% do total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                    {byAtendente.map(([nome, d]) => (
-                      <tr key={nome} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="py-2.5 font-medium text-slate-700 dark:text-slate-200">{nome}</td>
-                        <td className="py-2.5 text-right text-slate-500 tabular-nums">{d.qtd}</td>
-                        <td className="py-2.5 text-right text-slate-700 dark:text-slate-200 tabular-nums">{fmtBRL(d.valor)}</td>
-                        <td className="py-2.5 text-right font-bold text-orange-600 tabular-nums">{fmtBRL(d.valor * COMMISSION_RATE)}</td>
-                        <td className="py-2.5 text-right text-slate-400 tabular-nums hidden md:table-cell">
-                          {totalValor ? (d.valor / totalValor * 100).toFixed(1) + '%' : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-slate-200 dark:border-slate-600">
-                    <tr>
-                      <td className="pt-2.5 font-bold text-slate-800 dark:text-slate-100">Total</td>
-                      <td className="pt-2.5 text-right font-bold tabular-nums">{pedidos.length}</td>
-                      <td className="pt-2.5 text-right font-bold text-slate-800 dark:text-slate-100 tabular-nums">{fmtBRL(totalValor)}</td>
-                      <td className="pt-2.5 text-right font-bold text-orange-600 tabular-nums">{fmtBRL(totalComissao)}</td>
-                      <td className="pt-2.5 hidden md:table-cell"></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Detalhe dos pedidos (colapsável) */}
-          <div className="card p-4 space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <button
-                onClick={() => setShowDetail(v => !v)}
-                className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2 hover:text-orange-500 transition-colors"
-              >
-                <Package size={14} className="text-orange-500" />
-                Detalhe dos Pedidos ({pedidos.length})
-                {showDetail ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              <button
-                onClick={() => exportExcel(pedidos, titulo, showAtendenteCol, byAtendente)}
-                disabled={pedidos.length === 0}
-                className="btn-secondary text-xs py-1.5 px-3"
-              >
-                <Download size={13} /> Exportar Excel
-              </button>
-            </div>
-
-            {showDetail && (
-              pedidos.length === 0 ? (
-                <p className="text-center text-slate-400 py-8 text-sm">
-                  Nenhum pedido Cardápio Web encontrado para o período selecionado
-                </p>
-              ) : (
-                <div className="overflow-x-auto -mx-1">
-                  <table className="w-full text-sm min-w-[600px]">
-                    <thead>
-                      <tr className="text-left text-xs text-slate-400 border-b border-slate-100 dark:border-slate-700 whitespace-nowrap">
-                        <th className="pb-2 font-medium pr-3"># Pedido</th>
-                        <th className="pb-2 font-medium pr-3">Data</th>
-                        <th className="pb-2 font-medium pr-3">Status</th>
-                        <th className="pb-2 font-medium pr-3">Cliente</th>
-                        <th className="pb-2 font-medium pr-3 hidden md:table-cell">Bairro</th>
-                        <th className="pb-2 font-medium text-right pr-3">Valor</th>
-                        <th className="pb-2 font-medium text-right text-orange-500 pr-3">Comissão 1%</th>
-                        {showAtendenteCol && <th className="pb-2 font-medium">Atendente</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                      {pedidos.map(p => {
-                        const comissao = (p.valor_liquido ?? 0) * COMMISSION_RATE
-                        const st = STATUS_MAP[p.status_icon] ?? { label: p.status_icon, cls: 'bg-slate-100 text-slate-600' }
-                        return (
-                          <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                            <td className="py-1.5 font-mono text-xs text-slate-500 dark:text-slate-400 pr-3">#{p.num_pedido}</td>
-                            <td className="py-1.5 text-xs text-slate-600 dark:text-slate-300 pr-3 whitespace-nowrap">{fmtDate(p.data_entrega)}</td>
-                            <td className="py-1.5 pr-3">
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${st.cls}`}>{st.label}</span>
-                            </td>
-                            <td className="py-1.5 pr-3 max-w-[160px]">
-                              <span className="block truncate text-xs text-slate-700 dark:text-slate-200">{p.cliente ?? '—'}</span>
-                            </td>
-                            <td className="py-1.5 pr-3 text-xs text-slate-400 hidden md:table-cell">{p.bairro ?? '—'}</td>
-                            <td className="py-1.5 pr-3 text-right font-medium text-slate-700 dark:text-slate-200 tabular-nums text-xs whitespace-nowrap">{fmtBRL(p.valor_liquido ?? 0)}</td>
-                            <td className="py-1.5 pr-3 text-right font-bold text-orange-600 tabular-nums text-xs whitespace-nowrap">{fmtBRL(comissao)}</td>
-                            {showAtendenteCol && (
-                              <td className="py-1.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                {(p.atendente ?? '—').toUpperCase()}
-                              </td>
-                            )}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                    <tfoot className="border-t-2 border-slate-200 dark:border-slate-600">
-                      <tr>
-                        <td colSpan={3} className="pt-3 pb-1 font-bold text-slate-800 dark:text-slate-100">
-                          Total — {pedidos.length} pedido{pedidos.length !== 1 ? 's' : ''}
-                        </td>
-                        <td className="hidden md:table-cell"></td>
-                        <td className="hidden md:table-cell"></td>
-                        <td className="pt-3 pb-1 text-right font-bold text-slate-800 dark:text-slate-100 tabular-nums whitespace-nowrap">{fmtBRL(totalValor)}</td>
-                        <td className="pt-3 pb-1 text-right font-bold text-orange-600 tabular-nums whitespace-nowrap">{fmtBRL(totalComissao)}</td>
-                        {showAtendenteCol && <td></td>}
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )
-            )}
-          </div>
-        </>
+        </div>
       )}
+
+      {/* Detalhe dos pedidos (colapsável) */}
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <button
+            onClick={() => setShowDetail(v => !v)}
+            className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2 hover:text-orange-500 transition-colors"
+          >
+            <Package size={14} className="text-orange-500" />
+            Detalhe dos Pedidos ({loading ? '…' : pedidos.length})
+            {showDetail ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          <button
+            onClick={() => exportExcel(pedidos, titulo, showAtendenteCol, byAtendente)}
+            disabled={!canExport || loading}
+            className="btn-secondary text-xs py-1.5 px-3"
+          >
+            <Download size={13} /> Exportar Excel
+          </button>
+        </div>
+
+        {showDetail && (
+          loading ? (
+            <div className="flex items-center justify-center py-10">
+              <RefreshCw size={20} className="animate-spin text-orange-400" />
+            </div>
+          ) : pedidos.length === 0 ? (
+            <p className="text-center text-slate-400 py-8 text-sm">
+              {mode === 'periodo' && (!ini || !fim)
+                ? 'Selecione as datas de início e fim para visualizar'
+                : 'Nenhum pedido Cardápio Web encontrado para o período selecionado'}
+            </p>
+          ) : (
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-sm min-w-[600px]">
+                <thead>
+                  <tr className="text-left text-xs text-slate-400 border-b border-slate-100 dark:border-slate-700 whitespace-nowrap">
+                    <th className="pb-2 font-medium pr-3"># Pedido</th>
+                    <th className="pb-2 font-medium pr-3">Data</th>
+                    <th className="pb-2 font-medium pr-3">Status</th>
+                    <th className="pb-2 font-medium pr-3">Cliente</th>
+                    <th className="pb-2 font-medium pr-3 hidden md:table-cell">Bairro</th>
+                    <th className="pb-2 font-medium text-right pr-3">Valor</th>
+                    <th className="pb-2 font-medium text-right text-orange-500 pr-3">Comissão 1%</th>
+                    {showAtendenteCol && <th className="pb-2 font-medium">Atendente</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                  {pedidos.map(p => {
+                    const comissao = (p.valor_liquido ?? 0) * COMMISSION_RATE
+                    const st = STATUS_MAP[p.status_icon] ?? { label: p.status_icon, cls: 'bg-slate-100 text-slate-600' }
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="py-1.5 font-mono text-xs text-slate-500 dark:text-slate-400 pr-3">#{p.num_pedido}</td>
+                        <td className="py-1.5 text-xs text-slate-600 dark:text-slate-300 pr-3 whitespace-nowrap">{fmtDate(p.data_entrega)}</td>
+                        <td className="py-1.5 pr-3">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${st.cls}`}>{st.label}</span>
+                        </td>
+                        <td className="py-1.5 pr-3 max-w-[160px]">
+                          <span className="block truncate text-xs text-slate-700 dark:text-slate-200">{p.cliente ?? '—'}</span>
+                        </td>
+                        <td className="py-1.5 pr-3 text-xs text-slate-400 hidden md:table-cell">{p.bairro ?? '—'}</td>
+                        <td className="py-1.5 pr-3 text-right font-medium text-slate-700 dark:text-slate-200 tabular-nums text-xs whitespace-nowrap">{fmtBRL(p.valor_liquido ?? 0)}</td>
+                        <td className="py-1.5 pr-3 text-right font-bold text-orange-600 tabular-nums text-xs whitespace-nowrap">{fmtBRL(comissao)}</td>
+                        {showAtendenteCol && (
+                          <td className="py-1.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                            {(p.atendente ?? '—').toUpperCase()}
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot className="border-t-2 border-slate-200 dark:border-slate-600">
+                  <tr>
+                    <td colSpan={3} className="pt-3 pb-1 font-bold text-slate-800 dark:text-slate-100">
+                      Total — {pedidos.length} pedido{pedidos.length !== 1 ? 's' : ''}
+                    </td>
+                    <td className="hidden md:table-cell"></td>
+                    <td className="hidden md:table-cell"></td>
+                    <td className="pt-3 pb-1 text-right font-bold text-slate-800 dark:text-slate-100 tabular-nums whitespace-nowrap">{fmtBRL(totalValor)}</td>
+                    <td className="pt-3 pb-1 text-right font-bold text-orange-600 tabular-nums whitespace-nowrap">{fmtBRL(totalComissao)}</td>
+                    {showAtendenteCol && <td></td>}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )
+        )}
+      </div>
     </div>
   )
 }
