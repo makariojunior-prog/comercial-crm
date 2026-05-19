@@ -82,7 +82,9 @@ export default function RomaneioTab() {
   const datePrint = format(dateObj, 'dd/MM/yyyy')
   const dateShort = format(dateObj, 'dd/MM')
 
-  const entregadorLabel = entregador || 'TODOS OS ENTREGADORES'
+  const entregadorLabel = entregador === 'RETIRADA'
+    ? '🏪 RETIRADA / BALCÃO'
+    : entregador || 'TODOS OS ENTREGADORES'
   const turnosLabel = [
     turnoManha && 'MANHÃ', turnoTarde && 'TARDE', turnoNoite && 'NOITE',
   ].filter(Boolean).join(' + ') || 'Todos'
@@ -132,6 +134,8 @@ export default function RomaneioTab() {
     }
     const turnoOr = buildOr()
 
+    const isRetiradaFilter = entregador === 'RETIRADA'
+
     let qL = supabase
       .from('atacado_pedidos')
       .select('id, id_venda, numero_pedido, cliente_nome, turno, entregador, valor, ocorrencia, veiculo, crm_client:crm_clients(nome,rota,pgto)')
@@ -139,16 +143,26 @@ export default function RomaneioTab() {
       .eq('ignorado', false)
       .neq('tipo', 'CANCELADO')
     if (turnoOr) qL = qL.or(turnoOr)
-    if (entregador) qL = (qL as any).eq('entregador', entregador)
+    if (isRetiradaFilter) {
+      qL = (qL as any).or('entregador.eq.RETIRADA,entregador.eq.BALCÃO,entregador.eq.RETIRADA/BALCÃO')
+    } else if (entregador) {
+      qL = (qL as any).eq('entregador', entregador)
+    }
 
     let qC = supabase
       .from('varejo_pedidos')
       .select('id, num_pedido, cliente, turno, entregador, valor_liquido, restricao, rota_definida, sugestao_rota, veiculo')
       .eq('data_entrega', date)
       .neq('status_icon', '❌')
-      .not('entregador', 'eq', 'RETIRADA')
     if (turnoOr) qC = qC.or(turnoOr)
-    if (entregador) qC = (qC as any).eq('entregador', entregador)
+    if (isRetiradaFilter) {
+      // Mostra apenas retiradas (inverte a exclusão padrão)
+      qC = (qC as any).eq('entregador', 'RETIRADA')
+    } else {
+      // Comportamento padrão: exclui retiradas do romaneio de entregas
+      qC = qC.not('entregador', 'eq', 'RETIRADA')
+      if (entregador) qC = (qC as any).eq('entregador', entregador)
+    }
 
     const [{ data: atacado }, { data: cantina }] = await Promise.all([qL, qC])
 
@@ -396,6 +410,7 @@ export default function RomaneioTab() {
               onChange={e => setEntregador(e.target.value)}
             >
               <option value="">Todos os entregadores</option>
+              <option value="RETIRADA">🏪 Retirada / Balcão</option>
               {drivers.map(d => (
                 <option key={d.id} value={firstName(d.nome)}>{firstName(d.nome)}</option>
               ))}
