@@ -55,8 +55,16 @@ function parseCSV(text: string): Record<string, string>[] {
 
 function parseValor(v: string): number {
   if (!v) return 0
-  const clean = v.replace(/[^\d,.]/g, '').replace(',', '.')
-  return parseFloat(clean) || 0
+  const stripped = v.replace(/[^\d,.]/g, '')
+  if (!stripped) return 0
+  // BR format "1.410,50": dot=thousands separator, comma=decimal separator
+  if (stripped.includes(',') && stripped.includes('.')) {
+    return parseFloat(stripped.replace(/\./g, '').replace(',', '.')) || 0
+  }
+  // Only comma "267,50": comma is decimal
+  if (stripped.includes(',')) return parseFloat(stripped.replace(',', '.')) || 0
+  // Only dot "1410.50" or no separator "1410": already numeric
+  return parseFloat(stripped) || 0
 }
 
 function parseDate(v: string): string | null {

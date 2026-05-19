@@ -983,7 +983,11 @@ function EditPedidoModal({ pedido: p, onClose, onSave }: {
       turno:        turno || null,
       entregador:   entregador || null,
     }
-    const parsedValor = parseFloat(valor.replace(',', '.'))
+    const vStripped = valor.replace(/[^\d,.]/g, '')
+    const vNorm = (vStripped.includes(',') && vStripped.includes('.'))
+      ? vStripped.replace(/\./g, '').replace(',', '.')
+      : vStripped.includes(',') ? vStripped.replace(',', '.') : vStripped
+    const parsedValor = parseFloat(vNorm)
     if (!isNaN(parsedValor) && parsedValor > 0) patch.valor = parsedValor
     await onSave(patch)
     setSaving(false)

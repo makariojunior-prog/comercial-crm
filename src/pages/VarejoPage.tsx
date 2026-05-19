@@ -522,9 +522,20 @@ async function syncFromSheets(): Promise<number> {
   }
 
   function toNum(raw: unknown): number | null {
-    const s = String(raw ?? '').replace(',', '.').trim()
+    const s = String(raw ?? '').trim()
     if (!s) return null
-    const n = parseFloat(s)
+    const stripped = s.replace(/[^\d,.]/g, '')
+    if (!stripped) return null
+    let norm: string
+    if (stripped.includes(',') && stripped.includes('.')) {
+      // BR format "1.410,50": dot=thousands, comma=decimal
+      norm = stripped.replace(/\./g, '').replace(',', '.')
+    } else if (stripped.includes(',')) {
+      norm = stripped.replace(',', '.')
+    } else {
+      norm = stripped
+    }
+    const n = parseFloat(norm)
     return Number.isFinite(n) ? n : null
   }
 
