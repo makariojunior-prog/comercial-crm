@@ -14,8 +14,9 @@ import type { AtacadoPedido, Client } from '../types'
 const PT_DAYS       = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO']
 const PT_DAY_LABELS = ['DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO']
 const TURNOS_LIST   = ['MANHÃ', 'TARDE', 'NOITE']
-const ENTREGADORES  = ['THALES', 'DIOGO', 'PAULO', 'VINICIUS', 'JOSELITO', 'GABRIEL', 'HIOGO', 'ALEXANDER']
 const RETIRADA_VALS = ['RETIRADA', 'BALCÃO', 'RETIRADA/BALCÃO']
+
+const firstName = (nome: string) => nome.trim().split(/\s+/)[0].toUpperCase()
 const MSG_PADRAO    = 'Bom dia! ☀️\n\nQual será o seu pedido de hoje? 🥖❄️\n\n_*Lumar Alimentos*_'
 
 // ─── Types ────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ export default function DashboardAtacado() {
   const [showConfig, setShowConfig]     = useState(false)
   const [searchQuery, setSearchQuery]   = useState('')
   const [cobrancaAberto, setCobrancaAberto] = useState<Map<string, number>>(new Map())
+  const [drivers, setDrivers]           = useState<string[]>([])
 
   const todayStr    = format(new Date(), 'yyyy-MM-dd')
   const rotasDateStr = format(rotasDate, 'yyyy-MM-dd')
@@ -215,6 +217,12 @@ export default function DashboardAtacado() {
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    supabase.from('crm_drivers').select('nome').eq('ativo', true).order('nome')
+      .then(({ data }) => {
+        setDrivers((data ?? []).map((d: any) => firstName(d.nome)).filter(Boolean))
+      })
+  }, [])
   useEffect(() => { loadRotina(rotinaDate) }, [rotinaDate, loadRotina])
   useEffect(() => { loadRotas() }, [loadRotas])
   useEffect(() => { if (showHistorico) loadHistorico() }, [showHistorico, loadHistorico])
@@ -521,6 +529,7 @@ export default function DashboardAtacado() {
                         onUpdate={patch => updatePedido(p.id, patch)}
                         onEdit={() => setEditPedidoId(p.id)}
                         cobrancaAberto={cobrancaAberto}
+                        drivers={drivers}
                       />
                     ))}
                   </tbody>
@@ -714,6 +723,7 @@ export default function DashboardAtacado() {
           pedido={pedidoParaEditar}
           onClose={() => setEditPedidoId(null)}
           onSave={patch => savePedidoEdit(editPedidoId, patch)}
+          drivers={drivers}
         />
       )}
     </div>
@@ -793,11 +803,12 @@ function NovoPedidoRow({ pedido: p, onEdit, onIgnorar, cobrancaAberto }: {
   )
 }
 
-function RotaRow({ pedido: p, onUpdate, onEdit, cobrancaAberto }: {
+function RotaRow({ pedido: p, onUpdate, onEdit, cobrancaAberto, drivers }: {
   pedido: AtacadoPedido
   onUpdate: (patch: Partial<AtacadoPedido>) => void
   onEdit: () => void
   cobrancaAberto: Map<string, number>
+  drivers: string[]
 }) {
   const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
   const divida = cobrancaAberto.get(nome.toUpperCase().trim()) ?? 0
@@ -896,7 +907,7 @@ function RotaRow({ pedido: p, onUpdate, onEdit, cobrancaAberto }: {
         >
           <option value="">— entregador —</option>
           <option value="RETIRADA">🏭 RETIRADA</option>
-          {ENTREGADORES.map(e => <option key={e} value={e}>{e}</option>)}
+          {drivers.map(e => <option key={e} value={e}>{e}</option>)}
         </select>
       </td>
       <td className="px-3 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{pgto}</td>
@@ -960,10 +971,11 @@ function ContatoRow({ cliente: c, feito, onToggle, cobrancaAberto }: {
 }
 
 // ─── Edit Pedido Modal ────────────────────────────────────────
-function EditPedidoModal({ pedido: p, onClose, onSave }: {
+function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
   pedido: AtacadoPedido
   onClose: () => void
   onSave: (patch: Partial<AtacadoPedido>) => void
+  drivers: string[]
 }) {
   const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
   const turnoEfetivo = p.turno ?? p.crm_client?.turno ?? ''
@@ -1056,7 +1068,7 @@ function EditPedidoModal({ pedido: p, onClose, onSave }: {
               className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400">
               <option value="">— sem entregador —</option>
               <option value="RETIRADA">🏭 RETIRADA / BALCÃO</option>
-              {ENTREGADORES.map(e => <option key={e} value={e}>{e}</option>)}
+              {drivers.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
           </div>
 
