@@ -38,6 +38,7 @@ function makeEmptyForm() {
     report:        '',
     priority:      'MÉDIA',
     status:        'Realizada',
+    has_amostra:   false,
   }
 }
 
@@ -54,6 +55,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       report:        visit.report        ?? '',
       priority:      visit.priority      ?? 'MÉDIA',
       status:        visit.status        ?? 'Realizada',
+      has_amostra:   visit.has_amostra   ?? false,
     } : makeEmptyForm()
   )
 
@@ -252,6 +254,26 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
           <div>
             <label className="label">Relatório</label>
             <textarea className="input resize-none" rows={3} value={form.report} onChange={e => set('report', e.target.value)} placeholder="O que aconteceu? Resultados, próximos passos..." />
+          </div>
+
+          {/* Amostra de Produtos */}
+          <div>
+            <label className="label">Amostra de Produtos</label>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, has_amostra: !f.has_amostra }))}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                form.has_amostra
+                  ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-400 text-orange-700 dark:text-orange-400'
+                  : 'bg-slate-50 dark:bg-slate-700/40 border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <span className="text-base">{form.has_amostra ? '✅' : '○'}</span>
+              <span>{form.has_amostra ? 'Com amostra de produtos' : 'Sem amostra de produtos'}</span>
+            </button>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Marque se esta visita envolve levar ou entregar amostras ao cliente
+            </p>
           </div>
 
           {/* Fotos */}

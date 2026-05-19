@@ -34,6 +34,7 @@ export interface Visit {
   priority: string | null
   status: string | null
   photo_urls: string[] | null
+  has_amostra: boolean | null
   created_at: string
 }
 

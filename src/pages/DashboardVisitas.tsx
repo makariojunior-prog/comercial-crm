@@ -161,6 +161,9 @@ function VisitCard({ visit, onEdit, onDelete }: { visit: Visit; onEdit: () => vo
             {visit.visit_type && (
               <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${typeBadge}`}>{visit.visit_type}</span>
             )}
+            {visit.has_amostra && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">🎁 Amostra</span>
+            )}
           </div>
           <p className="font-semibold text-slate-800">{visit.client_name}</p>
           <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Gift, Package, Printer, MessageCircle, RefreshCw, AlertCircle, ChevronLeft } from 'lucide-react'
+import { Gift, Package, Printer, MessageCircle, RefreshCw, AlertCircle, ChevronLeft, X, Pencil } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -26,6 +26,7 @@ interface AmoRequest {
   itens: { nome: string; qtd: number; tipo: string; formato: string; tamanho: string }[]
   status: AmoStatus
   created_at: string
+  updated_at: string | null
 }
 
 const STATUS_CFG: Record<AmoStatus, { label: string; bg: string; text: string }> = {
@@ -123,14 +124,18 @@ function PrintOrder({ req }: { req: AmoRequest }) {
 }
 
 // ─── Request card (list) ────────────────────────────────────────
-function RequestCard({ req, onPrint, onStatusChange }: {
+function RequestCard({ req, onPrint, onStatusChange, onEdit }: {
   req: AmoRequest
   onPrint: (r: AmoRequest) => void
   onStatusChange: () => void
+  onEdit: (r: AmoRequest) => void
 }) {
   const cfg = STATUS_CFG[req.status] || STATUS_CFG.PENDENTE
   const lab = req.empresa === 'lumar' ? 'Lumar' : 'Cantina em Casa'
   const dt = format(parseISO(req.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })
+  const isEdited = req.updated_at
+    ? new Date(req.updated_at).getTime() - new Date(req.created_at).getTime() > 5000
+    : false
   const [saving, setSaving] = useState(false)
 
   async function changeStatus(s: AmoStatus) {
@@ -148,12 +153,20 @@ function RequestCard({ req, onPrint, onStatusChange }: {
             <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
             <span className="text-xs font-semibold text-slate-500">{lab}</span>
             <span className="text-xs text-slate-400">{dt}</span>
+            {isEdited && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400">
+                ✏ Editado
+              </span>
+            )}
           </div>
           <p className="font-semibold text-slate-800 dark:text-slate-200 mt-1">{req.vendedor}</p>
           {req.cliente && <p className="text-xs text-slate-500">Cliente: {req.cliente}</p>}
           {req.entrega_data && <p className="text-xs text-slate-400">Entrega: {req.entrega_data} {req.entrega_hora || ''}</p>}
         </div>
         <div className="flex gap-1.5 shrink-0 flex-wrap">
+          <button onClick={() => onEdit(req)} className="btn-secondary text-xs py-1.5 px-2.5">
+            <Pencil size={13} /> Editar
+          </button>
           <button onClick={() => onPrint(req)} className="btn-secondary text-xs py-1.5 px-2.5">
             <Printer size={13} /> Imprimir
           </button>
@@ -189,6 +202,202 @@ function RequestCard({ req, onPrint, onStatusChange }: {
   )
 }
 
+// ─── Edit modal ─────────────────────────────────────────────────
+function AmoEditModal({ req, onClose, onSaved }: {
+  req: AmoRequest
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const minDate = addBizDays(2)
+  const [vendedor,    setVendedor]    = useState(req.vendedor)
+  const [cliente,     setCliente]     = useState(req.cliente ?? '')
+  const [obs,         setObs]         = useState(req.observacoes ?? '')
+  const [entregaData, setEntregaData] = useState(req.entrega_data ?? '')
+  const [entregaHora, setEntregaHora] = useState(req.entrega_hora ?? '')
+  const [itens,       setItens]       = useState<Record<string, AmoItem>>(() => {
+    const init: Record<string, AmoItem> = {}
+    for (const it of req.itens) {
+      init[it.nome] = {
+        qtd: it.qtd,
+        tipo: it.tipo as 'assado' | 'congelado',
+        formato: it.formato as 'unidades' | 'pacote',
+        tamanho: (it.tamanho ?? '') as '' | '500g' | '1kg' | '3kg',
+      }
+    }
+    return init
+  })
+  const [products, setProducts] = useState<PriceItem[]>([])
+  const [busca,    setBusca]    = useState('')
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.from('crm_price_items').select('*').eq('empresa', req.empresa).eq('ativo', true).order('nome')
+      .then(({ data }) => setProducts((data as PriceItem[]) || []))
+  }, [req.empresa])
+
+  function changeQtd(nome: string, delta: number) {
+    setItens(prev => {
+      const cur = prev[nome] || { qtd: 0, tipo: 'assado' as const, formato: 'unidades' as const, tamanho: '' as const }
+      return { ...prev, [nome]: { ...cur, qtd: Math.max(0, cur.qtd + delta) } }
+    })
+  }
+  function changeTipo(nome: string, tipo: 'assado' | 'congelado') {
+    setItens(prev => ({
+      ...prev,
+      [nome]: { ...(prev[nome] || { qtd: 1, tipo, formato: 'unidades', tamanho: '' }), tipo, formato: 'unidades', tamanho: '' },
+    }))
+  }
+  function setItemField(nome: string, field: keyof AmoItem, value: string) {
+    setItens(prev => ({
+      ...prev,
+      [nome]: { ...(prev[nome] || { qtd: 1, tipo: 'assado', formato: 'unidades', tamanho: '' }), [field]: value },
+    }))
+  }
+
+  const activeItems = Object.entries(itens).filter(([, v]) => v.qtd > 0)
+  const filteredProds = products.filter(p => !busca || p.nome.toLowerCase().includes(busca.toLowerCase()))
+
+  async function save() {
+    if (!vendedor.trim()) { setError('Informe seu nome.'); return }
+    if (activeItems.length === 0) { setError('Selecione ao menos um produto.'); return }
+    setSaving(true); setError(null)
+    const payload = activeItems.map(([nome, v]) => ({
+      nome, qtd: v.qtd, tipo: v.tipo,
+      formato: v.tipo === 'congelado' ? v.formato : 'unidades',
+      tamanho: v.tipo === 'congelado' && v.formato === 'pacote' ? v.tamanho : '',
+    }))
+    const { error: err } = await supabase.from('crm_amostras').update({
+      vendedor: vendedor.trim(), cliente: cliente.trim() || null,
+      observacoes: obs.trim() || null, entrega_data: entregaData || null,
+      entrega_hora: entregaHora || null, itens: payload,
+      updated_at: new Date().toISOString(),
+    }).eq('id', req.id)
+    if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+    setSaving(false); onSaved(); onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
+          <h2 className="font-bold text-slate-800 dark:text-slate-200">
+            Editar Pedido · {req.empresa === 'lumar' ? '🏭 Lumar' : '🥐 Cantina'}
+          </h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="label">Seu nome (vendedor) *</label>
+              <input className="input" value={vendedor} onChange={e => setVendedor(e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <label className="label">Cliente / Estabelecimento</label>
+              <input className="input" value={cliente} onChange={e => setCliente(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Data de entrega</label>
+              <input type="date" className="input" value={entregaData} onChange={e => setEntregaData(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Horário</label>
+              <input type="time" className="input" value={entregaHora} onChange={e => setEntregaHora(e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <label className="label">Observações</label>
+              <textarea className="input resize-none" rows={2} value={obs} onChange={e => setObs(e.target.value)} />
+            </div>
+          </div>
+
+          {entregaData && entregaData < minDate && (
+            <div className="flex items-start gap-2 text-xs text-orange-700 bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg px-3 py-2">
+              <AlertCircle size={13} className="shrink-0 mt-0.5" />
+              <span>Data dentro do prazo mínimo de 2 dias úteis — confirme com a produção se é possível atender esta data.</span>
+            </div>
+          )}
+
+          <div>
+            <label className="label">Produtos</label>
+            <input className="input mb-2" placeholder="Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
+            <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
+              {filteredProds.length === 0 ? (
+                <div className="py-4 text-center text-slate-400 text-sm">Carregando produtos...</div>
+              ) : filteredProds.map(p => {
+                const it = itens[p.nome] || { qtd: 0, tipo: 'assado' as const, formato: 'unidades' as const, tamanho: '' as const }
+                const q = it.qtd
+                return (
+                  <div key={p.id} className="px-3 py-2.5 bg-white dark:bg-slate-800">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="flex-1 text-sm font-medium text-slate-800 dark:text-slate-200 truncate min-w-0">{p.nome}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => changeQtd(p.nome, -1)}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-base transition-colors ${q > 0 ? 'bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>−</button>
+                        <span className="w-5 text-center font-bold text-sm tabular-nums">{q}</span>
+                        <button onClick={() => changeQtd(p.nome, 1)}
+                          className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-base hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">+</button>
+                      </div>
+                      {q > 0 && (
+                        <div className="flex gap-1 shrink-0">
+                          <button onClick={() => changeTipo(p.nome, 'assado')}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${it.tipo === 'assado' ? 'bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>🔥 Ass.</button>
+                          <button onClick={() => changeTipo(p.nome, 'congelado')}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${it.tipo === 'congelado' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>❄️ Cong.</button>
+                        </div>
+                      )}
+                    </div>
+                    {q > 0 && it.tipo === 'congelado' && (
+                      <div className="mt-2 pl-1 flex flex-wrap gap-x-4 gap-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400">Formato:</span>
+                          {(['unidades', 'pacote'] as const).map(f => (
+                            <button key={f} onClick={() => setItemField(p.nome, 'formato', f)}
+                              className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-colors ${it.formato === f ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                              {f === 'unidades' ? 'Unidades' : 'Pacote'}
+                            </button>
+                          ))}
+                        </div>
+                        {req.empresa === 'lumar' && it.formato === 'pacote' && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-slate-400">Tamanho:</span>
+                            {(['500g', '1kg', '3kg'] as const).map(sz => (
+                              <button key={sz} onClick={() => setItemField(p.nome, 'tamanho', sz)}
+                                className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-colors ${it.tamanho === sz ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                                {sz}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+              <AlertCircle size={13} /> {error}
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3 shrink-0">
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
+          <button onClick={save} disabled={saving} className="btn-primary flex-1 justify-center">
+            {saving ? 'Salvando...' : 'Salvar Alterações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main page ──────────────────────────────────────────────────
 export default function SolicitarAmostras() {
   const { profile } = useAuth()
@@ -212,6 +421,7 @@ export default function SolicitarAmostras() {
   const [error, setError]             = useState<string | null>(null)
   const [savedReq, setSavedReq]       = useState<AmoRequest | null>(null)
   const [printTarget, setPrintTarget] = useState<AmoRequest | null>(null)
+  const [editingReq, setEditingReq]   = useState<AmoRequest | null>(null)
 
   const minDate = addBizDays(2)
 
@@ -272,10 +482,6 @@ export default function SolicitarAmostras() {
     if (!empresa) return
     if (!vendedor.trim()) { setError('Informe seu nome.'); return }
     if (activeItems.length === 0) { setError('Selecione ao menos um produto.'); return }
-    if (entregaData && entregaData < minDate) {
-      setError(`Data de entrega precisa ser a partir de ${minDate} (2 dias úteis).`)
-      return
-    }
     setSending(true); setError(null)
 
     const payload = activeItems.map(([nome, v]) => ({
@@ -374,7 +580,7 @@ export default function SolicitarAmostras() {
                 </div>
                 <div>
                   <label className="label">Data de entrega</label>
-                  <input type="date" className="input" min={minDate} value={entregaData} onChange={e => setEntregaData(e.target.value)} />
+                  <input type="date" className="input" value={entregaData} onChange={e => setEntregaData(e.target.value)} />
                 </div>
                 <div>
                   <label className="label">Horário</label>
@@ -389,6 +595,13 @@ export default function SolicitarAmostras() {
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
                 ⏳ São necessários até <strong>2 dias úteis</strong> para confecção das amostras.
               </div>
+
+              {entregaData && entregaData < minDate && (
+                <div className="flex items-start gap-2 text-xs text-orange-700 bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg px-3 py-2">
+                  <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                  <span>Data dentro do prazo mínimo de 2 dias úteis — confirme com a produção se é possível atender esta data.</span>
+                </div>
+              )}
 
               {/* Products */}
               <div>
@@ -535,12 +748,16 @@ export default function SolicitarAmostras() {
           ) : (
             <div className="space-y-2">
               {filteredReqs.map(req => (
-                <RequestCard key={req.id} req={req} onPrint={setPrintTarget} onStatusChange={loadRequests} />
+                <RequestCard key={req.id} req={req} onPrint={setPrintTarget} onStatusChange={loadRequests} onEdit={setEditingReq} />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {editingReq && (
+        <AmoEditModal req={editingReq} onClose={() => setEditingReq(null)} onSaved={loadRequests} />
+      )}
     </div>
   )
 }

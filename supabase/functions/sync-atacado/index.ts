@@ -81,6 +81,29 @@ Deno.serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
+  // Load crm_clients once per request for name → id matching
+  const { data: clientsData } = await supabase.from('crm_clients').select('id, nome')
+  const clientByExact = new Map<string, string>()
+  const clientPrefixList: Array<{ nkNome: string; id: string }> = []
+  for (const c of (clientsData ?? []) as Array<{ id: string; nome: string }>) {
+    if (!c.nome?.trim()) continue
+    const k = nk(c.nome)
+    clientByExact.set(k, c.id)
+    if (k.length >= 8) clientPrefixList.push({ nkNome: k, id: c.id })
+  }
+  // longest prefix wins — sort descending by length
+  clientPrefixList.sort((a, b) => b.nkNome.length - a.nkNome.length)
+
+  function findClientId(nome: string | null | undefined): string | null {
+    if (!nome?.trim()) return null
+    const k = nk(nome)
+    if (clientByExact.has(k)) return clientByExact.get(k)!
+    for (const c of clientPrefixList) {
+      if (k.startsWith(c.nkNome)) return c.id
+    }
+    return null
+  }
+
   let body: { type?: string } = {}
   try { body = await req.json() } catch { /* no body */ }
   const type = body.type ?? 'pedidos'
@@ -140,11 +163,15 @@ Deno.serve(async (req: Request) => {
         row.datapedido ?? row.datavenda ?? row.data ?? '',
       )
 
+      const clienteNome = row.cliente ?? row.nomecliente ?? row.nome ?? null
+      const clientId = findClientId(clienteNome)
+
       batch.push({
         id_venda:      idVenda,
         numero_pedido: parseInt(row.numeropedido ?? row.numero ?? row.numpedido ?? '', 10) || null,
-        // cliente_id NÃO é preenchido da planilha — IDs do ERP não existem na tabela clients do Supabase
-        cliente_nome:  row.cliente ?? row.nomecliente ?? row.nome ?? null,
+        cliente_nome:  clienteNome,
+        // crm_client_id only included when matched — avoids overwriting manually-set links on existing records
+        ...(clientId ? { crm_client_id: clientId } : {}),
         valor:         parseValor(row.valor ?? row.total ?? row.valorliquido ?? row.valortotal ?? ''),
         // turno e entregador NÃO são preenchidos pelo sync ERP — são gerenciados manualmente
         // pela atendente (via UI ou sync reg_lumar). Incluí-los aqui apagaria os valores manuais.

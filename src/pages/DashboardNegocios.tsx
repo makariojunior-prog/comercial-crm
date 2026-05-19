@@ -50,12 +50,16 @@ export default function DashboardNegocios() {
   const today = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })
 
   // Merge saved prefs with defaults (in case new widgets were added)
+  // conversas_alertas is always pinned first regardless of saved order
   const orderedWidgets = useMemo(() => {
     const saved = prefs.dashboardWidgets
     if (!saved.length) return DEFAULT_DASHBOARD_WIDGETS
     const savedIds = new Set(saved.map(w => w.id))
     const extra = DEFAULT_DASHBOARD_WIDGETS.filter(w => !savedIds.has(w.id))
-    return [...saved, ...extra].filter(w => w.visible)
+    const all = [...saved, ...extra].filter(w => w.visible)
+    const conversas = all.find(w => w.id === 'conversas_alertas')
+    const rest = all.filter(w => w.id !== 'conversas_alertas')
+    return conversas ? [conversas, ...rest] : all
   }, [prefs.dashboardWidgets])
 
   // Widgets that always span both columns (full width)
