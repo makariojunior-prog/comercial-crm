@@ -8,6 +8,7 @@ interface CobrancaRecord {
   crm_client_id: string | null
   cliente_nome: string
   tipo: 'NOTA' | 'BOLETO'
+  numero: string | null
   empresa: 'CANTINA' | 'LUMAR'
   data_emissao: string | null
   valor: number
@@ -438,6 +439,7 @@ export default function CobrancaPage() {
                 <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-left">
                   <th className="px-3 py-2.5 font-semibold">Cliente</th>
                   <th className="px-3 py-2.5 font-semibold">Tipo</th>
+                  <th className="px-3 py-2.5 font-semibold">Número</th>
                   <th className="px-3 py-2.5 font-semibold">Empresa</th>
                   <th className="px-3 py-2.5 font-semibold">Emissão</th>
                   <th className="px-3 py-2.5 font-semibold">Dias</th>
@@ -467,6 +469,7 @@ export default function CobrancaPage() {
                     >
                       <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 max-w-[200px] truncate" title={r.cliente_nome}>{r.cliente_nome}</td>
                       <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{r.tipo}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">{r.numero ?? '—'}</td>
                       <td className="px-3 py-2">
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${r.empresa === 'CANTINA' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
                           {r.empresa}
@@ -534,6 +537,7 @@ interface FormState {
   crm_client_id: string
   cliente_nome: string
   tipo: 'NOTA' | 'BOLETO'
+  numero: string
   empresa: 'CANTINA' | 'LUMAR'
   data_emissao: string
   valor: string
@@ -546,6 +550,7 @@ const EMPTY_FORM: FormState = {
   crm_client_id: '',
   cliente_nome: '',
   tipo: 'NOTA',
+  numero: '',
   empresa: 'CANTINA',
   data_emissao: new Date().toISOString().slice(0, 10),
   valor: '',
@@ -561,6 +566,7 @@ function CobrancaModal({ record, clients, onClose, onSaved }: CobrancaModalProps
           crm_client_id:  record.crm_client_id ?? '',
           cliente_nome:   record.cliente_nome,
           tipo:           record.tipo,
+          numero:         record.numero ?? '',
           empresa:        record.empresa,
           data_emissao:   record.data_emissao ?? new Date().toISOString().slice(0, 10),
           valor:          String(record.valor),
@@ -592,6 +598,7 @@ function CobrancaModal({ record, clients, onClose, onSaved }: CobrancaModalProps
       crm_client_id:  form.crm_client_id || null,
       cliente_nome:   form.cliente_nome.trim(),
       tipo:           form.tipo,
+      numero:         form.numero.trim() || null,
       empresa:        form.empresa,
       data_emissao:   form.data_emissao || null,
       valor:          parseFloat(form.valor) || 0,
@@ -646,14 +653,23 @@ function CobrancaModal({ record, clients, onClose, onSaved }: CobrancaModalProps
             )}
           </div>
 
-          {/* Tipo + Empresa */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Tipo + Número + Empresa */}
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="label">Tipo</label>
               <select value={form.tipo} onChange={e => f('tipo', e.target.value as 'NOTA' | 'BOLETO')} className="input">
                 <option value="NOTA">NOTA</option>
                 <option value="BOLETO">BOLETO</option>
               </select>
+            </div>
+            <div>
+              <label className="label">Número</label>
+              <input
+                className="input font-mono"
+                placeholder="Ex.: 1234"
+                value={form.numero}
+                onChange={e => f('numero', e.target.value)}
+              />
             </div>
             <div>
               <label className="label">Empresa</label>
@@ -674,25 +690,26 @@ function CobrancaModal({ record, clients, onClose, onSaved }: CobrancaModalProps
             </select>
           </div>
 
-          {/* Data emissão + Valor */}
+          {/* Data emissão + Data pagamento */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Data de emissão</label>
               <input type="date" value={form.data_emissao} onChange={e => f('data_emissao', e.target.value)} className="input" />
             </div>
             <div>
-              <label className="label">Valor (R$)</label>
-              <input type="number" step="0.01" min="0" value={form.valor} onChange={e => f('valor', e.target.value)} className="input" placeholder="0,00" />
+              <label className="label">
+                Data de pagamento
+                {form.situacao === 'EM ABERTO' && <span className="ml-1 text-slate-400 font-normal">(opcional)</span>}
+              </label>
+              <input type="date" value={form.data_pagamento} onChange={e => f('data_pagamento', e.target.value)} className="input" />
             </div>
           </div>
 
-          {/* Data pagamento */}
-          {form.situacao !== 'EM ABERTO' && (
-            <div>
-              <label className="label">Data de pagamento</label>
-              <input type="date" value={form.data_pagamento} onChange={e => f('data_pagamento', e.target.value)} className="input" />
-            </div>
-          )}
+          {/* Valor */}
+          <div>
+            <label className="label">Valor (R$)</label>
+            <input type="number" step="0.01" min="0" value={form.valor} onChange={e => f('valor', e.target.value)} className="input" placeholder="0,00" />
+          </div>
 
           {/* Observação */}
           <div>
