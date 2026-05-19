@@ -53,7 +53,13 @@ export default function Layout() {
         if (bi === -1) return -1
         return ai - bi
       })
-    : moduleItems
+    : [...moduleItems].sort((a, b) => {
+        // Dashboard sempre primeiro por padrão
+        if (a.module === 'dashboard') return -1
+        if (b.module === 'dashboard') return 1
+        // Demais itens em ordem alfabética pelo label
+        return a.label.localeCompare(b.label, 'pt-BR')
+      })
 
   const navItems = [...sortedModuleItems, ...specialItems]
 
