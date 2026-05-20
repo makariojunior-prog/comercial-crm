@@ -72,7 +72,7 @@ interface SimularResp {
 }
 
 export default function AutomacaoTab() {
-  const { user } = useAuth()
+  const { isAdmin, profile } = useAuth()
   const [config, setConfig] = useState<AutomacaoConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [clientes, setClientes] = useState<ClienteDia[]>([])
@@ -156,7 +156,7 @@ export default function AutomacaoTab() {
   async function toggleAtivo(novoValor: boolean) {
     if (!config) return
     const { error } = await supabase.from('automacao_config')
-      .update({ ativo: novoValor, updated_at: new Date().toISOString(), updated_by: user?.nome ?? user?.email ?? null })
+      .update({ ativo: novoValor, updated_at: new Date().toISOString(), updated_by: profile?.nome ?? profile?.email ?? null })
       .eq('id', config.id)
     if (!error) setConfig({ ...config, ativo: novoValor })
     setConfirmAtivar(false)
@@ -173,7 +173,7 @@ export default function AutomacaoTab() {
       msgs_por_lote: config.msgs_por_lote,
       pausa_entre_msgs_ms: config.pausa_entre_msgs_ms,
       updated_at: new Date().toISOString(),
-      updated_by: user?.nome ?? user?.email ?? null,
+      updated_by: profile?.nome ?? profile?.email ?? null,
     }).eq('id', config.id)
     setSavingCfg(false)
     setSavedMsg(error ? `Erro: ${error.message}` : '✓ Configurações salvas')
@@ -231,12 +231,25 @@ export default function AutomacaoTab() {
     return config.mensagem_template.replace(/\{CLIENTE\}/g, primeiroNome(exemplo))
   }, [config, clientesPorDia])
 
-  if (loading || !config) {
+  if (loading) {
     return (
       <div className="space-y-3">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="h-28 bg-slate-100 dark:bg-slate-700 rounded-xl animate-pulse" />
         ))}
+      </div>
+    )
+  }
+
+  if (!config) {
+    return (
+      <div className="card p-6 text-center space-y-2">
+        <Bot size={32} className="text-slate-300 mx-auto" />
+        <p className="text-sm font-medium text-slate-500">Configuração de automação não encontrada.</p>
+        <p className="text-xs text-slate-400">Execute a migration para criar a tabela <code>automacao_config</code> com uma linha <code>nome = 'LUMAR'</code>.</p>
+        <button onClick={load} className="btn-ghost text-xs flex items-center gap-1.5 mx-auto">
+          <RefreshCw size={13} /> Tentar novamente
+        </button>
       </div>
     )
   }
@@ -269,17 +282,21 @@ export default function AutomacaoTab() {
               </p>
               <p className="text-[10px] text-slate-400 uppercase tracking-wide">enviadas hoje</p>
             </div>
-            <button
-              onClick={() => config.ativo ? toggleAtivo(false) : setConfirmAtivar(true)}
-              className={`relative w-14 h-7 rounded-full transition-colors ${
-                config.ativo ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
-              }`}
-              title={config.ativo ? 'Desativar' : 'Ativar'}
-            >
-              <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${
-                config.ativo ? 'translate-x-7' : 'translate-x-0.5'
-              }`} />
-            </button>
+            {isAdmin ? (
+              <button
+                onClick={() => config.ativo ? toggleAtivo(false) : setConfirmAtivar(true)}
+                className={`relative w-14 h-7 rounded-full transition-colors ${
+                  config.ativo ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
+                }`}
+                title={config.ativo ? 'Desativar' : 'Ativar'}
+              >
+                <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                  config.ativo ? 'translate-x-7' : 'translate-x-0.5'
+                }`} />
+              </button>
+            ) : (
+              <span title="Somente administradores podem alterar" className="text-[10px] text-slate-400 italic">somente ADM</span>
+            )}
           </div>
         </div>
 
@@ -376,14 +393,20 @@ export default function AutomacaoTab() {
         </button>
         {showConfig && (
           <div className="px-4 pb-4 space-y-3 border-t border-slate-100 dark:border-slate-700 pt-3">
+            {!isAdmin && (
+              <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+                🔒 Somente administradores podem alterar as configurações.
+              </p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="label">Hora de envio</label>
                 <input
                   type="time"
                   value={config.hora_envio.slice(0, 5)}
-                  onChange={e => setConfig({ ...config, hora_envio: e.target.value + ':00' })}
+                  onChange={e => isAdmin && setConfig({ ...config, hora_envio: e.target.value + ':00' })}
                   className="input"
+                  disabled={!isAdmin}
                 />
               </div>
               <div>
@@ -391,8 +414,9 @@ export default function AutomacaoTab() {
                 <input
                   type="number" min={1}
                   value={config.limite_diario}
-                  onChange={e => setConfig({ ...config, limite_diario: parseInt(e.target.value) || 0 })}
+                  onChange={e => isAdmin && setConfig({ ...config, limite_diario: parseInt(e.target.value) || 0 })}
                   className="input"
+                  disabled={!isAdmin}
                 />
               </div>
               <div>
@@ -400,8 +424,9 @@ export default function AutomacaoTab() {
                 <input
                   type="number" min={1}
                   value={config.msgs_por_lote}
-                  onChange={e => setConfig({ ...config, msgs_por_lote: parseInt(e.target.value) || 1 })}
+                  onChange={e => isAdmin && setConfig({ ...config, msgs_por_lote: parseInt(e.target.value) || 1 })}
                   className="input"
+                  disabled={!isAdmin}
                 />
               </div>
             </div>
@@ -410,8 +435,9 @@ export default function AutomacaoTab() {
               <input
                 type="number" min={1}
                 value={Math.round(config.pausa_entre_msgs_ms / 1000)}
-                onChange={e => setConfig({ ...config, pausa_entre_msgs_ms: (parseInt(e.target.value) || 1) * 1000 })}
+                onChange={e => isAdmin && setConfig({ ...config, pausa_entre_msgs_ms: (parseInt(e.target.value) || 1) * 1000 })}
                 className="input sm:w-40"
+                disabled={!isAdmin}
               />
             </div>
             <div>
@@ -419,8 +445,9 @@ export default function AutomacaoTab() {
               <textarea
                 rows={8}
                 value={config.mensagem_template}
-                onChange={e => setConfig({ ...config, mensagem_template: e.target.value })}
+                onChange={e => isAdmin && setConfig({ ...config, mensagem_template: e.target.value })}
                 className="input font-mono text-xs"
+                disabled={!isAdmin}
               />
             </div>
             <div>
@@ -429,16 +456,18 @@ export default function AutomacaoTab() {
                 {previewMensagem}
               </pre>
             </div>
-            <div className="flex items-center gap-3">
-              <button onClick={salvarConfig} disabled={savingCfg} className="btn-primary text-sm flex items-center gap-1.5">
-                <Save size={14} /> {savingCfg ? 'Salvando…' : 'Salvar configurações'}
-              </button>
-              {savedMsg && (
-                <span className={`text-xs ${savedMsg.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
-                  {savedMsg}
-                </span>
-              )}
-            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-3">
+                <button onClick={salvarConfig} disabled={savingCfg} className="btn-primary text-sm flex items-center gap-1.5">
+                  <Save size={14} /> {savingCfg ? 'Salvando…' : 'Salvar configurações'}
+                </button>
+                {savedMsg && (
+                  <span className={`text-xs ${savedMsg.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+                    {savedMsg}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -489,19 +518,23 @@ export default function AutomacaoTab() {
         <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
           <Calendar size={16} className="text-orange-500" /> Feriados (sem envio)
         </h3>
-        <div className="flex gap-2 flex-wrap items-end">
-          <div>
-            <label className="label">Data</label>
-            <input type="date" value={novoFeriadoData} onChange={e => setNovoFeriadoData(e.target.value)} className="input" />
+        {isAdmin ? (
+          <div className="flex gap-2 flex-wrap items-end">
+            <div>
+              <label className="label">Data</label>
+              <input type="date" value={novoFeriadoData} onChange={e => setNovoFeriadoData(e.target.value)} className="input" />
+            </div>
+            <div className="flex-1 min-w-[140px]">
+              <label className="label">Descrição</label>
+              <input type="text" placeholder="Ex.: Natal" value={novoFeriadoDesc} onChange={e => setNovoFeriadoDesc(e.target.value)} className="input" />
+            </div>
+            <button onClick={adicionarFeriado} disabled={!novoFeriadoData} className="btn-primary text-sm flex items-center gap-1.5">
+              <Plus size={14} /> Adicionar
+            </button>
           </div>
-          <div className="flex-1 min-w-[140px]">
-            <label className="label">Descrição</label>
-            <input type="text" placeholder="Ex.: Natal" value={novoFeriadoDesc} onChange={e => setNovoFeriadoDesc(e.target.value)} className="input" />
-          </div>
-          <button onClick={adicionarFeriado} disabled={!novoFeriadoData} className="btn-primary text-sm flex items-center gap-1.5">
-            <Plus size={14} /> Adicionar
-          </button>
-        </div>
+        ) : (
+          <p className="text-xs text-slate-400 italic">🔒 Somente administradores podem adicionar feriados.</p>
+        )}
         {feriados.length === 0 ? (
           <p className="text-xs text-slate-400">Nenhum feriado cadastrado.</p>
         ) : (
@@ -512,9 +545,11 @@ export default function AutomacaoTab() {
                   {format(parseISO(f.data), "dd/MM/yyyy", { locale: ptBR })}
                 </span>
                 <span className="flex-1 text-xs text-slate-500 dark:text-slate-400 truncate">{f.descricao ?? ''}</span>
-                <button onClick={() => removerFeriado(f.id)} className="text-slate-400 hover:text-red-500 p-1">
-                  <Trash2 size={14} />
-                </button>
+                {isAdmin && (
+                  <button onClick={() => removerFeriado(f.id)} className="text-slate-400 hover:text-red-500 p-1">
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -528,7 +563,7 @@ export default function AutomacaoTab() {
             <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <Clock size={16} className="text-orange-500" /> Fila de hoje ({fila.length})
             </h3>
-            {fila.some(f => f.status === 'pendente') && (
+            {isAdmin && fila.some(f => f.status === 'pendente') && (
               <button onClick={cancelarFila} className="btn-danger text-xs flex items-center gap-1.5">
                 <MinusCircle size={13} /> Cancelar pendentes
               </button>
