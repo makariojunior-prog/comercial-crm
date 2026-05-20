@@ -557,6 +557,55 @@ export interface AtacadoContatoLog {
   created_at: string
 }
 
+// ─── Automação de Mensagens ────────────────────────────────────
+export interface AutomacaoConfig {
+  id: string
+  nome: string
+  ativo: boolean
+  hora_envio: string
+  mensagem_template: string
+  msgs_por_lote: number
+  pausa_entre_msgs_ms: number
+  pausa_min_ms: number
+  pausa_max_ms: number
+  limite_diario: number
+  updated_at: string | null
+  updated_by: string | null
+}
+
+export interface AutomacaoFeriado {
+  id: string
+  data: string
+  descricao: string | null
+  created_at: string
+}
+
+export interface AutomacaoFilaItem {
+  id: string
+  automacao: string
+  data_exec: string
+  cliente_nome: string
+  telefone: string
+  mensagem: string | null
+  status: 'pendente' | 'enviado' | 'erro' | 'pulado'
+  erro: string | null
+  tentativas: number
+  processed_at: string | null
+  created_at: string
+}
+
+export interface AutomacaoLog {
+  id: string
+  automacao: string
+  data_exec: string | null
+  cliente_nome: string | null
+  telefone: string | null
+  mensagem: string | null
+  status: string
+  erro: string | null
+  created_at: string
+}
+
 // ─── Conversas WhatsApp ────────────────────────────────────────
 export interface CrmConversation {
   id: string

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { MessageSquare, RefreshCw, Eye, EyeOff, Search, X, ChevronDown, ChevronUp, AlertTriangle, RotateCcw, History } from 'lucide-react'
 import ConversaHistoricoModal from '../components/ConversaHistoricoModal'
+import AutomacaoTab from './AutomacaoTab'
 import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -39,6 +40,7 @@ export default function ConversacoesPage() {
   const [modalConversa, setModalConversa] = useState<CrmConversation | null>(null)
   const [reprocessing, setReprocessing] = useState(false)
   const [reprocessMsg, setReprocessMsg] = useState<string | null>(null)
+  const [vista, setVista] = useState<'CONVERSAS' | 'AUTOMACAO'>('CONVERSAS')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -195,6 +197,34 @@ export default function ConversacoesPage() {
         </div>
       </div>
 
+      {/* Vista tabs */}
+      <div className="flex gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setVista('CONVERSAS')}
+          className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+            vista === 'CONVERSAS'
+              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          Conversas
+        </button>
+        <button
+          onClick={() => setVista('AUTOMACAO')}
+          className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+            vista === 'AUTOMACAO'
+              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          Automação 🤖
+        </button>
+      </div>
+
+      {vista === 'AUTOMACAO' ? (
+        <AutomacaoTab />
+      ) : (
+      <>
       {/* Conexão tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl w-fit">
         {(['TODOS', 'CANTINA', 'LUMAR', 'LUMAR_NOVOS'] as ConexaoTab[]).map(tab => (
@@ -321,6 +351,8 @@ export default function ConversacoesPage() {
             setModalConversa(prev => prev?.id === id ? { ...prev, visto: true } : prev)
           }}
         />
+      )}
+      </>
       )}
     </div>
   )
