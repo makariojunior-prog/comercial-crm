@@ -172,6 +172,8 @@ export default function AutomacaoTab() {
       limite_diario: config.limite_diario,
       msgs_por_lote: config.msgs_por_lote,
       pausa_entre_msgs_ms: config.pausa_entre_msgs_ms,
+      pausa_min_ms: config.pausa_min_ms,
+      pausa_max_ms: config.pausa_max_ms,
       updated_at: new Date().toISOString(),
       updated_by: profile?.nome ?? profile?.email ?? null,
     }).eq('id', config.id)
@@ -430,15 +432,40 @@ export default function AutomacaoTab() {
                 />
               </div>
             </div>
-            <div>
-              <label className="label">Pausa entre mensagens (segundos)</label>
-              <input
-                type="number" min={1}
-                value={Math.round(config.pausa_entre_msgs_ms / 1000)}
-                onChange={e => isAdmin && setConfig({ ...config, pausa_entre_msgs_ms: (parseInt(e.target.value) || 1) * 1000 })}
-                className="input sm:w-40"
-                disabled={!isAdmin}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="label">Pausa entre msgs no lote (s)</label>
+                <input
+                  type="number" min={1}
+                  value={Math.round(config.pausa_entre_msgs_ms / 1000)}
+                  onChange={e => isAdmin && setConfig({ ...config, pausa_entre_msgs_ms: (parseInt(e.target.value) || 1) * 1000 })}
+                  className="input"
+                  disabled={!isAdmin}
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">Pausa fixa dentro de cada lote</p>
+              </div>
+              <div>
+                <label className="label">Pausa mín. entre lotes (s)</label>
+                <input
+                  type="number" min={1}
+                  value={Math.round(config.pausa_min_ms / 1000)}
+                  onChange={e => isAdmin && setConfig({ ...config, pausa_min_ms: (parseInt(e.target.value) || 1) * 1000 })}
+                  className="input"
+                  disabled={!isAdmin}
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">Mínimo do intervalo aleatório</p>
+              </div>
+              <div>
+                <label className="label">Pausa máx. entre lotes (s)</label>
+                <input
+                  type="number" min={1}
+                  value={Math.round(config.pausa_max_ms / 1000)}
+                  onChange={e => isAdmin && setConfig({ ...config, pausa_max_ms: (parseInt(e.target.value) || 1) * 1000 })}
+                  className="input"
+                  disabled={!isAdmin}
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">Máximo do intervalo aleatório</p>
+              </div>
             </div>
             <div>
               <label className="label">Template de mensagem (use {'{CLIENTE}'} para o nome)</label>
