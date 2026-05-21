@@ -364,6 +364,7 @@ function HistoricoTab({ onEdit }: { onEdit: (p: VarejoPedido) => void }) {
   const [to,     setTo]       = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [data,   setData]     = useState<VarejoPedido[]>([])
   const [loading, setLoading] = useState(false)
+  const [soOcorrencia, setSoOcorrencia] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -391,11 +392,13 @@ function HistoricoTab({ onEdit }: { onEdit: (p: VarejoPedido) => void }) {
 
       const { data: rows } = await q
       if (!active) return
-      setData(rows ?? [])
+      setData((rows ?? []) as VarejoPedido[])
       setLoading(false)
     })()
     return () => { active = false }
   }, [debouncedSearch, from, to])
+
+  const displayData = soOcorrencia ? data.filter(p => p.ocorrencia?.trim()) : data
 
   return (
     <div className="space-y-3">
@@ -411,24 +414,39 @@ function HistoricoTab({ onEdit }: { onEdit: (p: VarejoPedido) => void }) {
         </div>
         <input type="date" className="input text-sm w-auto" value={from} onChange={e => setFrom(e.target.value)} />
         <input type="date" className="input text-sm w-auto" value={to}   onChange={e => setTo(e.target.value)} />
+        <button
+          onClick={() => setSoOcorrencia(v => !v)}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+            soOcorrencia
+              ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-300'
+              : 'border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
+          }`}
+        >
+          ⚠️ {soOcorrencia ? 'Com ocorrência' : 'Ocorrências'}
+        </button>
       </div>
 
       {loading ? (
         <div className="text-center py-8 text-slate-400 text-sm">Buscando...</div>
-      ) : data.length === 0 ? (
+      ) : displayData.length === 0 ? (
         <div className="card p-10 text-center text-slate-400">
           <Package size={28} className="mx-auto mb-2 opacity-40" />
           <p className="text-sm">Nenhum pedido encontrado.</p>
         </div>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-xs text-slate-400">{data.length} pedido{data.length !== 1 ? 's' : ''}</p>
-          {data.map(p => (
+          <p className="text-xs text-slate-400">{displayData.length} pedido{displayData.length !== 1 ? 's' : ''}</p>
+          {displayData.map(p => (
             <div key={p.id} className="relative">
               {p.data_entrega && (
                 <span className="absolute right-9 top-2.5 text-[10px] text-slate-400">
                   {format(parseISO(p.data_entrega), 'dd/MM/yy')}
                 </span>
+              )}
+              {p.ocorrencia && (
+                <div className="text-[10px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1 rounded-t-lg border border-amber-200 dark:border-amber-800 -mb-1 truncate">
+                  ⚠️ {p.ocorrencia}
+                </div>
               )}
               <PedidoCard pedido={p} onClick={() => onEdit(p)} />
             </div>

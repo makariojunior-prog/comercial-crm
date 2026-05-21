@@ -3,7 +3,7 @@ import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, Calendar, Printer,
-  RefreshCw, Share2, AlertCircle, Truck, Check,
+  RefreshCw, Share2, AlertCircle, Truck, Check, AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -63,9 +63,11 @@ export default function RomaneioTab() {
   const [veiculoSalvo,  setVeiculoSalvo]  = useState(false)
 
   // Estado mutável por item
-  const [seqMap,      setSeqMap]      = useState<Record<string, string>>({})
-  const [entregueMap, setEntregueMap] = useState<Record<string, boolean>>({})
-  const [ocorrMap,    setOcorrMap]    = useState<Record<string, string>>({})
+  const [seqMap,   setSeqMap]   = useState<Record<string, string>>({})
+  const [ocorrMap, setOcorrMap] = useState<Record<string, string>>({})
+
+  // Filtro "apenas com ocorrência"
+  const [filtroOcorrencia, setFiltroOcorrencia] = useState(false)
 
   useEffect(() => {
     supabase.from('crm_drivers').select('id, nome').eq('ativo', true).order('nome')
@@ -94,7 +96,7 @@ export default function RomaneioTab() {
   const totalLumar   = lumarItems.reduce((s, i) => s + i.valor, 0)
   const totalCantina = cantinaItems.reduce((s, i) => s + i.valor, 0)
   const totalGeral   = totalLumar + totalCantina
-  const qtdEntregues = items.filter(i => entregueMap[i.uid]).length
+  const qtdComOcorrencia = items.filter(i => (ocorrMap[i.uid] ?? i.ocorrencia_db).trim()).length
 
   // Ordenação: automática por seqMap quando qualquer número for inserido
   const displayItems = useMemo(() => {
@@ -103,9 +105,12 @@ export default function RomaneioTab() {
       return isNaN(n) ? 9999 : n
     }
     const hasAnySeq = Object.values(seqMap).some(v => /^\d+$/.test(v.trim()))
+    const filtered = filtroOcorrencia
+      ? items.filter(i => (ocorrMap[i.uid] ?? i.ocorrencia_db).trim())
+      : items
     const base = [
-      ...items.filter(i => i.empresa === 'LUMAR')  .sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)),
-      ...items.filter(i => i.empresa === 'CANTINA').sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)),
+      ...filtered.filter(i => i.empresa === 'LUMAR')  .sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)),
+      ...filtered.filter(i => i.empresa === 'CANTINA').sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)),
     ]
     if (!hasAnySeq) return base
     return [...base].sort((a, b) => {
@@ -114,13 +119,13 @@ export default function RomaneioTab() {
       if (a.empresa !== b.empresa) return a.empresa === 'LUMAR' ? -1 : 1
       return turnoOrd(a.turno) - turnoOrd(b.turno)
     })
-  }, [items, seqMap])
+  }, [items, seqMap, ocorrMap, filtroOcorrencia])
 
   // ── Carregar dados (automático ao mudar filtros) ─────────────────
 
   const load = useCallback(async () => {
     setLoading(true)
-    setSeqMap({}); setEntregueMap({}); setOcorrMap({})
+    setSeqMap({}); setOcorrMap({})
     setVeiculoSalvo(false)
 
     const nenhum = !turnoManha && !turnoTarde && !turnoNoite
@@ -151,7 +156,7 @@ export default function RomaneioTab() {
 
     let qC = supabase
       .from('varejo_pedidos')
-      .select('id, num_pedido, cliente, turno, entregador, valor_liquido, restricao, rota_definida, sugestao_rota, veiculo')
+      .select('id, num_pedido, cliente, turno, entregador, valor_liquido, restricao, rota_definida, sugestao_rota, veiculo, ocorrencia')
       .eq('data_entrega', date)
       .neq('status_icon', '❌')
     if (turnoOr) qC = qC.or(turnoOr)
@@ -189,7 +194,7 @@ export default function RomaneioTab() {
       pgto:          '',
       valor:         Number(p.valor_liquido) || 0,
       obs:           p.restricao ?? '',
-      ocorrencia_db: '',
+      ocorrencia_db: p.ocorrencia ?? '',
     }))
 
     // Detecta veículo já salvo nos pedidos (usa o primeiro valor encontrado)
@@ -224,6 +229,22 @@ export default function RomaneioTab() {
     setSavingVeiculo(false)
     setVeiculoSalvo(true)
     setTimeout(() => setVeiculoSalvo(false), 2500)
+  }
+
+  // ── Salvar ocorrência no pedido original ─────────────────────────
+
+  async function handleOcorrenciaBlur(uid: string) {
+    const value = (ocorrMap[uid] ?? '').trim()
+    const item = items.find(i => i.uid === uid)
+    if (!item) return
+    if (value === (item.ocorrencia_db ?? '').trim()) return
+    const id = parseInt(uid.slice(1))
+    if (uid.startsWith('L')) {
+      await supabase.from('atacado_pedidos').update({ ocorrencia: value || null }).eq('id', id)
+    } else {
+      await supabase.from('varejo_pedidos').update({ ocorrencia: value || null }).eq('id', id)
+    }
+    setItems(prev => prev.map(i => i.uid === uid ? { ...i, ocorrencia_db: value } : i))
   }
 
   // Carrega automaticamente sempre que os filtros mudarem
@@ -516,6 +537,20 @@ export default function RomaneioTab() {
               <Share2 size={13} /> Compartilhar
             </button>
             <button
+              onClick={() => setFiltroOcorrencia(v => !v)}
+              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                filtroOcorrencia
+                  ? 'bg-red-50 border-red-300 text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300'
+                  : 'border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+              title="Mostrar apenas pedidos com ocorrência registrada"
+            >
+              <AlertTriangle size={13} />
+              {filtroOcorrencia
+                ? `Com ocorrência (${qtdComOcorrencia})`
+                : `Ocorrências${qtdComOcorrencia > 0 ? ` (${qtdComOcorrencia})` : ''}`}
+            </button>
+            <button
               onClick={() => window.print()}
               className="btn-primary text-xs py-1.5 gap-1 ml-auto"
             >
@@ -524,24 +559,6 @@ export default function RomaneioTab() {
           </div>
         )}
 
-        {/* ── Progressbar de entrega ───────────────────────────────── */}
-        {!loading && items.length > 0 && qtdEntregues > 0 && (
-          <div className="flex items-center gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5 no-print">
-            <span className="text-green-700 dark:text-green-300 font-bold text-sm whitespace-nowrap">
-              ✅ {qtdEntregues}/{items.length}
-            </span>
-            <div className="flex-1 h-2 bg-green-200 dark:bg-green-900 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-500 rounded-full transition-all duration-300"
-                style={{ width: `${(qtdEntregues / items.length) * 100}%` }}
-              />
-            </div>
-            {qtdEntregues === items.length
-              ? <span className="text-green-700 dark:text-green-300 font-bold text-xs whitespace-nowrap">🎉 Rota concluída!</span>
-              : <span className="text-green-600 dark:text-green-400 text-xs whitespace-nowrap">{items.length - qtdEntregues} restante(s)</span>
-            }
-          </div>
-        )}
 
         {/* ── Vazio ────────────────────────────────────────────────── */}
         {!loading && items.length === 0 && (
@@ -589,8 +606,7 @@ export default function RomaneioTab() {
                     <col style={{ width: 80 }} />
                     <col style={{ width: 88 }} />
                     <col />
-                    <col style={{ width: 34 }} />
-                    <col style={{ width: 140 }} />
+                    <col style={{ width: 160 }} />
                   </colgroup>
 
                   {(['LUMAR', 'CANTINA'] as const).map(emp => {
@@ -608,7 +624,7 @@ export default function RomaneioTab() {
                         </tr>
 
                         <tr className="rom-cols bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-bold text-[10px] text-center">
-                          {['Nº', 'PEDIDO', 'CLIENTE', 'TURNO', 'ROTA', 'PGTO', 'VALOR (R$)', 'OBS / RESTRIÇÃO', '✓', 'OCORRÊNCIA'].map(h => (
+                          {['Nº', 'PEDIDO', 'CLIENTE', 'TURNO', 'ROTA', 'PGTO', 'VALOR (R$)', 'OBS / RESTRIÇÃO', 'OCORRÊNCIA'].map(h => (
                             <td key={h} className={`px-2 py-1.5 border border-slate-300 dark:border-slate-600 ${['CLIENTE', 'OBS / RESTRIÇÃO', 'OCORRÊNCIA'].includes(h) ? 'text-left' : ''}`}>
                               {h}
                             </td>
@@ -616,12 +632,12 @@ export default function RomaneioTab() {
                         </tr>
 
                         {grupo.map((item, idx) => {
-                          const entregue = entregueMap[item.uid] ?? false
                           const rowBg = idx % 2 === 0 ? 'bg-white dark:bg-slate-800/10' : 'bg-slate-50 dark:bg-slate-800/30'
                           const rowPrint = idx % 2 === 0 ? 'rom-row' : 'rom-row-alt'
+                          const temOcorrencia = (ocorrMap[item.uid] ?? item.ocorrencia_db).trim()
 
                           return (
-                            <tr key={item.uid} className={`${rowPrint} ${rowBg} transition-colors ${entregue ? 'opacity-50' : ''}`}>
+                            <tr key={item.uid} className={`${rowPrint} ${rowBg} transition-colors`}>
                               <td className="px-1 py-1 border-b border-l border-slate-200 dark:border-slate-700 text-center">
                                 <input
                                   type="number"
@@ -653,21 +669,13 @@ export default function RomaneioTab() {
                               <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400 text-[10px] leading-tight">
                                 {item.obs || ''}
                               </td>
-                              <td className="px-1 py-1 border-b border-slate-200 dark:border-slate-700 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={entregue}
-                                  onChange={() => setEntregueMap(m => ({ ...m, [item.uid]: !m[item.uid] }))}
-                                  className="w-4 h-4 accent-green-500 cursor-pointer no-print"
-                                />
-                                <span className="print-only inline-block w-3.5 h-3.5 border border-slate-500 rounded-sm" />
-                              </td>
-                              <td className="px-1 py-1 border-b border-r border-slate-200 dark:border-slate-700">
+                              <td className={`px-1 py-1 border-b border-r border-slate-200 dark:border-slate-700 ${temOcorrencia ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}`}>
                                 <input
                                   type="text"
-                                  className="print-input w-full text-[10px] border border-transparent rounded px-1 py-0.5 bg-transparent text-slate-600 dark:text-slate-300 focus:outline-none focus:border-orange-300 focus:ring-1 focus:ring-orange-300"
+                                  className="print-input w-full text-[10px] border border-transparent rounded px-1 py-0.5 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-300 focus:ring-1 focus:ring-orange-300"
                                   value={ocorrMap[item.uid] ?? item.ocorrencia_db}
                                   onChange={e => setOcorrMap(m => ({ ...m, [item.uid]: e.target.value }))}
+                                  onBlur={() => handleOcorrenciaBlur(item.uid)}
                                   placeholder="—"
                                 />
                               </td>
@@ -682,7 +690,7 @@ export default function RomaneioTab() {
                           <td className="px-2 py-1.5 text-center border-b border-slate-300 dark:border-slate-600 whitespace-nowrap font-bold">
                             {fmt(totalEmp)}
                           </td>
-                          <td colSpan={3} className="border-b border-slate-300 dark:border-slate-600" />
+                          <td colSpan={2} className="border-b border-slate-300 dark:border-slate-600" />
                         </tr>
                       </tbody>
                     )
@@ -695,7 +703,7 @@ export default function RomaneioTab() {
                       <td className="px-2 py-2.5" />
                       <td colSpan={2} className="px-2 py-2.5 text-center text-purple-300">🛒 {fmt(totalCantina)} ({cantinaItems.length} ped.)</td>
                       <td className="px-2 py-2.5 text-center text-green-300 whitespace-nowrap text-sm">{fmt(totalGeral)}</td>
-                      <td colSpan={3} className="px-2 py-2.5 text-center text-slate-400 text-[10px]">{items.length} pedido(s) no total</td>
+                      <td colSpan={2} className="px-2 py-2.5 text-center text-slate-400 text-[10px]">{items.length} pedido(s) no total</td>
                     </tr>
                   </tfoot>
                 </table>

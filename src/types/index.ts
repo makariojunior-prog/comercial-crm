@@ -305,6 +305,8 @@ export interface VarejoPedido {
   created_at: string
   updated_at: string
   source: string
+  veiculo: string | null
+  ocorrencia: string | null
 }
 
 export const TURNOS = ['MANHÃ', 'TARDE', 'NOITE'] as const

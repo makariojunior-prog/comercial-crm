@@ -88,6 +88,7 @@ export default function DashboardAtacado() {
   const [rotasDate, setRotasDate]       = useState(new Date())
   const [loading, setLoading]           = useState(true)
   const [showHistorico, setShowHistorico] = useState(false)
+  const [histSoOcorrencia, setHistSoOcorrencia] = useState(false)
   const [editPedidoId, setEditPedidoId] = useState<number | null>(null)
   const [syncing, setSyncing]           = useState<string | null>(null)
   const [syncMsg, setSyncMsg]           = useState<string | null>(null)
@@ -119,14 +120,18 @@ export default function DashboardAtacado() {
   }, [pedidosNovos, searchQuery])
 
   const filteredHistorico = useMemo(() => {
-    if (!searchQuery.trim()) return historico
-    const q = searchQuery.toLowerCase().trim()
-    return historico.filter(p =>
-      String(p.numero_pedido ?? '').includes(q) ||
-      String(p.id_venda ?? '').includes(q) ||
-      (p.crm_client?.nome ?? p.cliente_nome ?? '').toLowerCase().includes(q)
-    )
-  }, [historico, searchQuery])
+    let result = historico
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      result = result.filter(p =>
+        String(p.numero_pedido ?? '').includes(q) ||
+        String(p.id_venda ?? '').includes(q) ||
+        (p.crm_client?.nome ?? p.cliente_nome ?? '').toLowerCase().includes(q)
+      )
+    }
+    if (histSoOcorrencia) result = result.filter(p => p.ocorrencia?.trim())
+    return result
+  }, [historico, searchQuery, histSoOcorrencia])
 
   // Pedido currently being edited (from any list)
   const pedidoParaEditar = useMemo(
@@ -657,63 +662,85 @@ export default function DashboardAtacado() {
         </button>
 
         {showHistorico && (
-          filteredHistorico.length === 0 ? (
-            <div className="py-8 text-center text-slate-400 border-t border-slate-100 dark:border-slate-700">
-              <p className="text-xs">{searchQuery ? 'Nenhum pedido encontrado para essa busca' : 'Nenhum pedido com data de entrega definida'}</p>
+          <>
+            {/* Filtro ocorrência */}
+            <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-700 flex items-center gap-2">
+              <button
+                onClick={() => setHistSoOcorrencia(v => !v)}
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
+                  histSoOcorrencia
+                    ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-300'
+                    : 'border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                ⚠️ {histSoOcorrencia ? 'Somente com ocorrência' : 'Filtrar por ocorrência'}
+              </button>
+              {histSoOcorrencia && (
+                <span className="text-xs text-slate-400">{filteredHistorico.length} resultado(s)</span>
+              )}
             </div>
-          ) : (
-            <div className="overflow-x-auto border-t border-slate-100 dark:border-slate-700">
-              <table className="w-full text-xs min-w-[640px]">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-left">
-                    <th className="px-3 py-2 font-semibold">Entrega</th>
-                    <th className="px-3 py-2 font-semibold">Ped.</th>
-                    <th className="px-3 py-2 font-semibold">Cliente</th>
-                    <th className="px-3 py-2 font-semibold">Rota</th>
-                    <th className="px-3 py-2 font-semibold text-right">Valor</th>
-                    <th className="px-3 py-2 font-semibold">Turno</th>
-                    <th className="px-3 py-2 font-semibold">Entregador</th>
-                    <th className="px-3 py-2 font-semibold">Tipo</th>
-                    <th className="px-3 py-2 font-semibold w-8"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {filteredHistorico.map(p => {
-                    const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
-                    const isHoje = p.data_entrega === todayStr
-                    return (
-                      <tr key={p.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${isHoje ? 'bg-orange-50/50 dark:bg-orange-900/10' : ''}`}>
-                        <td className="px-3 py-2 font-medium whitespace-nowrap">
-                          {isHoje ? (
-                            <span className="text-orange-500 font-bold">Hoje</span>
-                          ) : (
-                            <span className="text-slate-600 dark:text-slate-400">{p.data_entrega ? format(new Date(p.data_entrega + 'T12:00:00'), 'dd/MM', { locale: ptBR }) : '—'}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
-                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{nome}</td>
-                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.crm_client?.rota ?? '—'}</td>
-                        <td className="px-3 py-2 text-right font-medium text-green-600 dark:text-green-400">{fmtCurrency(p.valor)}</td>
-                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.turno ?? '—'}</td>
-                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.entregador ?? '—'}</td>
-                        <td className="px-3 py-2">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${p.tipo === 'BONIFICACAO' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
-                            {p.tipo}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <button onClick={() => setEditPedidoId(p.id)} title="Editar pedido"
-                            className="text-slate-400 hover:text-orange-500 transition-colors">
-                            <Pencil size={12} />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )
+            {filteredHistorico.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 border-t border-slate-100 dark:border-slate-700">
+                <p className="text-xs">{searchQuery || histSoOcorrencia ? 'Nenhum pedido encontrado para esse filtro' : 'Nenhum pedido com data de entrega definida'}</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border-t border-slate-100 dark:border-slate-700">
+                <table className="w-full text-xs min-w-[700px]">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-left">
+                      <th className="px-3 py-2 font-semibold">Entrega</th>
+                      <th className="px-3 py-2 font-semibold">Ped.</th>
+                      <th className="px-3 py-2 font-semibold">Cliente</th>
+                      <th className="px-3 py-2 font-semibold">Rota</th>
+                      <th className="px-3 py-2 font-semibold text-right">Valor</th>
+                      <th className="px-3 py-2 font-semibold">Turno</th>
+                      <th className="px-3 py-2 font-semibold">Entregador</th>
+                      <th className="px-3 py-2 font-semibold">Tipo</th>
+                      <th className="px-3 py-2 font-semibold">Ocorrência</th>
+                      <th className="px-3 py-2 font-semibold w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {filteredHistorico.map(p => {
+                      const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
+                      const isHoje = p.data_entrega === todayStr
+                      return (
+                        <tr key={p.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${isHoje ? 'bg-orange-50/50 dark:bg-orange-900/10' : ''} ${p.ocorrencia ? 'bg-amber-50/40 dark:bg-amber-900/5' : ''}`}>
+                          <td className="px-3 py-2 font-medium whitespace-nowrap">
+                            {isHoje ? (
+                              <span className="text-orange-500 font-bold">Hoje</span>
+                            ) : (
+                              <span className="text-slate-600 dark:text-slate-400">{p.data_entrega ? format(new Date(p.data_entrega + 'T12:00:00'), 'dd/MM', { locale: ptBR }) : '—'}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">{pedNum(p)}</td>
+                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 truncate max-w-[140px]">{nome}</td>
+                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.crm_client?.rota ?? '—'}</td>
+                          <td className="px-3 py-2 text-right font-medium text-green-600 dark:text-green-400">{fmtCurrency(p.valor)}</td>
+                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.turno ?? '—'}</td>
+                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{p.entregador ?? '—'}</td>
+                          <td className="px-3 py-2">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${p.tipo === 'BONIFICACAO' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                              {p.tipo}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-amber-700 dark:text-amber-400 text-[10px] max-w-[180px] truncate" title={p.ocorrencia ?? ''}>
+                            {p.ocorrencia ? `⚠️ ${p.ocorrencia}` : ''}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button onClick={() => setEditPedidoId(p.id)} title="Editar pedido"
+                              className="text-slate-400 hover:text-orange-500 transition-colors">
+                              <Pencil size={12} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
 
