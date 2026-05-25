@@ -84,8 +84,8 @@ export default function DashboardTasks() {
               </button>
             </div>
 
-            <div className="flex-1 space-y-1.5">
-              {tasks.filter(t => t.priority === q.id).slice(0, 3).map(task => (
+            <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[180px] pr-0.5">
+              {tasks.filter(t => t.priority === q.id).map(task => (
                 <button
                   key={task.id}
                   onClick={() => setDetailTask(task)}
@@ -105,11 +105,6 @@ export default function DashboardTasks() {
               ))}
               {tasks.filter(t => t.priority === q.id).length === 0 && (
                 <p className="text-[10px] text-slate-400 italic px-1.5">Nenhuma tarefa pendente</p>
-              )}
-              {tasks.filter(t => t.priority === q.id).length > 3 && (
-                <p className="text-[10px] text-slate-400 font-medium px-1.5">
-                  + {tasks.filter(t => t.priority === q.id).length - 3} outras
-                </p>
               )}
             </div>
           </div>

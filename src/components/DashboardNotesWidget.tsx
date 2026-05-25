@@ -15,6 +15,7 @@ export default function DashboardNotesWidget() {
   const [unreadCount, setUnread]    = useState(0)
   const [loading, setLoading]       = useState(true)
   const [showModal, setShowModal]   = useState(false)
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null)
 
   async function load() {
     if (!user?.id) { setLoading(false); return }
@@ -118,7 +119,7 @@ export default function DashboardNotesWidget() {
               <div
                 key={n.id}
                 className={`rounded-xl border p-3 transition-all cursor-pointer hover:shadow-sm ${c.bg} ${c.border} ${isUnread ? 'ring-2 ring-orange-400 ring-offset-1' : ''}`}
-                onClick={() => { if (isUnread) markRead(n.id) }}
+                onClick={() => { if (isUnread) markRead(n.id); setSelectedNote(n) }}
               >
                 <div className="flex items-start gap-2">
                   {n.is_pinned && <Pin size={12} className="text-orange-500 shrink-0 mt-0.5" />}
@@ -141,6 +142,14 @@ export default function DashboardNotesWidget() {
 
       {showModal && (
         <NoteModal onClose={() => setShowModal(false)} onSaved={load} />
+      )}
+
+      {selectedNote && (
+        <NoteModal
+          note={selectedNote}
+          onClose={() => setSelectedNote(null)}
+          onSaved={() => { setSelectedNote(null); load() }}
+        />
       )}
     </div>
   )

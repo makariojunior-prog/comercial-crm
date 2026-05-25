@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X, Phone, MessageCircle, CheckCircle, TrendingUp, XCircle, MinusCircle, AlertCircle, Clock } from 'lucide-react'
+import { X, Phone, MessageCircle, CheckCircle, TrendingUp, XCircle, MinusCircle, AlertCircle, Clock, FileText } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -112,6 +112,21 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-5 pb-2 space-y-4">
+
+          {/* Acompanhamento atual */}
+          {deal.follow_up && (
+            <div className="bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-xl p-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1.5">
+                <FileText size={10} /> Acompanhamento atual
+              </p>
+              <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed italic">"{deal.follow_up}"</p>
+              {deal.last_contact_date && (
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  Último contato: {format(parseISO(deal.last_contact_date), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Histórico */}
           <div>
