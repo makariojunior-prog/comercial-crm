@@ -28,7 +28,11 @@ export default function RegistroNegocios() {
   async function load() {
     setLoading(true)
     setLoadError(null)
-    const { data, error } = await supabase.from('deals').select('*').order('start_date', { ascending: false })
+    const { data, error } = await supabase
+      .from('deals')
+      .select('*')
+      .order('last_contact_date', { ascending: false, nullsFirst: false })
+      .order('start_date', { ascending: false })
     if (error) { setLoadError(error.message); setLoading(false); return }
     setDeals(data as Deal[] ?? [])
     setLoading(false)
@@ -68,7 +72,10 @@ export default function RegistroNegocios() {
       if (sortBy === 'client')   return a.client_name.localeCompare(b.client_name, 'pt')
       if (sortBy === 'contact')  return (a.last_contact_date ?? '').localeCompare(b.last_contact_date ?? '')
       if (sortBy === 'priority') return (PRIORITY_ORDER[a.priority ?? ''] ?? 9) - (PRIORITY_ORDER[b.priority ?? ''] ?? 9)
-      return (b.start_date ?? '').localeCompare(a.start_date ?? '')
+      // Sort by most recent activity: last follow-up, falling back to start_date
+      const dateA = a.last_contact_date ?? a.start_date ?? ''
+      const dateB = b.last_contact_date ?? b.start_date ?? ''
+      return dateB.localeCompare(dateA)
     })
   }, [deals, search, filterStatus, filterResp, filterType, sortBy])
 

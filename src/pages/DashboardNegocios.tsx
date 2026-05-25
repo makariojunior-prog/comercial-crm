@@ -34,6 +34,7 @@ export default function DashboardNegocios() {
     const { data, error } = await supabase
       .from('deals')
       .select('*')
+      .order('last_contact_date', { ascending: false, nullsFirst: false })
       .order('start_date', { ascending: false })
     if (error) { setLoadError(error.message); setLoading(false); return }
     setDeals(data ?? [])
