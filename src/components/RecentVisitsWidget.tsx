@@ -111,6 +111,22 @@ export default function RecentVisitsWidget() {
                           {v.visit_type}
                         </span>
                       )}
+                      {(() => {
+                        try {
+                          const d = parseISO(v.visit_date)
+                          if (isToday(d)) return (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">
+                              Hoje
+                            </span>
+                          )
+                          if (isYesterday(d)) return (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
+                              Ontem
+                            </span>
+                          )
+                        } catch { /* noop */ }
+                        return null
+                      })()}
                     </div>
                     {hasReport && (
                       <p className={`text-[11px] line-clamp-1 leading-relaxed ${isHighPriority ? 'text-red-700 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
