@@ -52,34 +52,50 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
     return () => { active = false }
   }, [deal.id])
 
-  async function save() {
+  async function save(attempt = 1) {
     if (!followUp.trim()) return
     setSaving(true)
     setError(null)
 
-    const { error: dealErr } = await supabase
-      .from('deals')
-      .update({ follow_up: followUp, status, last_contact_date: contactDate })
-      .eq('id', deal.id)
+    try {
+      const { error: dealErr } = await supabase
+        .from('deals')
+        .update({ follow_up: followUp, status, last_contact_date: contactDate })
+        .eq('id', deal.id)
 
-    if (dealErr) {
-      setError('Erro ao salvar: ' + dealErr.message)
+      if (dealErr) {
+        // Retry once on network errors before giving up
+        const isNetwork = dealErr.message?.toLowerCase().includes('networkerror') ||
+                          dealErr.message?.toLowerCase().includes('failed to fetch')
+        if (isNetwork && attempt < 3) {
+          await new Promise(r => setTimeout(r, 800 * attempt))
+          return save(attempt + 1)
+        }
+        setError('Erro ao salvar. Verifique sua conexão e tente novamente.')
+        setSaving(false)
+        return
+      }
+
+      await supabase.from('crm_deal_history').insert({
+        deal_id: deal.id,
+        client_name: deal.client_name,
+        status_before: deal.status,
+        status_after: status,
+        follow_up: followUp,
+        last_contact_date: contactDate,
+      })
+
       setSaving(false)
-      return
+      onSaved()
+      onClose()
+    } catch {
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 800 * attempt))
+        return save(attempt + 1)
+      }
+      setError('Erro ao salvar. Verifique sua conexão e tente novamente.')
+      setSaving(false)
     }
-
-    await supabase.from('crm_deal_history').insert({
-      deal_id: deal.id,
-      client_name: deal.client_name,
-      status_before: deal.status,
-      status_after: status,
-      follow_up: followUp,
-      last_contact_date: contactDate,
-    })
-
-    setSaving(false)
-    onSaved()
-    onClose()
   }
 
   return (
