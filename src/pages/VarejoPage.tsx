@@ -239,13 +239,9 @@ function TurnoGroup({ turno, pedidos, onEdit }: {
 function DashboardTab({ pedidos, onEdit }: { pedidos: VarejoPedido[]; onEdit: (p: VarejoPedido) => void }) {
   const turnoOrder = getTurnoOrder()
 
-  // Separate delivery apps from regular orders
-  const regular = pedidos.filter(p => p.origem === 'CARDAPIO WEB')
-  const delivery = pedidos.filter(p => p.origem === 'IFOOD' || p.origem === '99FOOD')
-
   // Group by turno
   const byTurno: Record<string, VarejoPedido[]> = {}
-  for (const p of regular) {
+  for (const p of pedidos) {
     const t = p.turno ?? '_SEM_TURNO'
     byTurno[t] = byTurno[t] ? [...byTurno[t], p] : [p]
   }
@@ -256,7 +252,7 @@ function DashboardTab({ pedidos, onEdit }: { pedidos: VarejoPedido[]; onEdit: (p
     ...(byTurno['_SEM_TURNO']?.length ? ['_SEM_TURNO'] : []),
   ]
 
-  if (regular.length === 0 && delivery.length === 0) {
+  if (pedidos.length === 0) {
     return (
       <div className="card p-10 text-center text-slate-400">
         <Package size={32} className="mx-auto mb-3 opacity-40" />
@@ -277,17 +273,6 @@ function DashboardTab({ pedidos, onEdit }: { pedidos: VarejoPedido[]; onEdit: (p
         />
       ))}
 
-      {delivery.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-bold text-slate-400">Apps de Delivery</span>
-            <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-1.5 py-0.5 rounded-full font-bold">{delivery.length}</span>
-          </div>
-          <div className="space-y-1.5">
-            {delivery.map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -684,7 +669,12 @@ export default function VarejoPage() {
   }, [load])
 
   // ── Derivados ─────────────────────────────────────────────────────
-  const today = pedidos.filter(p => p.data_entrega === selectedDate && !isRetirada(p))
+  const today = pedidos.filter(p =>
+    p.data_entrega === selectedDate &&
+    !isRetirada(p) &&
+    p.origem !== 'IFOOD' &&
+    p.origem !== '99FOOD'
+  )
   const todayCW = today.filter(p => p.origem === 'CARDAPIO WEB')
   const todayDelivery = pedidos.filter(p =>
     p.data_entrega === selectedDate && (p.origem === 'IFOOD' || p.origem === '99FOOD')
@@ -717,7 +707,7 @@ export default function VarejoPage() {
 
   const TABS = [
     { id: 'fila'      as Tab, label: 'Fila',           count: fila.length,         alert: fila.length > 0 },
-    { id: 'dashboard' as Tab, label: 'Hoje',           count: today.length },
+    { id: 'dashboard' as Tab, label: 'Entregas',        count: today.length },
     { id: 'retirada'  as Tab, label: 'Retiradas',      count: retiradaTotal,        alert: retiradaFila.length > 0 },
     { id: 'delivery'  as Tab, label: 'iFood / 99Food', count: todayDelivery.length },
     { id: 'amanha'    as Tab, label: `Amanhã ${format(parseISO(actualTomorrow), 'dd/MM')}`, count: amanha.length },
