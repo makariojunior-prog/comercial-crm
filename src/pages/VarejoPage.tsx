@@ -9,11 +9,9 @@ import PosVendaTab from '../components/PosVendaTab'
 
 type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico' | 'posvendas' | 'retirada'
 
-const RETIRADA_VALS = ['RETIRADA']
 const isRetirada = (p: VarejoPedido) =>
-  RETIRADA_VALS.includes(p.entregador ?? '') &&
-  p.origem !== 'IFOOD' &&
-  p.origem !== '99FOOD'
+  p.order_type === 'takeout' ||
+  (p.entregador === 'RETIRADA' && p.origem !== 'IFOOD' && p.origem !== '99FOOD')
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

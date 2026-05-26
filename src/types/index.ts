@@ -305,6 +305,7 @@ export interface VarejoPedido {
   created_at: string
   updated_at: string
   source: string
+  order_type: string | null          // 'delivery' | 'takeout' | 'onsite' | 'closed_table'
   veiculo: string | null
   ocorrencia: string | null
 }

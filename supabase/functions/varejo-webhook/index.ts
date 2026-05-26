@@ -53,60 +53,57 @@ async function processOrder(payload: any): Promise<void> {
 
   const order = await apiRes.json()
 
-  // Apenas pedidos de delivery
-  if (order.order_type !== 'delivery') {
-    console.log(`ℹ️ Ignorado: pedido ${order.display_id} não é delivery (${order.order_type})`)
+  // Apenas delivery e takeout
+  if (order.order_type !== 'delivery' && order.order_type !== 'takeout') {
+    console.log(`ℹ️ Ignorado: pedido ${order.display_id} tipo=${order.order_type}`)
     return
   }
 
+  const isTakeout = order.order_type === 'takeout'
   const displayId = String(order.display_id).trim()
   const statusIcon = getStatusIcon(order.status)
   const origem = getOrigem(order.sales_channel, order.delivered_by)
 
-  // Calcula campos financeiros e de endereço (necessários tanto para update quanto insert)
   const total = parseFloat(order.total ?? 0)
-  const frete = parseFloat(order.delivery_fee ?? 0)
+  const frete = isTakeout ? 0 : parseFloat(order.delivery_fee ?? 0)
   const addr = order.delivery_address ?? {}
-  const bairro: string = addr.neighborhood || 'Não informado'
+  const bairro: string = isTakeout ? '' : (addr.neighborhood || 'Não informado')
   const rua = addr.address || addr.street || ''
   const numero = addr.number || 'S/N'
-  const enderecoCompleto = `${rua ? rua + ', ' : ''}${numero} - ${bairro}, ${addr.city || 'Goiânia'} - ${addr.state || 'GO'}${addr.zip_code ? ', ' + addr.zip_code : ''}`
+  const enderecoCompleto = isTakeout
+    ? null
+    : `${rua ? rua + ', ' : ''}${numero} - ${bairro}, ${addr.city || 'Goiânia'} - ${addr.state || 'GO'}${addr.zip_code ? ', ' + addr.zip_code : ''}`
 
-  // Tenta atualizar pedido existente — atualiza campos da API (preço, status, obs, endereço)
-  // Preserva campos do atendente: turno, entregador, atendente, rota_definida, marcador, ocorrencia
+  // Tenta atualizar pedido existente — preserva campos do atendente
+  const updateFields: Record<string, unknown> = {
+    status_icon: statusIcon,
+    valor_liquido: total - frete,
+    restricao: order.observation || null,
+    updated_at: new Date().toISOString(),
+  }
+  if (!isTakeout) {
+    updateFields.frete = frete
+    updateFields.bairro = bairro || null
+    updateFields.endereco_completo = enderecoCompleto
+    updateFields.complemento = addr.complement || null
+  }
+
   const { data: updated, error: updErr } = await supabase
     .from('varejo_pedidos')
-    .update({
-      status_icon:       statusIcon,
-      valor_liquido:     total - frete,
-      frete:             frete,
-      restricao:         order.observation || null,
-      bairro:            bairro || null,
-      endereco_completo: enderecoCompleto || null,
-      complemento:       addr.complement || null,
-      updated_at:        new Date().toISOString(),
-    })
+    .update(updateFields)
     .eq('num_pedido', displayId)
     .select('num_pedido')
 
   if (updErr) console.error(`Supabase update error: ${updErr.message}`)
 
   if (updated && updated.length > 0) {
-    console.log(`🔄 Atualizado: ${displayId} → status=${statusIcon} valor_liquido=${total - frete}`)
+    console.log(`🔄 Atualizado: ${displayId} → status=${statusIcon}`)
     return
   }
 
   // Pedido novo — monta e insere
-  const isScheduled = order.order_timing === 'scheduled'
-  const scheduledStart: string | null = order.schedule?.scheduled_date_time_start ?? null
-  const turno = isScheduled ? getTurno(scheduledStart) : null
-  const dataEntrega: string | null = isScheduled
-    ? (scheduledStart?.substring(0, 10) ?? null)
-    : new Date().toISOString().substring(0, 10)
-
   const telefone = String(order.customer?.phone ?? '').replace(/\D/g, '')
 
-  // Conta quantas vezes este telefone já pediu
   let qtdPedidos = 1
   if (telefone.length > 5) {
     const { count } = await supabase
@@ -116,27 +113,48 @@ async function processOrder(payload: any): Promise<void> {
     qtdPedidos = (count ?? 0) + 1
   }
 
-  const record = {
+  let dataEntrega: string | null
+  let turno: string | null
+  let scheduledStart: string | null = null
+
+  if (isTakeout) {
+    // Retirada: data da venda = hoje (created_at pode ainda não estar no payload)
+    dataEntrega = new Date().toISOString().substring(0, 10)
+    turno = null
+  } else {
+    const isScheduled = order.order_timing === 'scheduled'
+    scheduledStart = order.schedule?.scheduled_date_time_start ?? null
+    turno = isScheduled ? getTurno(scheduledStart) : null
+    dataEntrega = isScheduled
+      ? (scheduledStart?.substring(0, 10) ?? null)
+      : new Date().toISOString().substring(0, 10)
+  }
+
+  const record: Record<string, unknown> = {
     num_pedido:           displayId,
     data_entrega:         dataEntrega,
     status_icon:          statusIcon,
     marcador:             '⭕️',
     cliente:              order.customer?.name ?? null,
-    bairro:               bairro || null,
-    turno:                turno,
     origem:               origem,
+    order_type:           order.order_type,
     valor_liquido:        total - frete,
     frete:                frete,
     qtd_pedidos_cliente:  qtdPedidos,
     telefone:             telefone || null,
-    endereco_completo:    enderecoCompleto || null,
-    complemento:          addr.complement || null,
     restricao:            order.observation || null,
     order_timing:         order.order_timing ?? null,
-    scheduled_start:      scheduledStart,
-    data_entrega_definida: !!(dataEntrega && turno),
+    data_entrega_definida: isTakeout ? true : !!(dataEntrega && turno),
     source:               'webhook',
     updated_at:           new Date().toISOString(),
+  }
+
+  if (!isTakeout) {
+    record.bairro = bairro || null
+    record.turno = turno
+    record.scheduled_start = scheduledStart
+    record.endereco_completo = enderecoCompleto
+    record.complemento = addr.complement || null
   }
 
   const { error: insErr } = await supabase
@@ -144,7 +162,7 @@ async function processOrder(payload: any): Promise<void> {
     .insert(record)
 
   if (insErr) console.error(`❌ Insert error (${displayId}): ${insErr.message}`)
-  else console.log(`✅ Novo pedido inserido: ${displayId} (${origem}) | data=${dataEntrega} turno=${turno ?? '-'}`)
+  else console.log(`✅ Novo pedido: ${displayId} (${isTakeout ? 'retirada' : origem}) | data=${dataEntrega}`)
 }
 
 Deno.serve(async (req) => {
