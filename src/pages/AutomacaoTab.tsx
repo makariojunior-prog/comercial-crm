@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Bot, Power, AlertTriangle, ChevronDown, ChevronUp, Save, Calendar, Plus, Trash2,
   Play, RefreshCw, ShieldCheck, X, CheckCircle2, Clock, Send, MinusCircle,
+  FlaskConical, StopCircle, Cog,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -95,6 +96,14 @@ export default function AutomacaoTab() {
 
   const [simulando, setSimulando] = useState(false)
   const [simResult, setSimResult] = useState<SimularResp | null>(null)
+
+  const [showTeste, setShowTeste] = useState(false)
+  const [testeNumero, setTesteNumero] = useState('')
+  const [testeMensagem, setTesteMensagem] = useState('')
+  const [enviandoTeste, setEnviandoTeste] = useState(false)
+  const [testeResult, setTesteResult] = useState<{ ok: boolean; erro?: string; numero_normalizado?: string; mensagem_enviada?: string } | null>(null)
+
+  const [pausando, setPausando] = useState(false)
 
   const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automacao-lumar`
 
@@ -227,6 +236,42 @@ export default function AutomacaoTab() {
     } catch { /* ignore */ }
   }
 
+  async function pausarEmergencia() {
+    if (!confirm('⏹ Parar todos os envios pendentes agora?\n\nOs envios em fila serão cancelados. A automação permanece ativa para o próximo dia.')) return
+    setPausando(true)
+    try {
+      await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'cancelar' }),
+      })
+      await load()
+    } catch { /* ignore */ }
+    setPausando(false)
+  }
+
+  async function enviarTeste() {
+    if (!testeNumero.trim()) return
+    setEnviandoTeste(true)
+    setTesteResult(null)
+    try {
+      const res = await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'teste',
+          numero: testeNumero.trim(),
+          mensagem: testeMensagem.trim() || undefined,
+        }),
+      })
+      setTesteResult(await res.json())
+    } catch (e) {
+      setTesteResult({ ok: false, erro: e instanceof Error ? e.message : 'Erro de rede' })
+    } finally {
+      setEnviandoTeste(false)
+    }
+  }
+
   const previewMensagem = useMemo(() => {
     if (!config) return ''
     const exemplo = clientesPorDia[0]?.nome ?? 'Maria Silva'
@@ -310,6 +355,27 @@ export default function AutomacaoTab() {
             </p>
           </div>
         )}
+        {config.ativo && fila.some(f => f.status === 'pendente') && (
+          <div className="flex items-center justify-between bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+            <p className="text-xs text-red-700 dark:text-red-300 flex items-center gap-1.5">
+              <AlertTriangle size={13} className="shrink-0" />
+              {fila.filter(f => f.status === 'pendente').length} envio{fila.filter(f => f.status === 'pendente').length !== 1 ? 's' : ''} pendente{fila.filter(f => f.status === 'pendente').length !== 1 ? 's' : ''} na fila
+            </p>
+            {isAdmin && (
+              <button
+                onClick={pausarEmergencia}
+                disabled={pausando}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+              >
+                <StopCircle size={13} /> {pausando ? 'Parando…' : 'Parar envios agora'}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+          <Cog size={11} />
+          Agendamento automático: seg–sex às 05:00 BRT via pg_cron (a cada 5 min até 06:55)
+        </div>
       </div>
 
       {/* ── Confirmação de ativação ── */}
@@ -333,12 +399,24 @@ export default function AutomacaoTab() {
         </div>
       )}
 
-      {/* ── Botão Simular ── */}
+      {/* ── Botões de Ação ── */}
       <div className="flex items-center gap-2 flex-wrap">
         <button onClick={simular} disabled={simulando} className="btn-secondary text-sm flex items-center gap-1.5">
           <Play size={14} className={simulando ? 'animate-pulse' : ''} />
           {simulando ? 'Simulando…' : 'Simular envios de hoje'}
         </button>
+        {isAdmin && (
+          <button
+            onClick={() => { setShowTeste(v => !v); setTesteResult(null) }}
+            className={`text-sm flex items-center gap-1.5 px-3 py-2 rounded-lg border font-medium transition-all ${
+              showTeste
+                ? 'bg-violet-100 text-violet-700 border-violet-200'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <FlaskConical size={14} /> Testar envio
+          </button>
+        )}
         <button onClick={load} className="btn-ghost p-2">
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
         </button>
@@ -378,6 +456,67 @@ export default function AutomacaoTab() {
             </>
           ) : (
             <p className="text-xs text-red-600">{simResult.error}</p>
+          )}
+        </div>
+      )}
+
+      {/* ── Teste de Envio ── */}
+      {showTeste && isAdmin && (
+        <div className="card p-4 space-y-3 border-l-4 border-l-violet-500">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <FlaskConical size={15} className="text-violet-500" /> Teste de Envio
+            </h3>
+            <button onClick={() => { setShowTeste(false); setTesteResult(null) }} className="text-slate-400 hover:text-slate-600">
+              <X size={14} />
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Envia uma mensagem real de teste para o número informado. Usa o template configurado (com nome "Teste") se nenhuma mensagem for digitada.
+          </p>
+          <div className="space-y-2">
+            <div>
+              <label className="label">Número de telefone (com DDD)</label>
+              <input
+                type="tel"
+                className="input"
+                placeholder="Ex: 11999999999"
+                value={testeNumero}
+                onChange={e => setTesteNumero(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Mensagem personalizada (opcional)</label>
+              <textarea
+                rows={3}
+                className="input resize-none text-xs"
+                placeholder="Deixe em branco para usar o template configurado"
+                value={testeMensagem}
+                onChange={e => setTesteMensagem(e.target.value)}
+              />
+            </div>
+          </div>
+          <button
+            onClick={enviarTeste}
+            disabled={enviandoTeste || !testeNumero.trim()}
+            className="btn-primary text-sm flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Send size={14} className={enviandoTeste ? 'animate-pulse' : ''} />
+            {enviandoTeste ? 'Enviando…' : 'Enviar mensagem de teste'}
+          </button>
+          {testeResult && (
+            <div className={`rounded-lg px-3 py-2.5 text-xs space-y-1 ${
+              testeResult.ok
+                ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+                : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+            }`}>
+              <p className="font-semibold">{testeResult.ok ? '✅ Enviado com sucesso!' : '❌ Falha no envio'}</p>
+              {testeResult.numero_normalizado && <p>Número: {testeResult.numero_normalizado}</p>}
+              {testeResult.erro && <p>Erro: {testeResult.erro}</p>}
+              {testeResult.mensagem_enviada && (
+                <pre className="mt-1 text-[10px] bg-white/50 dark:bg-black/20 rounded p-1.5 whitespace-pre-wrap">{testeResult.mensagem_enviada}</pre>
+              )}
+            </div>
           )}
         </div>
       )}

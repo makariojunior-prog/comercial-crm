@@ -113,7 +113,7 @@ export default function RecentVisitsWidget() {
                       )}
                       {(() => {
                         try {
-                          const d = parseISO(v.visit_date)
+                          const d = parseISO(v.visit_date ?? '')
                           if (isToday(d)) return (
                             <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">
                               Hoje

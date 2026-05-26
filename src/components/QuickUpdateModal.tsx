@@ -240,7 +240,7 @@ export default function QuickUpdateModal({ deal, onClose, onSaved }: Props) {
         {/* Footer */}
         <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 shrink-0">
           <button
-            onClick={save}
+            onClick={() => save()}
             disabled={saving || !followUp.trim()}
             className="btn-primary w-full justify-center py-3 text-base"
           >
