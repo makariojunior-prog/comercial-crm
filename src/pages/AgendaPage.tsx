@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, RefreshCw, CalendarDays, X, Clock, Users, Copy, Trash2, AlertCircle } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -268,19 +268,39 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
 }) {
   const today = format(new Date(), 'yyyy-MM-dd')
   const [form, setForm] = useState({
-    titulo:      item?.titulo      ?? '',
-    data:        item?.data        ?? defaultDate ?? today,
-    hora_inicio: item?.hora_inicio?.substring(0, 5) ?? '',
-    hora_fim:    item?.hora_fim?.substring(0, 5)    ?? '',
-    tipo:        item?.tipo        ?? 'Visita',
-    status:      item?.status      ?? 'AGENDADO',
-    descricao:   item?.descricao   ?? '',
-    local:       item?.local       ?? '',
-    cliente_nome: item?.cliente_nome ?? '',
+    titulo:       item?.titulo               ?? '',
+    data:         item?.data                 ?? defaultDate ?? today,
+    hora_inicio:  item?.hora_inicio?.substring(0, 5) ?? '',
+    hora_fim:     item?.hora_fim?.substring(0, 5)    ?? '',
+    tipo:         item?.tipo                 ?? 'Visita',
+    status:       item?.status               ?? 'AGENDADO',
+    descricao:    item?.descricao            ?? '',
+    local:        item?.local                ?? '',
+    cliente_nome: item?.cliente_nome         ?? '',
   })
   const [responsaveis, setResponsaveis] = useState<string[]>(item?.responsaveis ?? [])
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
+
+  // Convert to visit report (only for existing items)
+  const [convertVisit, setConvertVisit] = useState(false)
+  const [visitReport, setVisitReport]   = useState({
+    visit_status: 'Realizada',
+    demand:       item?.descricao ?? '',
+    report:       '',
+  })
+
+  // Schedule next appointment
+  const [scheduleNext, setScheduleNext] = useState(false)
+  const defaultNextDate = item
+    ? format(addDays(new Date(item.data + 'T12:00'), 7), 'yyyy-MM-dd')
+    : format(addDays(new Date(), 7), 'yyyy-MM-dd')
+  const [nextAppt, setNextAppt] = useState({
+    titulo:      item?.cliente_nome ? `Visita — ${item.cliente_nome}` : '',
+    data:        defaultNextDate,
+    hora_inicio: item?.hora_inicio?.substring(0, 5) ?? '',
+    descricao:   '',
+  })
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -292,24 +312,76 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
 
   async function save() {
     if (!form.titulo.trim()) return setError('Título é obrigatório')
+    if (scheduleNext && !nextAppt.titulo.trim()) return setError('Informe o título do próximo compromisso')
     setSaving(true)
     setError(null)
+
+    // 1. Save the appointment (auto-mark REALIZADO when converting to visit)
+    const finalStatus = convertVisit ? 'REALIZADO' : form.status
     const payload = {
       ...form,
+      status:       finalStatus,
       hora_inicio:  form.hora_inicio  || null,
       hora_fim:     form.hora_fim     || null,
       descricao:    form.descricao    || null,
       local:        form.local        || null,
       cliente_nome: form.cliente_nome || null,
-      responsavel:  responsaveis[0]  ?? null,
+      responsavel:  responsaveis[0]   ?? null,
       responsaveis,
       criado_por:   item ? item.criado_por : currentUser,
       updated_at:   new Date().toISOString(),
     }
-    const { error: err } = item
-      ? await supabase.from('agenda_compromissos').update(payload).eq('id', item.id)
-      : await supabase.from('agenda_compromissos').insert(payload)
-    if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+
+    let apptId = item?.id
+    if (item) {
+      const { error: err } = await supabase.from('agenda_compromissos').update(payload).eq('id', item.id)
+      if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+    } else {
+      const { data: inserted, error: err } = await supabase.from('agenda_compromissos').insert(payload).select('id').single()
+      if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+      apptId = inserted?.id
+    }
+
+    // 2. Convert to visit report
+    if (convertVisit && apptId) {
+      const visitPayload = {
+        visit_date:  form.data,
+        visit_type:  toVisitType(form.tipo),
+        client_name: form.cliente_nome || 'Não informado',
+        demand:      visitReport.demand || null,
+        report:      visitReport.report || null,
+        status:      visitReport.visit_status,
+        responsible: responsaveis[0]  ?? null,
+        responsaveis,
+        priority:    'MÉDIA',
+        has_amostra: false,
+        photo_urls:  [] as string[],
+      }
+      const { data: visitData } = await supabase.from('visits').insert(visitPayload).select('id').single()
+      if (visitData?.id) {
+        await supabase.from('agenda_compromissos')
+          .update({ visit_id: visitData.id, updated_at: new Date().toISOString() })
+          .eq('id', apptId)
+      }
+    }
+
+    // 3. Schedule next appointment
+    if (scheduleNext && nextAppt.titulo.trim()) {
+      await supabase.from('agenda_compromissos').insert({
+        titulo:       nextAppt.titulo,
+        data:         nextAppt.data,
+        hora_inicio:  nextAppt.hora_inicio || null,
+        tipo:         'Visita',
+        status:       'AGENDADO',
+        cliente_nome: form.cliente_nome || null,
+        descricao:    nextAppt.descricao || null,
+        responsavel:  responsaveis[0]   ?? null,
+        responsaveis,
+        criado_por:   currentUser,
+        updated_at:   new Date().toISOString(),
+      })
+    }
+
     onSaved()
   }
 
@@ -327,6 +399,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {/* ── Campos principais ── */}
           <div>
             <label className="label">Título *</label>
             <input className="input" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Visita ao cliente" autoFocus />
@@ -412,6 +485,126 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
               placeholder="Detalhes, pautas, objetivos..."
             />
           </div>
+
+          {/* ── Converter em relatório de visita (só para edição) ── */}
+          {item && (
+            <div className={`rounded-xl border transition-all overflow-hidden ${convertVisit ? 'border-green-300 dark:border-green-700' : 'border-slate-200 dark:border-slate-600'}`}>
+              <button
+                type="button"
+                onClick={() => setConvertVisit(v => !v)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium transition-colors ${convertVisit ? 'bg-green-50 dark:bg-green-900/20' : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+              >
+                <span className="flex items-center gap-2">
+                  <FileText size={14} className={convertVisit ? 'text-green-600' : 'text-slate-400'} />
+                  <span className={convertVisit ? 'text-green-700 dark:text-green-300 font-semibold' : 'text-slate-600 dark:text-slate-300'}>
+                    Converter em relatório de visita
+                  </span>
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${convertVisit ? 'rotate-180' : ''}`} />
+              </button>
+              {convertVisit && (
+                <div className="px-3 pb-3 pt-2 space-y-2 bg-green-50 dark:bg-green-900/10 border-t border-green-200 dark:border-green-800">
+                  <div>
+                    <label className="label">Status da visita</label>
+                    <select
+                      className="input"
+                      value={visitReport.visit_status}
+                      onChange={e => setVisitReport(v => ({ ...v, visit_status: e.target.value }))}
+                    >
+                      <option>Realizada</option>
+                      <option>Cancelada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Demanda / Objetivo</label>
+                    <input
+                      className="input"
+                      value={visitReport.demand}
+                      onChange={e => setVisitReport(v => ({ ...v, demand: e.target.value }))}
+                      placeholder="O que foi buscar nessa visita?"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Relatório</label>
+                    <textarea
+                      className="input resize-none"
+                      rows={3}
+                      value={visitReport.report}
+                      onChange={e => setVisitReport(v => ({ ...v, report: e.target.value }))}
+                      placeholder="O que aconteceu? Resultados, próximos passos..."
+                    />
+                  </div>
+                  <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">
+                    Uma visita será registrada automaticamente e o compromisso marcado como Realizado.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Agendar próximo compromisso ── */}
+          <div className={`rounded-xl border transition-all overflow-hidden ${scheduleNext ? 'border-blue-300 dark:border-blue-700' : 'border-slate-200 dark:border-slate-600'}`}>
+            <button
+              type="button"
+              onClick={() => {
+                if (!scheduleNext && form.cliente_nome && !nextAppt.titulo) {
+                  setNextAppt(p => ({ ...p, titulo: `Visita — ${form.cliente_nome}` }))
+                }
+                setScheduleNext(v => !v)
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium transition-colors ${scheduleNext ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+            >
+              <span className="flex items-center gap-2">
+                <CalendarPlus size={14} className={scheduleNext ? 'text-blue-600' : 'text-slate-400'} />
+                <span className={scheduleNext ? 'text-blue-700 dark:text-blue-300 font-semibold' : 'text-slate-600 dark:text-slate-300'}>
+                  Agendar próximo compromisso
+                </span>
+              </span>
+              <ChevronDown size={14} className={`text-slate-400 transition-transform ${scheduleNext ? 'rotate-180' : ''}`} />
+            </button>
+            {scheduleNext && (
+              <div className="px-3 pb-3 pt-2 space-y-2 bg-blue-50 dark:bg-blue-900/10 border-t border-blue-200 dark:border-blue-800">
+                <div>
+                  <label className="label">Título *</label>
+                  <input
+                    className="input"
+                    value={nextAppt.titulo}
+                    onChange={e => setNextAppt(v => ({ ...v, titulo: e.target.value }))}
+                    placeholder="Ex: Visita — Cliente X"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="label">Data</label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={nextAppt.data}
+                      onChange={e => setNextAppt(v => ({ ...v, data: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Horário</label>
+                    <input
+                      type="time"
+                      className="input"
+                      value={nextAppt.hora_inicio}
+                      onChange={e => setNextAppt(v => ({ ...v, hora_inicio: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Observações</label>
+                  <input
+                    className="input"
+                    value={nextAppt.descricao}
+                    onChange={e => setNextAppt(v => ({ ...v, descricao: e.target.value }))}
+                    placeholder="Objetivo da próxima visita..."
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -461,4 +654,14 @@ function DuplicateModal({ item, onClose, onConfirm }: {
       </div>
     </div>
   )
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────
+function toVisitType(tipo: string): string {
+  const map: Record<string, string> = {
+    'Visita':  'Acompanhamento',
+    'Reunião': 'Reunião',
+    'Entrega': 'Entrega',
+  }
+  return map[tipo] ?? 'Outro'
 }
