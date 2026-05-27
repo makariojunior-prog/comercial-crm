@@ -18,6 +18,7 @@ import VarejoFilaWidget from '../components/VarejoFilaWidget'
 import ConversacoesAlertasWidget from '../components/ConversacoesAlertasWidget'
 import SocialWidget from '../components/SocialWidget'
 import PosVendaWidget from '../components/PosVendaWidget'
+import ResumoPedidosWidget from '../components/ResumoPedidosWidget'
 import { usePreferences, DEFAULT_DASHBOARD_WIDGETS } from '../contexts/PreferencesContext'
 
 export default function DashboardNegocios() {
@@ -116,6 +117,8 @@ export default function DashboardNegocios() {
         return <div className="card p-5"><VarejoFilaWidget /></div>
       case 'posvendas':
         return <div className="card p-5"><PosVendaWidget /></div>
+      case 'resumo_pedidos':
+        return <div className="card p-5"><ResumoPedidosWidget /></div>
       case 'conversas_alertas':
         return <div className="card p-5"><ConversacoesAlertasWidget /></div>
       case 'social_comentarios':

@@ -50,6 +50,8 @@ export default function RomaneioTab() {
   const [turnoManha, setM]          = useState(true)
   const [turnoTarde, setT]          = useState(true)
   const [turnoNoite, setN]          = useState(true)
+  const [empresaLumar,   setEL]     = useState(true)
+  const [empresaCantina, setEC]     = useState(true)
 
   // Dados
   const [items,   setItems]   = useState<RomaneioItem[]>([])
@@ -109,8 +111,8 @@ export default function RomaneioTab() {
       ? items.filter(i => (ocorrMap[i.uid] ?? i.ocorrencia_db).trim())
       : items
     const base = [
-      ...filtered.filter(i => i.empresa === 'LUMAR')  .sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)),
-      ...filtered.filter(i => i.empresa === 'CANTINA').sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)),
+      ...(empresaLumar   ? filtered.filter(i => i.empresa === 'LUMAR')  .sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)) : []),
+      ...(empresaCantina ? filtered.filter(i => i.empresa === 'CANTINA').sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)) : []),
     ]
     if (!hasAnySeq) return base
     return [...base].sort((a, b) => {
@@ -119,7 +121,7 @@ export default function RomaneioTab() {
       if (a.empresa !== b.empresa) return a.empresa === 'LUMAR' ? -1 : 1
       return turnoOrd(a.turno) - turnoOrd(b.turno)
     })
-  }, [items, seqMap, ocorrMap, filtroOcorrencia])
+  }, [items, seqMap, ocorrMap, filtroOcorrencia, empresaLumar, empresaCantina])
 
   // ── Carregar dados (automático ao mudar filtros) ─────────────────
 
@@ -169,7 +171,10 @@ export default function RomaneioTab() {
       if (entregador) qC = (qC as any).eq('entregador', entregador)
     }
 
-    const [{ data: atacado }, { data: cantina }] = await Promise.all([qL, qC])
+    const [{ data: atacado }, { data: cantina }] = await Promise.all([
+      empresaLumar   ? qL : Promise.resolve({ data: [] as any[] }),
+      empresaCantina ? qC : Promise.resolve({ data: [] as any[] }),
+    ])
 
     const lumar: RomaneioItem[] = ((atacado ?? []) as any[]).map(p => ({
       uid:           `L${p.id}`,
@@ -204,7 +209,7 @@ export default function RomaneioTab() {
 
     setItems([...lumar, ...cant])
     setLoading(false)
-  }, [date, entregador, turnoManha, turnoTarde, turnoNoite])
+  }, [date, entregador, turnoManha, turnoTarde, turnoNoite, empresaLumar, empresaCantina])
 
   // ── Salvar veículo em todos os pedidos do romaneio ───────────────
 
@@ -486,6 +491,25 @@ export default function RomaneioTab() {
               </label>
             ))}
             <p className="text-[10px] text-slate-400 italic">Pedidos sem turno são sempre incluídos</p>
+          </div>
+
+          {/* Linha 3: empresa */}
+          <div className="flex items-center gap-5 flex-wrap">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Empresa:</span>
+            {([
+              ['🏭 LUMAR',   empresaLumar,   setEL],
+              ['🛒 CANTINA', empresaCantina, setEC],
+            ] as const).map(([label, val, set]) => (
+              <label key={label} className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={val}
+                  onChange={e => set(e.target.checked)}
+                  className="w-4 h-4 rounded accent-orange-500"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
+              </label>
+            ))}
           </div>
 
           {!loading && (
