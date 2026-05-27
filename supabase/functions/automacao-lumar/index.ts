@@ -21,19 +21,27 @@ interface Config {
   limite_diario: number
 }
 
+interface FilaItem {
+  id: string
+  cliente_nome: string
+  telefone: string
+  mensagem: string | null
+  tentativas: number
+}
+
 function nk(s: string): string {
   return s.toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]/g, '')
 }
 
+// Retorna a data de hoje no fuso BRT (UTC-3) no formato YYYY-MM-DD
 function hojeISO(): string {
-  return new Date(new Date().getTime() - 3 * 3600000).toISOString().slice(0, 10)
+  return new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10)
 }
 
 function diaSemanaHoje(): number {
-  const d = new Date(new Date().getTime() - 3 * 3600000)
-  return d.getUTCDay()
+  return new Date(Date.now() - 3 * 3600_000).getUTCDay()
 }
 
 function normalizaTelefone(raw: string): string | null {
@@ -70,7 +78,7 @@ Deno.serve(async (req: Request) => {
     { status, headers: { ...CORS, 'Content-Type': 'application/json' } },
   )
 
-  let body: { type?: string } = {}
+  let body: { type?: string; numero?: string; mensagem?: string } = {}
   try { body = await req.json() } catch { /* no body */ }
   const type = body.type ?? 'status'
 
@@ -124,7 +132,7 @@ Deno.serve(async (req: Request) => {
     const serviceId = Deno.env.get('DIGISAC_SERVICE_ID')
     const baseUrl = Deno.env.get('DIGISAC_BASE_URL')
     if (!token || !serviceId || !baseUrl) {
-      return { ok: false, erro: 'Credenciais Digisac ausentes' }
+      return { ok: false, erro: 'Credenciais Digisac ausentes (DIGISAC_TOKEN, DIGISAC_SERVICE_ID, DIGISAC_BASE_URL)' }
     }
     try {
       const res = await fetch(`${baseUrl}/api/v1/messages`, {
@@ -151,85 +159,14 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // ── status ───────────────────────────────────────────────
-  if (type === 'status') {
-    const { data: fila } = await supabase
-      .from('automacao_fila')
-      .select('status')
-      .eq('automacao', 'LUMAR')
-      .eq('data_exec', hoje)
-    const contagem: Record<string, number> = {}
-    for (const f of (fila ?? []) as Array<{ status: string }>) {
-      contagem[f.status] = (contagem[f.status] ?? 0) + 1
-    }
-    const { count: enviadosHoje } = await supabase
-      .from('automacao_logs')
-      .select('id', { count: 'exact', head: true })
-      .eq('automacao', 'LUMAR')
-      .eq('data_exec', hoje)
-      .eq('status', 'enviado')
-    return json({
-      ok: true,
-      config: cfg,
-      hoje,
-      fim_de_semana: fimDeSemana,
-      fila: contagem,
-      enviados_hoje: enviadosHoje ?? 0,
-    })
-  }
-
-  // ── simular ──────────────────────────────────────────────
-  if (type === 'simular') {
-    const clientes = await clientesDoDia()
-    const lista = clientes.map((c) => {
-      const tel = normalizaTelefone(c.telefone ?? '')
-      return {
-        cliente_nome: c.nome,
-        telefone: c.telefone,
-        telefone_normalizado: tel,
-        rota: c.rota,
-        turno: c.turno,
-        valido: !!tel,
-      }
-    })
-    return json({
-      ok: true,
-      hoje,
-      fim_de_semana: fimDeSemana,
-      total: lista.length,
-      validos: lista.filter((l) => l.valido).length,
-      mensagem_exemplo: lista[0]
-        ? montaMensagem(cfg.mensagem_template, lista[0].cliente_nome)
-        : montaMensagem(cfg.mensagem_template, 'Cliente'),
-      clientes: lista,
-    })
-  }
-
-  // ── iniciar ──────────────────────────────────────────────
-  if (type === 'iniciar') {
-    if (!cfg.ativo) {
-      await logar({ status: 'ignorado', erro: 'Automação inativa' })
-      return json({ ok: false, error: 'Automação está INATIVA. Ative-a no painel para iniciar envios.' })
-    }
-    if (fimDeSemana) {
-      await logar({ status: 'sistema', erro: 'Fim de semana' })
-      return json({ ok: false, error: 'Hoje é fim de semana — sem envios.' })
-    }
-    const { data: feriado } = await supabase
-      .from('automacao_feriados').select('descricao').eq('data', hoje).maybeSingle()
-    if (feriado) {
-      await logar({ status: 'sistema', erro: `Feriado: ${feriado.descricao ?? ''}` })
-      return json({ ok: false, error: `Hoje é feriado (${feriado.descricao ?? 'sem descrição'}) — sem envios.` })
-    }
-
+  // Cria a fila do dia se ainda não existir. Retorna quantos itens foram inseridos (0 se já existia).
+  async function criarFilaSeNecessario(): Promise<{ criados: number; erro?: string }> {
     const { count: jaExiste } = await supabase
       .from('automacao_fila')
       .select('id', { count: 'exact', head: true })
       .eq('automacao', 'LUMAR')
       .eq('data_exec', hoje)
-    if ((jaExiste ?? 0) > 0) {
-      return json({ ok: false, error: 'Fila de hoje já foi criada.' })
-    }
+    if ((jaExiste ?? 0) > 0) return { criados: 0 }
 
     const clientes = await clientesDoDia()
     const limitados = clientes.slice(0, cfg.limite_diario)
@@ -237,57 +174,41 @@ Deno.serve(async (req: Request) => {
       .map((c) => {
         const tel = normalizaTelefone(c.telefone ?? '')
         if (!tel) return null
-        return {
-          automacao: 'LUMAR',
-          data_exec: hoje,
-          cliente_nome: c.nome,
-          telefone: tel,
-          mensagem: montaMensagem(cfg.mensagem_template, c.nome),
-          status: 'pendente',
-        }
+        return { automacao: 'LUMAR', data_exec: hoje, cliente_nome: c.nome, telefone: tel, mensagem: montaMensagem(cfg.mensagem_template, c.nome), status: 'pendente' }
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
 
     if (itens.length === 0) {
       await logar({ status: 'sistema', erro: 'Nenhum cliente válido para hoje' })
-      return json({ ok: false, error: 'Nenhum cliente válido para hoje.' })
+      return { criados: 0, erro: 'Nenhum cliente com entrega hoje' }
     }
-
     const { error: insErr } = await supabase.from('automacao_fila').insert(itens)
-    if (insErr) return json({ ok: false, error: insErr.message }, 500)
+    if (insErr) return { criados: 0, erro: insErr.message }
     await logar({ status: 'sistema', erro: `Fila criada com ${itens.length} itens` })
-    return json({ ok: true, fila_criada: itens.length, pulados_telefone: limitados.length - itens.length })
+    return { criados: itens.length }
   }
 
-  // ── processar ────────────────────────────────────────────
-  if (type === 'processar') {
-    if (!cfg.ativo) {
-      return json({ ok: false, error: 'Automação está INATIVA — envios reais recusados.' })
-    }
-    const { data: pendentes } = await supabase
-      .from('automacao_fila')
-      .select('*')
-      .eq('automacao', 'LUMAR')
-      .eq('data_exec', hoje)
-      .eq('status', 'pendente')
-      .order('created_at', { ascending: true })
-      .limit(cfg.msgs_por_lote)
-    const lote = (pendentes ?? []) as Array<{
-      id: string; cliente_nome: string; telefone: string; mensagem: string | null; tentativas: number
-    }>
-    if (lote.length === 0) {
-      return json({ ok: true, processados: 0, restantes: 0, mensagem: 'Fila vazia.' })
-    }
-
-    const { count: enviadosHoje } = await supabase
+  // Processa um lote da fila pendente. Retorna resultado do lote.
+  async function processarLote(): Promise<{ processados: number; enviados: number; erros: number; restantes: number }> {
+    const { count: jaEnviados } = await supabase
       .from('automacao_logs')
       .select('id', { count: 'exact', head: true })
-      .eq('automacao', 'LUMAR')
-      .eq('data_exec', hoje)
-      .eq('status', 'enviado')
-    if ((enviadosHoje ?? 0) >= cfg.limite_diario) {
-      return json({ ok: false, error: `Limite diário (${cfg.limite_diario}) atingido.` })
+      .eq('automacao', 'LUMAR').eq('data_exec', hoje).eq('status', 'enviado')
+    if ((jaEnviados ?? 0) >= cfg.limite_diario) {
+      return { processados: 0, enviados: 0, erros: 0, restantes: 0 }
     }
+
+    const { data: pendentes } = await supabase
+      .from('automacao_fila').select('*')
+      .eq('automacao', 'LUMAR').eq('data_exec', hoje).eq('status', 'pendente')
+      .order('created_at', { ascending: true }).limit(cfg.msgs_por_lote)
+    const lote = (pendentes ?? []) as FilaItem[]
+
+    const { count: restantes } = await supabase
+      .from('automacao_fila').select('id', { count: 'exact', head: true })
+      .eq('automacao', 'LUMAR').eq('data_exec', hoje).eq('status', 'pendente')
+
+    if (lote.length === 0) return { processados: 0, enviados: 0, erros: 0, restantes: restantes ?? 0 }
 
     let enviados = 0, erros = 0
     for (let i = 0; i < lote.length; i++) {
@@ -296,53 +217,94 @@ Deno.serve(async (req: Request) => {
       const res = await enviarDigisac(item.telefone, texto)
       if (res.ok) {
         enviados++
-        await supabase.from('automacao_fila').update({
-          status: 'enviado', processed_at: new Date().toISOString(), tentativas: item.tentativas + 1,
-        }).eq('id', item.id)
-        await logar({
-          cliente_nome: item.cliente_nome, telefone: item.telefone, mensagem: texto, status: 'enviado',
-        })
+        await supabase.from('automacao_fila').update({ status: 'enviado', processed_at: new Date().toISOString(), tentativas: item.tentativas + 1 }).eq('id', item.id)
+        await logar({ cliente_nome: item.cliente_nome, telefone: item.telefone, mensagem: texto, status: 'enviado' })
       } else {
         erros++
-        await supabase.from('automacao_fila').update({
-          status: 'erro', erro: res.erro, processed_at: new Date().toISOString(), tentativas: item.tentativas + 1,
-        }).eq('id', item.id)
-        await logar({
-          cliente_nome: item.cliente_nome, telefone: item.telefone, mensagem: texto, status: 'erro', erro: res.erro,
-        })
+        await supabase.from('automacao_fila').update({ status: 'erro', erro: res.erro, processed_at: new Date().toISOString(), tentativas: item.tentativas + 1 }).eq('id', item.id)
+        await logar({ cliente_nome: item.cliente_nome, telefone: item.telefone, mensagem: texto, status: 'erro', erro: res.erro })
       }
       if (i < lote.length - 1) await sleep(cfg.pausa_entre_msgs_ms)
     }
 
-    const { count: restantes } = await supabase
-      .from('automacao_fila')
-      .select('id', { count: 'exact', head: true })
-      .eq('automacao', 'LUMAR')
-      .eq('data_exec', hoje)
-      .eq('status', 'pendente')
+    const { count: restantesApos } = await supabase
+      .from('automacao_fila').select('id', { count: 'exact', head: true })
+      .eq('automacao', 'LUMAR').eq('data_exec', hoje).eq('status', 'pendente')
+    return { processados: lote.length, enviados, erros, restantes: restantesApos ?? 0 }
+  }
 
-    const pausaProximoLote = restantes && restantes > 0
-      ? cfg.pausa_min_ms + Math.floor(Math.random() * (cfg.pausa_max_ms - cfg.pausa_min_ms))
-      : 0
+  // ── status ───────────────────────────────────────────────────────────────────
+  if (type === 'status') {
+    const { data: fila } = await supabase
+      .from('automacao_fila').select('status').eq('automacao', 'LUMAR').eq('data_exec', hoje)
+    const contagem: Record<string, number> = {}
+    for (const f of (fila ?? []) as Array<{ status: string }>) {
+      contagem[f.status] = (contagem[f.status] ?? 0) + 1
+    }
+    const { count: enviadosHoje } = await supabase
+      .from('automacao_logs').select('id', { count: 'exact', head: true })
+      .eq('automacao', 'LUMAR').eq('data_exec', hoje).eq('status', 'enviado')
+    return json({ ok: true, config: cfg, hoje, fim_de_semana: fimDeSemana, fila: contagem, enviados_hoje: enviadosHoje ?? 0 })
+  }
 
+  // ── simular ──────────────────────────────────────────────────────────────────
+  if (type === 'simular') {
+    const clientes = await clientesDoDia()
+    const lista = clientes.map((c) => {
+      const tel = normalizaTelefone(c.telefone ?? '')
+      return { cliente_nome: c.nome, telefone: c.telefone, telefone_normalizado: tel, rota: c.rota, turno: c.turno, valido: !!tel }
+    })
     return json({
-      ok: true,
-      processados: lote.length,
-      enviados,
-      erros,
-      restantes: restantes ?? 0,
-      pausa_proximo_lote_ms: pausaProximoLote,
+      ok: true, hoje, fim_de_semana: fimDeSemana, total: lista.length,
+      validos: lista.filter((l) => l.valido).length,
+      mensagem_exemplo: lista[0] ? montaMensagem(cfg.mensagem_template, lista[0].cliente_nome) : montaMensagem(cfg.mensagem_template, 'Cliente'),
+      clientes: lista,
     })
   }
 
-  // ── cancelar ─────────────────────────────────────────────
+  // ── executar (chamado pelo pg_cron a cada 5 min, 08:00–09:55 UTC = 05:00–06:55 BRT) ──
+  if (type === 'executar') {
+    if (!cfg.ativo) return json({ ok: false, mensagem: 'Automação INATIVA — sem envios.' })
+    if (fimDeSemana) return json({ ok: true, mensagem: 'Fim de semana — sem envios.' })
+
+    const { data: feriado } = await supabase
+      .from('automacao_feriados').select('descricao').eq('data', hoje).maybeSingle()
+    if (feriado) return json({ ok: true, mensagem: `Feriado (${(feriado as { descricao?: string }).descricao ?? ''}) — sem envios.` })
+
+    const { criados, erro: erroFila } = await criarFilaSeNecessario()
+    if (erroFila && criados === 0) return json({ ok: true, fila_criada: 0, mensagem: erroFila })
+
+    const loteResult = await processarLote()
+    return json({ ok: true, fila_criada: criados, ...loteResult })
+  }
+
+  // ── iniciar (manual — cria fila via painel) ──────────────────────────────────
+  if (type === 'iniciar') {
+    if (!cfg.ativo) return json({ ok: false, error: 'Automação está INATIVA. Ative-a no painel para iniciar envios.' })
+    if (fimDeSemana) return json({ ok: false, error: 'Hoje é fim de semana — sem envios.' })
+    const { data: feriado } = await supabase
+      .from('automacao_feriados').select('descricao').eq('data', hoje).maybeSingle()
+    if (feriado) return json({ ok: false, error: `Hoje é feriado (${(feriado as { descricao?: string }).descricao ?? 'sem descrição'}) — sem envios.` })
+
+    const { criados, erro: erroFila } = await criarFilaSeNecessario()
+    if (erroFila) return json({ ok: false, error: erroFila }, criados === 0 ? 400 : 200)
+    if (criados === 0) return json({ ok: false, error: 'Fila de hoje já foi criada.' })
+    return json({ ok: true, fila_criada: criados })
+  }
+
+  // ── processar (manual — dispara um lote via painel) ──────────────────────────
+  if (type === 'processar') {
+    if (!cfg.ativo) return json({ ok: false, error: 'Automação está INATIVA — envios reais recusados.' })
+    const loteResult = await processarLote()
+    return json({ ok: true, ...loteResult })
+  }
+
+  // ── cancelar (para emergencial — zera a fila pendente) ───────────────────────
   if (type === 'cancelar') {
     const { data: cancelados, error: cancErr } = await supabase
       .from('automacao_fila')
       .update({ status: 'pulado', processed_at: new Date().toISOString() })
-      .eq('automacao', 'LUMAR')
-      .eq('data_exec', hoje)
-      .eq('status', 'pendente')
+      .eq('automacao', 'LUMAR').eq('data_exec', hoje).eq('status', 'pendente')
       .select('id')
     if (cancErr) return json({ ok: false, error: cancErr.message }, 500)
     const n = (cancelados ?? []).length
@@ -350,5 +312,15 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, cancelados: n })
   }
 
-  return json({ ok: false, error: 'type deve ser iniciar | processar | simular | status | cancelar' })
+  // ── teste (envia mensagem real para número específico) ───────────────────────
+  if (type === 'teste') {
+    const tel = normalizaTelefone(body.numero ?? '')
+    if (!tel) return json({ ok: false, error: 'Número inválido. Informe DDD + número (ex: 62999887766).' }, 400)
+    const texto = body.mensagem?.trim() ? body.mensagem.trim() : montaMensagem(cfg.mensagem_template, 'Teste')
+    const res = await enviarDigisac(tel, texto)
+    await logar({ cliente_nome: '🧪 TESTE', telefone: tel, mensagem: texto, status: res.ok ? 'enviado' : 'erro', erro: res.erro ?? null })
+    return json({ ok: res.ok, erro: res.erro, numero_normalizado: tel, mensagem_enviada: texto })
+  }
+
+  return json({ ok: false, error: 'type deve ser: executar | iniciar | processar | simular | status | cancelar | teste' }, 400)
 })
