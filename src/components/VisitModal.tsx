@@ -1,9 +1,9 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { X, AlertCircle, Camera, Trash2, Loader2, Users, CalendarPlus, ChevronDown } from 'lucide-react'
+import { X, AlertCircle, Camera, Trash2, Loader2, Users, CalendarPlus, ChevronDown, MapPin, Search } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
 import { supabase } from '../lib/supabase'
 import type { Visit } from '../types'
-import { VISIT_TYPES, VISIT_STATUS } from '../types'
+import { VISIT_TYPES } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
 
 interface Props {
@@ -40,12 +40,25 @@ function makeEmptyForm() {
     client_name:   '',
     contact_name:  '',
     contact_phone: '',
+    local:         '',
     demand:        '',
     report:        '',
     priority:      'MÉDIA',
     status:        'Realizada',
     has_amostra:   false,
   }
+}
+
+interface AtacadoClient {
+  id: string
+  cliente: string
+  localizacao: string | null
+  telefone: string | null
+}
+
+interface NominatimResult {
+  place_id: number
+  display_name: string
 }
 
 export default function VisitModal({ visit, onClose, onSaved }: Props) {
@@ -57,6 +70,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       client_name:   visit.client_name,
       contact_name:  visit.contact_name  ?? '',
       contact_phone: visit.contact_phone ? maskPhone(visit.contact_phone) : '',
+      local:         visit.local         ?? '',
       demand:        visit.demand        ?? '',
       report:        visit.report        ?? '',
       priority:      visit.priority      ?? 'MÉDIA',
@@ -70,12 +84,22 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
     if (visit?.responsible) return [visit.responsible]
     return []
   }
-  const [responsaveis,  setResponsaveis]  = useState<string[]>(initResponsaveis)
-  const [staffOptions,  setStaffOptions]  = useState<string[]>([])
-  const [photos,        setPhotos]        = useState<string[]>(visit?.photo_urls ?? [])
-  const [saving,        setSaving]        = useState(false)
-  const [uploading,     setUploading]     = useState(false)
-  const [error,         setError]         = useState<string | null>(null)
+  const [responsaveis,     setResponsaveis]     = useState<string[]>(initResponsaveis)
+  const [staffOptions,     setStaffOptions]     = useState<string[]>([])
+  const [photos,           setPhotos]           = useState<string[]>(visit?.photo_urls ?? [])
+  const [saving,           setSaving]           = useState(false)
+  const [uploading,        setUploading]        = useState(false)
+  const [error,            setError]            = useState<string | null>(null)
+
+  // Atacado client autocomplete (active when tipo = Acompanhamento)
+  const [atacadoClients,  setAtacadoClients]  = useState<AtacadoClient[]>([])
+  const [showClientDrop,  setShowClientDrop]  = useState(false)
+
+  // Local geocoding (Nominatim / OpenStreetMap)
+  const [localSuggestions, setLocalSuggestions] = useState<NominatimResult[]>([])
+  const [showLocalDrop,    setShowLocalDrop]    = useState(false)
+  const localTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Schedule next appointment
@@ -88,15 +112,21 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
   })
 
   useEffect(() => {
-    supabase
-      .from('crm_staff')
-      .select('name')
-      .eq('active', true)
-      .order('name')
+    supabase.from('crm_staff').select('name').eq('active', true).order('name')
       .then(({ data }) => {
         if (data) setStaffOptions(data.map((s: any) => s.name as string))
       })
   }, [])
+
+  // Load atacado clients only when tipo = Acompanhamento
+  useEffect(() => {
+    if (form.visit_type !== 'Acompanhamento') { setAtacadoClients([]); return }
+    supabase.from('atacado_clientes')
+      .select('id, cliente, localizacao, telefone')
+      .eq('status', 'ATIVO')
+      .order('cliente')
+      .then(({ data }) => { if (data) setAtacadoClients(data as AtacadoClient[]) })
+  }, [form.visit_type])
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -107,6 +137,29 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
     )
   }
+
+  function handleLocalChange(val: string) {
+    set('local', val)
+    if (localTimerRef.current) clearTimeout(localTimerRef.current)
+    if (val.length < 3) { setLocalSuggestions([]); setShowLocalDrop(false); return }
+    localTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&limit=5&countrycodes=br`,
+          { headers: { 'Accept-Language': 'pt-BR' } }
+        )
+        const data: NominatimResult[] = await res.json()
+        setLocalSuggestions(data)
+        setShowLocalDrop(data.length > 0)
+      } catch {
+        // ignore geocoding errors silently
+      }
+    }, 450)
+  }
+
+  const filteredAtacado = atacadoClients.filter(c =>
+    c.cliente.toLowerCase().includes(form.client_name.toLowerCase())
+  )
 
   async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
@@ -144,7 +197,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       try {
         await supabase.storage.from('visit-photos').remove([decodeURIComponent(path)])
       } catch {
-        // ignore — we still want to detach the photo from the visit
+        // ignore — detach the photo from the visit regardless
       }
     }
     setPhotos(prev => prev.filter(u => u !== url))
@@ -157,6 +210,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
     setError(null)
     const payload = {
       ...form,
+      local:        form.local.trim() || null,
       responsible:  responsaveis[0] ?? null,
       responsaveis: responsaveis,
       photo_urls:   photos,
@@ -172,21 +226,6 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
         .from('visits').insert(payload).select('id').single()
       if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
       visitId = inserted?.id ?? null
-      // Auto-cria entrada na agenda para visitas agendadas
-      if (form.status === 'Agendada' && visitId) {
-        await supabase.from('agenda_compromissos').insert({
-          titulo:       `Visita — ${form.client_name}`,
-          data:         form.visit_date,
-          tipo:         'Visita',
-          status:       'AGENDADO',
-          cliente_nome: form.client_name,
-          descricao:    form.demand || null,
-          responsavel:  responsaveis[0] ?? null,
-          responsaveis,
-          visit_id:     visitId,
-          updated_at:   new Date().toISOString(),
-        })
-      }
     }
 
     // Cria próximo compromisso se solicitado
@@ -198,6 +237,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
         tipo:         'Visita',
         status:       'AGENDADO',
         cliente_nome: form.client_name || null,
+        local:        form.local.trim() || null,
         descricao:    nextAppt.descricao || null,
         responsavel:  responsaveis[0]   ?? null,
         responsaveis,
@@ -210,18 +250,22 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
     onClose()
   }
 
+  const isAcompanhamento = form.visit_type === 'Acompanhamento'
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white dark:bg-slate-800 w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
-          <h2 className="font-bold text-slate-800">{visit ? 'Editar Visita' : 'Registrar Visita'}</h2>
+          <h2 className="font-bold text-slate-800 dark:text-slate-100">{visit ? 'Editar Visita' : 'Registrar Visita'}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400">
             <X size={20} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* Data + Tipo */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Data</label>
@@ -233,10 +277,57 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
                 {VISIT_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
-            <div className="col-span-2">
-              <label className="label">Cliente *</label>
-              <input className="input" value={form.client_name} onChange={e => set('client_name', e.target.value)} placeholder="Nome do cliente visitado" />
-            </div>
+          </div>
+
+          {/* Cliente — autocomplete de Atacado quando tipo = Acompanhamento */}
+          <div className="relative">
+            <label className="label">
+              Cliente *
+              {isAcompanhamento && (
+                <span className="ml-1.5 text-[10px] font-normal text-orange-500">
+                  (clientes Atacado)
+                </span>
+              )}
+            </label>
+            <input
+              className="input"
+              value={form.client_name}
+              onChange={e => {
+                set('client_name', e.target.value)
+                if (isAcompanhamento) setShowClientDrop(true)
+              }}
+              onFocus={() => { if (isAcompanhamento) setShowClientDrop(true) }}
+              onBlur={() => setTimeout(() => setShowClientDrop(false), 150)}
+              placeholder={isAcompanhamento ? 'Buscar cliente cadastrado...' : 'Nome do cliente visitado'}
+            />
+            {isAcompanhamento && showClientDrop && filteredAtacado.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                {filteredAtacado.slice(0, 8).map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={() => {
+                      set('client_name', c.cliente)
+                      if (c.localizacao) set('local', c.localizacao)
+                      if (c.telefone) set('contact_phone', maskPhone(c.telefone))
+                      setShowClientDrop(false)
+                    }}
+                    className="w-full text-left px-3 py-2.5 border-b border-slate-50 dark:border-slate-700 last:border-0 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                  >
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{c.cliente}</p>
+                    {c.localizacao && (
+                      <p className="text-[10px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                        <MapPin size={9} />{c.localizacao}
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Contato + Telefone */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Contato</label>
               <input className="input" value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder="Nome da pessoa" />
@@ -252,18 +343,65 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
                 inputMode="numeric"
               />
             </div>
-            <div>
-              <label className="label">Status</label>
-              <select className="input" value={form.status} onChange={e => set('status', e.target.value)}>
-                {VISIT_STATUS.map(s => <option key={s}>{s}</option>)}
-              </select>
+          </div>
+
+          {/* Prioridade — botões coloridos */}
+          <div>
+            <label className="label">Prioridade</label>
+            <div className="flex gap-2">
+              {(['ALTA', 'MÉDIA', 'BAIXA'] as const).map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => set('priority', p)}
+                  className={`flex-1 py-2 rounded-lg border text-[11px] font-bold transition-all ${
+                    form.priority === p
+                      ? p === 'ALTA'  ? 'bg-red-50 border-red-400 text-red-600'
+                      : p === 'MÉDIA' ? 'bg-amber-50 border-amber-400 text-amber-600'
+                                      : 'bg-green-50 border-green-400 text-green-600'
+                      : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-400'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
             </div>
-            <div>
-              <label className="label">Prioridade</label>
-              <select className="input" value={form.priority} onChange={e => set('priority', e.target.value)}>
-                {['ALTA', 'MÉDIA', 'BAIXA'].map(p => <option key={p}>{p}</option>)}
-              </select>
+          </div>
+
+          {/* Local com geocoding OpenStreetMap */}
+          <div className="relative">
+            <label className="label flex items-center gap-1.5">
+              <MapPin size={12} className="text-slate-400" /> Local
+            </label>
+            <div className="relative">
+              <input
+                className="input pr-8"
+                value={form.local}
+                onChange={e => handleLocalChange(e.target.value)}
+                onBlur={() => setTimeout(() => setShowLocalDrop(false), 200)}
+                placeholder="Digite para buscar endereço..."
+                autoComplete="off"
+              />
+              <Search size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
+            {showLocalDrop && localSuggestions.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                {localSuggestions.map(s => (
+                  <button
+                    key={s.place_id}
+                    type="button"
+                    onMouseDown={() => {
+                      set('local', s.display_name)
+                      setShowLocalDrop(false)
+                      setLocalSuggestions([])
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 border-b border-slate-50 dark:border-slate-700 last:border-0 transition-colors"
+                  >
+                    {s.display_name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Responsáveis multi-select */}
@@ -395,9 +533,6 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
               <span className="text-base">{form.has_amostra ? '✅' : '○'}</span>
               <span>{form.has_amostra ? 'Com amostra de produtos' : 'Sem amostra de produtos'}</span>
             </button>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Marque se esta visita envolve levar ou entregar amostras ao cliente
-            </p>
           </div>
 
           {/* Fotos */}
@@ -442,6 +577,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
               No celular abre a câmera · max {MAX_PHOTOS} fotos · comprimidas antes do envio
             </p>
           </div>
+
         </div>
 
         {error && (

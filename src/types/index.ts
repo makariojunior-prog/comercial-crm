@@ -29,6 +29,7 @@ export interface Visit {
   contact_phone: string | null
   responsible: string | null
   responsaveis: string[] | null
+  local: string | null
   demand: string | null
   report: string | null
   priority: string | null
