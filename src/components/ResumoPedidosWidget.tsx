@@ -59,12 +59,13 @@ export default function ResumoPedidosWidget() {
       const is99       = (p.origem ?? '').toUpperCase() === '99FOOD'
       const liq        = Number(p.valor_liquido ?? 0)
 
-      if (isRetirada) {
-        vs.retiradas.qtd++; vs.retiradas.valor += liq
+      // App orders take priority over order_type/entregador classification
+      if (is99) {
+        vs.food99.qtd++; vs.food99.valor += liq
       } else if (isIfood) {
         vs.ifood.qtd++; vs.ifood.valor += liq
-      } else if (is99) {
-        vs.food99.qtd++; vs.food99.valor += liq
+      } else if (isRetirada) {
+        vs.retiradas.qtd++; vs.retiradas.valor += liq
       } else {
         vs.entregas.qtd++; vs.entregas.valor += liq
       }
