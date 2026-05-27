@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
-import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, FileSpreadsheet, Check, CreditCard, Briefcase, Plus, Trash2 } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, FileSpreadsheet, Check, CreditCard, Briefcase, Plus, Trash2, Lock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -274,6 +274,9 @@ export default function SettingsPage() {
         </p>
       </Section>
 
+      {/* ─── Seção Fixa do Dashboard — somente Admin ───────────── */}
+      {isAdmin && <FixedWidgetsSection />}
+
       {/* ─── Planilha Google — somente Admin ───────────────────── */}
       {isAdmin && <SheetsSection />}
 
@@ -291,6 +294,179 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function FixedWidgetsSection() {
+  const [widgets, setWidgets] = useState<{ id: number; widget_id: string; visible: boolean; ordem: number }[]>([])
+  const [addingId, setAddingId] = useState('')
+  const [busy, setBusy]         = useState(false)
+  const dragIdx = useRef<number | null>(null)
+  const [overIdx, setOverIdx]   = useState<number | null>(null)
+
+  async function load() {
+    const { data } = await supabase.from('dashboard_fixed_widgets').select('*').order('ordem')
+    setWidgets(data ?? [])
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function toggleVisible(id: number, visible: boolean) {
+    await supabase.from('dashboard_fixed_widgets')
+      .update({ visible: !visible, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    load()
+  }
+
+  async function remove(id: number) {
+    await supabase.from('dashboard_fixed_widgets').delete().eq('id', id)
+    load()
+  }
+
+  async function add() {
+    if (!addingId) return
+    setBusy(true)
+    const maxOrdem = widgets.length ? Math.max(...widgets.map(w => w.ordem)) + 1 : 0
+    await supabase.from('dashboard_fixed_widgets').insert({
+      widget_id:  addingId,
+      visible:    true,
+      ordem:      maxOrdem,
+      updated_at: new Date().toISOString(),
+    })
+    setAddingId('')
+    await load()
+    setBusy(false)
+  }
+
+  async function handleDrop(targetIdx: number) {
+    const from = dragIdx.current
+    if (from === null || from === targetIdx) { setOverIdx(null); return }
+    const next = [...widgets]
+    const [item] = next.splice(from, 1)
+    next.splice(targetIdx, 0, item)
+    await Promise.all(
+      next.map((w, i) =>
+        supabase.from('dashboard_fixed_widgets')
+          .update({ ordem: i, updated_at: new Date().toISOString() })
+          .eq('id', w.id)
+      )
+    )
+    dragIdx.current = null
+    setOverIdx(null)
+    load()
+  }
+
+  function moveWidget(index: number, dir: -1 | 1) {
+    const swap = index + dir
+    if (swap < 0 || swap >= widgets.length) return
+    const next = [...widgets]
+    ;[next[index], next[swap]] = [next[swap], next[index]]
+    Promise.all(
+      next.map((w, i) =>
+        supabase.from('dashboard_fixed_widgets')
+          .update({ ordem: i, updated_at: new Date().toISOString() })
+          .eq('id', w.id)
+      )
+    ).then(() => load())
+  }
+
+  const usedIds = new Set(widgets.map(w => w.widget_id))
+  const available = Object.entries(DASHBOARD_WIDGET_LABELS).filter(([id]) => !usedIds.has(id))
+
+  return (
+    <Section
+      icon={<Lock size={16} className="text-orange-500" />}
+      title="Seção Fixa do Dashboard"
+    >
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        Widgets que aparecem no topo do dashboard para <strong>todos os usuários</strong>, independente das preferências pessoais. Apenas administradores podem alterar.
+      </p>
+      <div className="space-y-1.5 mb-3">
+        {widgets.map((w, i) => (
+          <div
+            key={w.id}
+            draggable
+            onDragStart={() => { dragIdx.current = i }}
+            onDragOver={e => { e.preventDefault(); setOverIdx(i) }}
+            onDrop={() => handleDrop(i)}
+            onDragEnd={() => { dragIdx.current = null; setOverIdx(null) }}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
+              overIdx === i
+                ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20'
+                : w.visible
+                  ? 'bg-orange-50/60 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800'
+                  : 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-700 opacity-60'
+            }`}
+          >
+            <button
+              onClick={() => toggleVisible(w.id, w.visible)}
+              className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0"
+              title={w.visible ? 'Ocultar' : 'Mostrar'}
+            >
+              {w.visible
+                ? <Eye size={14} className="text-green-500" />
+                : <EyeOff size={14} className="text-slate-400" />}
+            </button>
+            <GripVertical size={14} className="text-slate-300 dark:text-slate-500 shrink-0 cursor-grab" />
+            <span className={`flex-1 text-sm font-medium ${w.visible ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500 line-through'}`}>
+              {DASHBOARD_WIDGET_LABELS[w.widget_id] ?? w.widget_id}
+            </span>
+            <div className="flex gap-0.5">
+              <button
+                onClick={() => moveWidget(i, -1)}
+                disabled={i === 0}
+                className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-25 text-slate-500 transition-colors"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                onClick={() => moveWidget(i, 1)}
+                disabled={i === widgets.length - 1}
+                className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-25 text-slate-500 transition-colors"
+              >
+                <ChevronDown size={14} />
+              </button>
+              <button
+                onClick={() => remove(w.id)}
+                className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-colors"
+                title="Remover da seção fixa"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+        ))}
+        {widgets.length === 0 && (
+          <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-3 border border-dashed border-slate-200 dark:border-slate-600 rounded-xl">
+            Nenhum widget fixo — todos os usuários veem apenas sua seleção pessoal
+          </p>
+        )}
+      </div>
+      {available.length > 0 && (
+        <div className="flex gap-2">
+          <select
+            className="input flex-1 text-sm"
+            value={addingId}
+            onChange={e => setAddingId(e.target.value)}
+          >
+            <option value="">Escolher widget para fixar…</option>
+            {available.map(([id, label]) => (
+              <option key={id} value={id}>{label}</option>
+            ))}
+          </select>
+          <button
+            onClick={add}
+            disabled={busy || !addingId}
+            className="btn-primary flex items-center gap-1.5 px-3 py-2 text-sm disabled:opacity-50"
+          >
+            <Plus size={15} /> Fixar
+          </button>
+        </div>
+      )}
+      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+        Widgets fixos aparecem no topo com o label "Visão Geral da Empresa" e não podem ser movidos ou ocultados pelos usuários.
+      </p>
+    </Section>
   )
 }
 

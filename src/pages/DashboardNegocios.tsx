@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, User } from 'lucide-react'
+import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, User, Lock } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -28,6 +28,7 @@ export default function DashboardNegocios() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [quickDeal, setQuickDeal] = useState<Deal | null>(null)
   const [newDeal, setNewDeal] = useState(false)
+  const [fixedWidgets, setFixedWidgets] = useState<{ widget_id: string; visible: boolean; ordem: number }[]>([])
   const { prefs } = usePreferences()
 
   async function load() {
@@ -44,6 +45,14 @@ export default function DashboardNegocios() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    supabase
+      .from('dashboard_fixed_widgets')
+      .select('widget_id, visible, ordem')
+      .order('ordem')
+      .then(({ data }) => setFixedWidgets(data ?? []))
+  }, [])
 
   const active = deals.filter(d => d.status === 'NOVO' || d.status === 'EM ANDAMENTO')
   const stale  = active.filter(d => isStale(d))
@@ -64,6 +73,17 @@ export default function DashboardNegocios() {
     const rest = all.filter(w => w.id !== 'conversas_alertas')
     return conversas ? [conversas, ...rest] : all
   }, [prefs.dashboardWidgets])
+
+  // Fixed widgets take priority — removed from the personalized section
+  const fixedWidgetIds = useMemo(
+    () => new Set(fixedWidgets.filter(w => w.visible).map(w => w.widget_id)),
+    [fixedWidgets]
+  )
+
+  const personalWidgets = useMemo(
+    () => orderedWidgets.filter(w => !fixedWidgetIds.has(w.id)),
+    [orderedWidgets, fixedWidgetIds]
+  )
 
   // Widgets that always span both columns (full width)
   const FULL_WIDTH = new Set(['frota', 'tarefas_eventos', 'visitas_negocios'])
@@ -138,6 +158,41 @@ export default function DashboardNegocios() {
     }
   }
 
+  // Reutilizável: gera layout masonry de 2 colunas para um grupo de widgets
+  function buildMasonry(widgets: { id: string; visible: boolean }[], prefix: string) {
+    const sections: React.ReactNode[] = []
+    let half: { id: string; visible: boolean }[] = []
+    let key = 0
+
+    const flush = () => {
+      if (!half.length) return
+      const left  = half.filter((_, i) => i % 2 === 0)
+      const right = half.filter((_, i) => i % 2 === 1)
+      sections.push(
+        <div key={`${prefix}-g${key++}`} className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+          <div className="flex flex-col gap-5">
+            {left.map(w => <div key={w.id}>{renderWidget(w.id)}</div>)}
+          </div>
+          <div className="flex flex-col gap-5">
+            {right.map(w => <div key={w.id}>{renderWidget(w.id)}</div>)}
+          </div>
+        </div>
+      )
+      half = []
+    }
+
+    for (const w of widgets) {
+      if (FULL_WIDTH.has(w.id)) {
+        flush()
+        sections.push(<div key={`${prefix}-${w.id}`}>{renderWidget(w.id)}</div>)
+      } else {
+        half.push(w)
+      }
+    }
+    flush()
+    return sections
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -159,42 +214,25 @@ export default function DashboardNegocios() {
         </div>
       </div>
 
-      <div className="space-y-5">
-        {(() => {
-          // Masonry layout: two independent flex columns eliminate row-height gaps.
-          // Full-width widgets (frota, legacy compounds) act as section separators.
-          const sections: React.ReactNode[] = []
-          let half: typeof orderedWidgets = []
-          let key = 0
+      <div className="space-y-6">
+        {/* ── Seção Fixa — definida pelo administrador ── */}
+        {fixedWidgets.some(w => w.visible) && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wide bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
+                <Lock size={9} /> Visão Geral da Empresa
+              </span>
+              <div className="h-px flex-1 bg-orange-200 dark:bg-orange-800/40" />
+            </div>
+            {buildMasonry(
+              fixedWidgets.filter(w => w.visible).map(w => ({ id: w.widget_id, visible: true })),
+              'fixed'
+            )}
+          </div>
+        )}
 
-          function flushHalf() {
-            if (!half.length) return
-            const left  = half.filter((_, i) => i % 2 === 0)
-            const right = half.filter((_, i) => i % 2 === 1)
-            sections.push(
-              <div key={key++} className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-                <div className="flex flex-col gap-5">
-                  {left.map(w => <div key={w.id}>{renderWidget(w.id)}</div>)}
-                </div>
-                <div className="flex flex-col gap-5">
-                  {right.map(w => <div key={w.id}>{renderWidget(w.id)}</div>)}
-                </div>
-              </div>
-            )
-            half = []
-          }
-
-          for (const w of orderedWidgets) {
-            if (FULL_WIDTH.has(w.id)) {
-              flushHalf()
-              sections.push(<div key={w.id}>{renderWidget(w.id)}</div>)
-            } else {
-              half.push(w)
-            }
-          }
-          flushHalf()
-          return sections
-        })()}
+        {/* ── Seção Personalizada ── */}
+        {buildMasonry(personalWidgets, 'personal')}
       </div>
 
       {/* Modals */}
