@@ -61,14 +61,18 @@ async function processOrder(payload: any): Promise<void> {
     return
   }
 
-  const isTakeout = order.order_type === 'takeout'
+  // Workaround: Cardápio Web às vezes retorna order_type='takeout' para pedidos
+  // que têm endereço de entrega (bug da API). Se há bairro/rua, é delivery.
+  const addr = order.delivery_address ?? {}
+  const hasDeliveryAddress = !!(addr.neighborhood || addr.address || addr.street)
+  const isTakeout = order.order_type === 'takeout' && !hasDeliveryAddress
+
   const displayId = String(order.display_id).trim()
   const statusIcon = getStatusIcon(order.status)
   const origem = getOrigem(order.sales_channel, order.delivered_by)
 
   const total = parseFloat(order.total ?? 0)
   const frete = isTakeout ? 0 : parseFloat(order.delivery_fee ?? 0)
-  const addr = order.delivery_address ?? {}
   const bairro: string = isTakeout ? '' : (addr.neighborhood || 'Não informado')
   const rua = addr.address || addr.street || ''
   const numero = addr.number || 'S/N'
@@ -81,6 +85,7 @@ async function processOrder(payload: any): Promise<void> {
   const updateFields: Record<string, unknown> = {
     status_icon: statusIcon,
     origem:       origem,
+    order_type:   isTakeout ? 'takeout' : order.order_type,
     valor_liquido: total - frete,
     restricao: order.observation || null,
     updated_at: new Date().toISOString(),
@@ -141,7 +146,7 @@ async function processOrder(payload: any): Promise<void> {
     marcador:             '⭕️',
     cliente:              order.customer?.name ?? null,
     origem:               origem,
-    order_type:           order.order_type,
+    order_type:           isTakeout ? 'takeout' : 'delivery',
     valor_liquido:        total - frete,
     frete:                frete,
     qtd_pedidos_cliente:  qtdPedidos,
