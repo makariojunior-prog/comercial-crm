@@ -13,11 +13,16 @@ const STATUS_DOT: Record<string, string> = {
 }
 
 const TIPO_DOT: Record<string, string> = {
-  'Visita':  'bg-orange-400',
-  'Reunião': 'bg-blue-400',
-  'Ligação': 'bg-purple-400',
-  'Entrega': 'bg-green-400',
-  'Outros':  'bg-slate-400',
+  'Visita':              'bg-orange-400',
+  'Reunião':             'bg-blue-400',
+  'Ligação':             'bg-purple-400',
+  'Entrega':             'bg-green-400',
+  'Outros':              'bg-slate-400',
+  'Degustação':          'bg-rose-400',
+  'Promoção':            'bg-pink-400',
+  'Evento Comemorativo': 'bg-fuchsia-400',
+  'Inauguração':         'bg-rose-500',
+  'Outro':               'bg-slate-400',
 }
 
 export default function AgendaWidget() {

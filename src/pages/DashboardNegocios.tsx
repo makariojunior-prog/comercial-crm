@@ -9,7 +9,6 @@ import { PriorityBadge, TypeBadge, isStale, daysSince } from '../components/Stat
 import QuickUpdateModal from '../components/QuickUpdateModal'
 import DealModal from '../components/DealModal'
 import DashboardTasks from '../components/DashboardTasks'
-import DashboardEvents from '../components/DashboardEvents'
 import RecentVisitsWidget from '../components/RecentVisitsWidget'
 import DashboardNotesWidget from '../components/DashboardNotesWidget'
 import VehicleAlertsWidget from '../components/VehicleAlertsWidget'
@@ -91,12 +90,7 @@ export default function DashboardNegocios() {
   function renderWidget(id: string) {
     switch (id) {
       case 'tarefas_eventos':  // legado
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <DashboardTasks />
-            <DashboardEvents />
-          </div>
-        )
+        return <DashboardTasks />
       case 'visitas_negocios':  // legado
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -116,7 +110,7 @@ export default function DashboardNegocios() {
       case 'tarefas':
         return <DashboardTasks />
       case 'eventos':
-        return <DashboardEvents />
+        return null
       case 'visitas':
         return <div className="card p-5"><RecentVisitsWidget /></div>
       case 'negocios':
@@ -232,7 +226,19 @@ export default function DashboardNegocios() {
         )}
 
         {/* ── Seção Personalizada ── */}
-        {buildMasonry(personalWidgets, 'personal')}
+        {personalWidgets.length > 0 && (
+          <div className="space-y-4">
+            {fixedWidgets.some(w => w.visible) && (
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
+                  <User size={9} /> Visão Personalizada
+                </span>
+                <div className="h-px flex-1 bg-blue-200 dark:bg-blue-800/40" />
+              </div>
+            )}
+            {buildMasonry(personalWidgets, 'personal')}
+          </div>
+        )}
       </div>
 
       {/* Modals */}

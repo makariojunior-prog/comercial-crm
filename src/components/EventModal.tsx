@@ -103,6 +103,24 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
         if (sErr) throw sErr
       }
 
+      // Sync to agenda_compromissos (upsert via unique crm_event_id)
+      const dateOnly = eventDate.substring(0, 10)
+      const timeOnly = eventDate.length >= 16 ? eventDate.substring(11, 16) : null
+      await supabase.from('agenda_compromissos').upsert(
+        {
+          crm_event_id: eId,
+          titulo: title.trim(),
+          data: dateOnly,
+          hora_inicio: timeOnly,
+          tipo: eventType,
+          status,
+          cliente_nome: clientId ? clientSearch : null,
+          descricao: notes.trim() || null,
+          responsaveis: [],
+        },
+        { onConflict: 'crm_event_id' }
+      )
+
       onSaved()
       onClose()
     } catch (err) {

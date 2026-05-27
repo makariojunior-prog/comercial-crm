@@ -31,7 +31,7 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: 'conversas_alertas',  visible: true },  // sempre primeiro
   { id: 'tarefas',            visible: true },
-  { id: 'eventos',            visible: true },
+  { id: 'agenda_widget',      visible: true },
   { id: 'visitas',            visible: true },
   { id: 'negocios',           visible: true },
   { id: 'notas',              visible: true },
@@ -40,7 +40,6 @@ export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: 'varejo_fila',        visible: true },
   { id: 'posvendas',          visible: true },
   { id: 'resumo_pedidos',     visible: true },
-  { id: 'agenda_widget',      visible: true },
 ]
 
 const DEFAULT_PREFS: UserPreferences = {

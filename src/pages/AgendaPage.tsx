@@ -15,11 +15,16 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 const TIPO_BORDER: Record<string, string> = {
-  'Visita':  'border-l-orange-400',
-  'Reunião': 'border-l-blue-400',
-  'Ligação': 'border-l-purple-400',
-  'Entrega': 'border-l-green-400',
-  'Outros':  'border-l-slate-400',
+  'Visita':              'border-l-orange-400',
+  'Reunião':             'border-l-blue-400',
+  'Ligação':             'border-l-purple-400',
+  'Entrega':             'border-l-green-400',
+  'Outros':              'border-l-slate-400',
+  'Degustação':          'border-l-rose-400',
+  'Promoção':            'border-l-pink-400',
+  'Evento Comemorativo': 'border-l-fuchsia-400',
+  'Inauguração':         'border-l-rose-500',
+  'Outro':               'border-l-slate-400',
 }
 
 export default function AgendaPage() {
