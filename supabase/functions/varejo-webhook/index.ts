@@ -20,7 +20,9 @@ function getStatusIcon(status: string): string {
 function getOrigem(salesChannel: string, deliveredBy: string): string {
   const ch = (salesChannel ?? '').toLowerCase()
   const by = (deliveredBy ?? '').toLowerCase()
-  if (ch === 'ifood') return by === 'food99' ? '99FOOD' : 'IFOOD'
+  // delivered_by é o campo mais confiável: 'food99' identifica 99Food independente do sales_channel
+  if (by === 'food99') return '99FOOD'
+  if (ch === 'ifood' || by === 'ifood' || by === 'ifood_shipping') return 'IFOOD'
   return 'CARDAPIO WEB'
 }
 
@@ -75,8 +77,10 @@ async function processOrder(payload: any): Promise<void> {
     : `${rua ? rua + ', ' : ''}${numero} - ${bairro}, ${addr.city || 'Goiânia'} - ${addr.state || 'GO'}${addr.zip_code ? ', ' + addr.zip_code : ''}`
 
   // Tenta atualizar pedido existente — preserva campos do atendente
+  // origem é recalculado para corrigir casos onde o 1º evento chegou antes da entregadora ser atribuída
   const updateFields: Record<string, unknown> = {
     status_icon: statusIcon,
+    origem:       origem,
     valor_liquido: total - frete,
     restricao: order.observation || null,
     updated_at: new Date().toISOString(),
