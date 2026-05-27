@@ -31,6 +31,7 @@ const ClientesVarejo     = lazy(() => import('./pages/ClientesVarejo'))
 const CobrancaPage       = lazy(() => import('./pages/CobrancaPage'))
 const ComissaoPage       = lazy(() => import('./pages/ComissaoPage'))
 const RevendaPage        = lazy(() => import('./pages/RevendaPage'))
+const AgendaPage         = lazy(() => import('./pages/AgendaPage'))
 
 function PageLoader() {
   return (
@@ -82,6 +83,7 @@ export default function App() {
                 <Route path="/cobranca"        element={<CobrancaPage />} />
                 <Route path="/comissao"        element={<ComissaoPage />} />
                 <Route path="/revenda"         element={<RevendaPage />} />
+                <Route path="/agenda"          element={<AgendaPage />} />
               </Route>
             </Route>
           </Routes>

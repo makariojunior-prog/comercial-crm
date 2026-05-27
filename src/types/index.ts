@@ -609,6 +609,26 @@ export interface AutomacaoLog {
   created_at: string
 }
 
+// ─── Agenda ────────────────────────────────────────────────────
+export interface AgendaCompromisso {
+  id: string
+  titulo: string
+  data: string
+  hora_inicio: string | null
+  hora_fim: string | null
+  tipo: string
+  status: 'AGENDADO' | 'REALIZADO' | 'CANCELADO'
+  descricao: string | null
+  local: string | null
+  cliente_nome: string | null
+  responsavel: string | null
+  responsaveis: string[]
+  visit_id: string | null
+  criado_por: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ─── Conversas WhatsApp ────────────────────────────────────────
 export interface CrmConversation {
   id: string

@@ -145,10 +145,29 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       responsaveis: responsaveis,
       photo_urls:   photos,
     }
-    const { error: err } = visit
-      ? await supabase.from('visits').update(payload).eq('id', visit.id)
-      : await supabase.from('visits').insert(payload)
-    if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+    if (visit) {
+      const { error: err } = await supabase.from('visits').update(payload).eq('id', visit.id)
+      if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+    } else {
+      const { data: inserted, error: err } = await supabase
+        .from('visits').insert(payload).select('id').single()
+      if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+      // Auto-cria entrada na agenda para visitas agendadas
+      if (form.status === 'Agendada' && inserted?.id) {
+        await supabase.from('agenda_compromissos').insert({
+          titulo:       `Visita — ${form.client_name}`,
+          data:         form.visit_date,
+          tipo:         'Visita',
+          status:       'AGENDADO',
+          cliente_nome: form.client_name,
+          descricao:    form.demand || null,
+          responsavel:  responsaveis[0] ?? null,
+          responsaveis,
+          visit_id:     inserted.id,
+          updated_at:   new Date().toISOString(),
+        })
+      }
+    }
     setSaving(false)
     onSaved()
     onClose()

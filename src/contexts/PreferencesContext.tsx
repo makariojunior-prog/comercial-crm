@@ -25,6 +25,7 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
   varejo_fila:         'Fila Varejo',
   posvendas:           'Pós-Venda Pendentes',
   resumo_pedidos:      'Resumo do Dia (Varejo + Atacado)',
+  agenda_widget:       'Agenda',
 }
 
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
@@ -39,6 +40,7 @@ export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: 'varejo_fila',        visible: true },
   { id: 'posvendas',          visible: true },
   { id: 'resumo_pedidos',     visible: true },
+  { id: 'agenda_widget',      visible: true },
 ]
 
 const DEFAULT_PREFS: UserPreferences = {

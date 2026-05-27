@@ -26,6 +26,7 @@ export const ALL_MODULES = [
   { id: 'cobranca',        label: 'Cobrança' },
   { id: 'comissao',        label: 'Comissões' },
   { id: 'revenda',         label: 'Revenda' },
+  { id: 'agenda',          label: 'Agenda' },
 ] as const
 
 export type ModuleId = typeof ALL_MODULES[number]['id']
