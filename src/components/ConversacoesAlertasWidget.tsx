@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { MessageSquare } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, isToday } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import type { CrmConversation } from '../types'
 import ConversaHistoricoModal from './ConversaHistoricoModal'
@@ -136,7 +136,14 @@ export default function ConversacoesAlertasWidget() {
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{c.resumo ?? c.texto}</p>
                 </div>
-                <span className="text-[10px] text-slate-400 shrink-0 mt-0.5">{format(parseISO(c.received_at), 'HH:mm')}</span>
+                <span className="text-[10px] text-slate-400 shrink-0 text-right leading-tight">
+                  {!isToday(parseISO(c.received_at)) && (
+                    <span className="block font-semibold text-slate-500 dark:text-slate-400">
+                      {format(parseISO(c.received_at), 'dd/MM')}
+                    </span>
+                  )}
+                  {format(parseISO(c.received_at), 'HH:mm')}
+                </span>
               </button>
             )
           })}
