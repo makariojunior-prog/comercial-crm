@@ -6,10 +6,11 @@ import { docExpiryStatus, daysUntil } from '../types'
 import VehicleModal from '../components/VehicleModal'
 import DriverModal from '../components/DriverModal'
 import RomaneioTab from '../components/RomaneioTab'
+import RoutesPage from './RoutesPage'
 import { fetchPositions, loadCredentials, saveCredentials, clearCredentials } from '../lib/velotrack'
 import type { VelotrackPosition } from '../types'
 
-type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio'
+type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas'
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -318,10 +319,11 @@ export default function LogisticaPage() {
   }, [vehicles, drivers])
 
   const TABS = [
-    { id: 'romaneio'     as Tab, label: 'Romaneio',     icon: FileText, count: null },
-    { id: 'rastreamento' as Tab, label: 'Rastreamento', icon: Radio,    count: null },
-    { id: 'veiculos'     as Tab, label: 'Veículos',     icon: Truck,    count: vehicles.filter(v => v.ativo).length },
-    { id: 'motoristas'   as Tab, label: 'Motoristas',   icon: Users,    count: drivers.filter(d => d.ativo).length },
+    { id: 'romaneio'     as Tab, label: 'Romaneio',          icon: FileText, count: null },
+    { id: 'rotas'        as Tab, label: 'Rotas de Entrega',  icon: MapPin,   count: null },
+    { id: 'rastreamento' as Tab, label: 'Rastreamento',      icon: Radio,    count: null },
+    { id: 'veiculos'     as Tab, label: 'Veículos',          icon: Truck,    count: vehicles.filter(v => v.ativo).length },
+    { id: 'motoristas'   as Tab, label: 'Motoristas',        icon: Users,    count: drivers.filter(d => d.ativo).length },
   ]
 
   return (
@@ -337,9 +339,11 @@ export default function LogisticaPage() {
           )}
         </div>
         <div className="flex gap-2">
-          <button onClick={load} className="btn-ghost p-2">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          </button>
+          {tab !== 'rotas' && (
+            <button onClick={load} className="btn-ghost p-2">
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            </button>
+          )}
           {tab === 'veiculos' && (
             <button onClick={() => setEditVehicle(null)} className="btn-primary">
               <Plus size={16} /> <span className="hidden sm:inline">Veículo</span>
@@ -374,7 +378,7 @@ export default function LogisticaPage() {
       </div>
 
       {/* Search (veiculos/motoristas) */}
-      {tab !== 'rastreamento' && tab !== 'romaneio' && (
+      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && (
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -389,6 +393,8 @@ export default function LogisticaPage() {
       {/* Content */}
       {tab === 'romaneio' ? (
         <RomaneioTab />
+      ) : tab === 'rotas' ? (
+        <RoutesPage />
       ) : loading ? (
         <div className="flex justify-center py-12 text-slate-400">Carregando...</div>
       ) : tab === 'rastreamento' ? (
