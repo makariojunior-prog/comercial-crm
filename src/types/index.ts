@@ -134,6 +134,7 @@ export interface Client {
   telefone: string | null
   cnpj_cpf: string | null
   rota: string | null
+  route_id: string | null
   setor: string | null
   pgto: string | null
   localizacao: string | null

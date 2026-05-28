@@ -20,7 +20,8 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
   const [nome, setNome]               = useState(client?.nome ?? '')
   const [telefone, setTelefone]       = useState(client?.telefone ?? '')
   const [cnpj_cpf, setCnpjCpf]       = useState(client?.cnpj_cpf ?? '')
-  const [rota, setRota]               = useState(client?.rota ?? '')
+  const [routeId, setRouteId]         = useState(client?.route_id ?? '')
+  const [rotaLegacy]                  = useState(client?.rota ?? '')
   const [setor, setSetor]             = useState(client?.setor ?? '')
   const [pgto, setPgto]               = useState(client?.pgto ?? '')
   const [localizacao, setLocalizacao] = useState(client?.localizacao ?? '')
@@ -42,12 +43,23 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
 
   const [carteirasOptions, setCarteirasOptions] = useState<string[]>([])
   const [pgtoOptions, setPgtoOptions]           = useState<string[]>([])
+  const [routeOptions, setRouteOptions]         = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     supabase.from('crm_carteiras').select('nome').eq('ativo', true).order('nome')
       .then(({ data }) => setCarteirasOptions((data ?? []).map(c => c.nome)))
     supabase.from('crm_pgto_opcoes').select('nome').eq('ativo', true).order('ordem')
       .then(({ data }) => setPgtoOptions((data ?? []).map(p => p.nome)))
+    supabase.from('crm_routes').select('id, name').eq('is_active', true).order('name')
+      .then(({ data }) => {
+        const opts = (data ?? []) as { id: string; name: string }[]
+        setRouteOptions(opts)
+        // Se não houver route_id mas existir rota (texto), tenta casar pelo nome
+        if (!client?.route_id && rotaLegacy.trim()) {
+          const match = opts.find(o => o.name.toUpperCase() === rotaLegacy.trim().toUpperCase())
+          if (match) setRouteId(match.id)
+        }
+      })
   }, [])
 
   const [saving, setSaving]   = useState(false)
@@ -59,11 +71,14 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
     setSaving(true)
     setError(null)
 
+    const selectedRoute = routeOptions.find(o => o.id === routeId)
+
     const clientData = {
       nome:          nome.trim().toUpperCase(),
       telefone:      telefone.trim() || null,
       cnpj_cpf:      cnpj_cpf.trim() || null,
-      rota:          rota.trim() || null,
+      rota:          selectedRoute ? selectedRoute.name : (rotaLegacy.trim() || null),
+      route_id:      selectedRoute ? selectedRoute.id : null,
       setor:         setor.trim() || null,
       pgto:          pgto.trim() || null,
       localizacao:   localizacao.trim() || null,
@@ -255,7 +270,13 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="label text-xs font-black uppercase text-slate-400">Rota</label>
-                <input className="input" value={rota} onChange={e => setRota(e.target.value)} placeholder="Ex: GARAVELO" />
+                <select className="input" value={routeId} onChange={e => setRouteId(e.target.value)}>
+                  <option value="">Sem rota</option>
+                  {routeOptions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                {!routeId && rotaLegacy.trim() && (
+                  <p className="text-[10px] text-amber-500 mt-1">Rota atual (texto): {rotaLegacy} — selecione uma rota da lista para vincular.</p>
+                )}
               </div>
               <div>
                 <label className="label text-xs font-black uppercase text-slate-400">Setor / Bairro</label>
