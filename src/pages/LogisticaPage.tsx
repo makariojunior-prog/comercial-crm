@@ -6,7 +6,7 @@ import { docExpiryStatus, daysUntil } from '../types'
 import VehicleModal from '../components/VehicleModal'
 import DriverModal from '../components/DriverModal'
 import RomaneioTab from '../components/RomaneioTab'
-import RoutesPage from './RoutesPage'
+import RotasEntregaTab from '../components/RotasEntregaTab'
 import { fetchPositions, loadCredentials, saveCredentials, clearCredentials } from '../lib/velotrack'
 import type { VelotrackPosition } from '../types'
 
@@ -394,7 +394,7 @@ export default function LogisticaPage() {
       {tab === 'romaneio' ? (
         <RomaneioTab />
       ) : tab === 'rotas' ? (
-        <RoutesPage />
+        <RotasEntregaTab />
       ) : loading ? (
         <div className="flex justify-center py-12 text-slate-400">Carregando...</div>
       ) : tab === 'rastreamento' ? (
