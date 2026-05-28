@@ -55,16 +55,12 @@ function CnhBadge({ date }: { date: string | null }) {
 
 function TrackingTab() {
   const [creds, setCreds] = useState({ login: '', password: '' })
-  const [hasCreds, setHasCreds] = useState(false)
   const [positions, setPositions] = useState<VelotrackPosition[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showConfig, setShowConfig] = useState(false)
 
-  useEffect(() => {
-    const saved = loadCredentials()
-    if (saved) { setHasCreds(true); load() }
-  }, [])
+  useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true); setError(null)
@@ -84,30 +80,29 @@ function TrackingTab() {
   function saveCreds() {
     if (!creds.login || !creds.password) return
     saveCredentials(creds)
-    setHasCreds(true)
     setShowConfig(false)
     load()
   }
 
-  function removeCreds() {
+  function resetCreds() {
     clearCredentials()
-    setHasCreds(false)
     setPositions([])
+    load()
   }
 
-  const moving   = positions.filter(p => p.connected)
-  const stopped  = positions.filter(p => !p.connected)
-  const offline  = positions.filter(p => p.offline_hours > 1)
+  const moving  = positions.filter(p => p.connected)
+  const stopped = positions.filter(p => !p.connected)
+  const offline = positions.filter(p => p.offline_hours > 1)
 
-  if (!hasCreds || showConfig) return (
+  if (showConfig) return (
     <div className="max-w-md mx-auto mt-8">
       <div className="card p-6 text-center space-y-4">
         <div className="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center mx-auto">
           <Radio size={28} className="text-orange-500" />
         </div>
         <div>
-          <h3 className="font-bold text-slate-800 dark:text-slate-100">Conectar Velotrack</h3>
-          <p className="text-sm text-slate-500 mt-1">Informe as credenciais da conta Velotrack para ativar o rastreamento em tempo real.</p>
+          <h3 className="font-bold text-slate-800 dark:text-slate-100">Credenciais Velotrack</h3>
+          <p className="text-sm text-slate-500 mt-1">Preencha apenas para usar uma conta diferente da padrão.</p>
         </div>
         <div className="space-y-3 text-left">
           <div>
@@ -118,14 +113,16 @@ function TrackingTab() {
             <label className="label">Senha</label>
             <input type="password" className="input" value={creds.password} onChange={e => setCreds(p => ({ ...p, password: e.target.value }))} />
           </div>
-          <p className="text-[11px] text-slate-400">As credenciais são armazenadas localmente no navegador (localStorage).</p>
         </div>
         <div className="flex gap-2">
-          {showConfig && <button onClick={() => setShowConfig(false)} className="btn-secondary flex-1">Cancelar</button>}
+          <button onClick={() => setShowConfig(false)} className="btn-secondary flex-1">Cancelar</button>
           <button onClick={saveCreds} disabled={!creds.login || !creds.password} className="btn-primary flex-1">
-            Conectar
+            Salvar e Reconectar
           </button>
         </div>
+        <button onClick={() => { resetCreds(); setShowConfig(false) }} className="text-xs text-slate-400 hover:text-slate-600 underline">
+          Restaurar credencial padrão
+        </button>
       </div>
     </div>
   )
@@ -154,7 +151,7 @@ function TrackingTab() {
           <button onClick={() => setShowConfig(true)} className="btn-ghost p-2" title="Configurar credenciais">
             <Settings size={16} />
           </button>
-          <button onClick={removeCreds} className="btn-ghost p-2 text-red-400" title="Desconectar">
+          <button onClick={resetCreds} className="btn-ghost p-2 text-red-400" title="Restaurar credencial padrão">
             <WifiOff size={16} />
           </button>
           <button onClick={load} disabled={loading} className="btn-ghost p-2">

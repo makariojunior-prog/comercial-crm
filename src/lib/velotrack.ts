@@ -83,13 +83,22 @@ function md5(str: string): string {
   ).join('')
 }
 
+// Credencial compartilhada padrão — usada quando nenhuma credencial personalizada está salva
+const DEFAULT_CREDS: VelotrackCredentials = {
+  login: 'integracao@gmail.com',
+  password: '!Cantina26012019',
+}
+
 export function saveCredentials(creds: VelotrackCredentials) {
   localStorage.setItem(LS_CREDS, JSON.stringify(creds))
   localStorage.removeItem(LS_SESSION)
 }
 
-export function loadCredentials(): VelotrackCredentials | null {
-  try { return JSON.parse(localStorage.getItem(LS_CREDS) || 'null') } catch { return null }
+export function loadCredentials(): VelotrackCredentials {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_CREDS) || 'null')
+    return saved ?? DEFAULT_CREDS
+  } catch { return DEFAULT_CREDS }
 }
 
 export function clearCredentials() {
