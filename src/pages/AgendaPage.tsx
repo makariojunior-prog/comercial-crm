@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText, Search } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -273,7 +273,6 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
 }) {
   const today = format(new Date(), 'yyyy-MM-dd')
   const [form, setForm] = useState({
-    titulo:       item?.titulo               ?? '',
     data:         item?.data                 ?? defaultDate ?? today,
     hora_inicio:  item?.hora_inicio?.substring(0, 5) ?? '',
     hora_fim:     item?.hora_fim?.substring(0, 5)    ?? '',
@@ -286,6 +285,28 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
   const [responsaveis, setResponsaveis] = useState<string[]>(item?.responsaveis ?? [])
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
+
+  // Local geocoding (Nominatim / OpenStreetMap)
+  const [localSuggestions, setLocalSuggestions] = useState<{ place_id: number; display_name: string }[]>([])
+  const [showLocalDrop,    setShowLocalDrop]    = useState(false)
+  const localTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleLocalChange(val: string) {
+    set('local', val)
+    if (localTimerRef.current) clearTimeout(localTimerRef.current)
+    if (val.length < 3) { setLocalSuggestions([]); setShowLocalDrop(false); return }
+    localTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&limit=5&countrycodes=br`,
+          { headers: { 'Accept-Language': 'pt-BR' } }
+        )
+        const data = await res.json()
+        setLocalSuggestions(data)
+        setShowLocalDrop(data.length > 0)
+      } catch { /* ignore */ }
+    }, 450)
+  }
 
   // Convert to visit report (only for existing items)
   const [convertVisit, setConvertVisit] = useState(false)
@@ -301,7 +322,6 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
     ? format(addDays(new Date(item.data + 'T12:00'), 7), 'yyyy-MM-dd')
     : format(addDays(new Date(), 7), 'yyyy-MM-dd')
   const [nextAppt, setNextAppt] = useState({
-    titulo:      item?.cliente_nome ? `Visita — ${item.cliente_nome}` : '',
     data:        defaultNextDate,
     hora_inicio: item?.hora_inicio?.substring(0, 5) ?? '',
     descricao:   '',
@@ -316,15 +336,17 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
   }
 
   async function save() {
-    if (!form.titulo.trim()) return setError('Título é obrigatório')
-    if (scheduleNext && !nextAppt.titulo.trim()) return setError('Informe o título do próximo compromisso')
     setSaving(true)
     setError(null)
+
+    // Titulo auto-gerado: Tipo — Cliente
+    const titulo = [form.tipo, form.cliente_nome].filter(Boolean).join(' — ')
 
     // 1. Save the appointment (auto-mark REALIZADO when converting to visit)
     const finalStatus = convertVisit ? 'REALIZADO' : form.status
     const payload = {
       ...form,
+      titulo,
       status:       finalStatus,
       hora_inicio:  form.hora_inicio  || null,
       hora_fim:     form.hora_fim     || null,
@@ -371,9 +393,10 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
     }
 
     // 3. Schedule next appointment
-    if (scheduleNext && nextAppt.titulo.trim()) {
+    if (scheduleNext) {
+      const nextTitulo = ['Visita', form.cliente_nome].filter(Boolean).join(' — ')
       await supabase.from('agenda_compromissos').insert({
-        titulo:       nextAppt.titulo,
+        titulo:       nextTitulo,
         data:         nextAppt.data,
         hora_inicio:  nextAppt.hora_inicio || null,
         tipo:         'Visita',
@@ -405,11 +428,6 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           {/* ── Campos principais ── */}
-          <div>
-            <label className="label">Título *</label>
-            <input className="input" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Visita ao cliente" autoFocus />
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Data</label>
@@ -436,9 +454,33 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
             <input className="input" value={form.cliente_nome} onChange={e => set('cliente_nome', e.target.value)} placeholder="Nome do cliente" />
           </div>
 
-          <div>
+          <div className="relative">
             <label className="label">Local</label>
-            <input className="input" value={form.local} onChange={e => set('local', e.target.value)} placeholder="Endereço ou descrição do local" />
+            <div className="relative">
+              <input
+                className="input pr-8"
+                value={form.local}
+                onChange={e => handleLocalChange(e.target.value)}
+                onBlur={() => setTimeout(() => setShowLocalDrop(false), 200)}
+                placeholder="Digite para buscar endereço..."
+                autoComplete="off"
+              />
+              <Search size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+            {showLocalDrop && localSuggestions.length > 0 && (
+              <div className="absolute z-30 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                {localSuggestions.map(s => (
+                  <button
+                    key={s.place_id}
+                    type="button"
+                    onMouseDown={() => { set('local', s.display_name); setShowLocalDrop(false); setLocalSuggestions([]) }}
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 border-b border-slate-50 dark:border-slate-700 last:border-0 transition-colors"
+                  >
+                    {s.display_name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
@@ -551,12 +593,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
           <div className={`rounded-xl border transition-all overflow-hidden ${scheduleNext ? 'border-blue-300 dark:border-blue-700' : 'border-slate-200 dark:border-slate-600'}`}>
             <button
               type="button"
-              onClick={() => {
-                if (!scheduleNext && form.cliente_nome && !nextAppt.titulo) {
-                  setNextAppt(p => ({ ...p, titulo: `Visita — ${form.cliente_nome}` }))
-                }
-                setScheduleNext(v => !v)
-              }}
+              onClick={() => setScheduleNext(v => !v)}
               className={`w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium transition-colors ${scheduleNext ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
             >
               <span className="flex items-center gap-2">
@@ -569,15 +606,6 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
             </button>
             {scheduleNext && (
               <div className="px-3 pb-3 pt-2 space-y-2 bg-blue-50 dark:bg-blue-900/10 border-t border-blue-200 dark:border-blue-800">
-                <div>
-                  <label className="label">Título *</label>
-                  <input
-                    className="input"
-                    value={nextAppt.titulo}
-                    onChange={e => setNextAppt(v => ({ ...v, titulo: e.target.value }))}
-                    placeholder="Ex: Visita — Cliente X"
-                  />
-                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="label">Data</label>
@@ -619,7 +647,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
         )}
         <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
-          <button onClick={save} disabled={saving || !form.titulo.trim()} className="btn-primary flex-1 justify-center">
+          <button onClick={save} disabled={saving} className="btn-primary flex-1 justify-center">
             {saving ? 'Salvando…' : item ? 'Salvar' : 'Criar'}
           </button>
         </div>

@@ -49,10 +49,9 @@ function makeEmptyForm() {
   }
 }
 
-interface AtacadoClient {
+interface CrmClient {
   id: string
-  cliente: string
-  localizacao: string | null
+  nome: string
   telefone: string | null
 }
 
@@ -91,9 +90,9 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
   const [uploading,        setUploading]        = useState(false)
   const [error,            setError]            = useState<string | null>(null)
 
-  // Atacado client autocomplete (active when tipo = Acompanhamento)
-  const [atacadoClients,  setAtacadoClients]  = useState<AtacadoClient[]>([])
-  const [showClientDrop,  setShowClientDrop]  = useState(false)
+  // Client autocomplete from crm_clients (active when tipo = Acompanhamento)
+  const [crmClients,     setCrmClients]     = useState<CrmClient[]>([])
+  const [showClientDrop, setShowClientDrop] = useState(false)
 
   // Local geocoding (Nominatim / OpenStreetMap)
   const [localSuggestions, setLocalSuggestions] = useState<NominatimResult[]>([])
@@ -118,14 +117,14 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       })
   }, [])
 
-  // Load atacado clients only when tipo = Acompanhamento
+  // Load crm_clients only when tipo = Acompanhamento
   useEffect(() => {
-    if (form.visit_type !== 'Acompanhamento') { setAtacadoClients([]); return }
-    supabase.from('atacado_clientes')
-      .select('id, cliente, localizacao, telefone')
+    if (form.visit_type !== 'Acompanhamento') { setCrmClients([]); return }
+    supabase.from('crm_clients')
+      .select('id, nome, telefone')
       .eq('status', 'ATIVO')
-      .order('cliente')
-      .then(({ data }) => { if (data) setAtacadoClients(data as AtacadoClient[]) })
+      .order('nome')
+      .then(({ data }) => { if (data) setCrmClients(data as CrmClient[]) })
   }, [form.visit_type])
 
   function set(field: string, value: string) {
@@ -157,8 +156,8 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
     }, 450)
   }
 
-  const filteredAtacado = atacadoClients.filter(c =>
-    c.cliente.toLowerCase().includes(form.client_name.toLowerCase())
+  const filteredClients = crmClients.filter(c =>
+    c.nome.toLowerCase().includes(form.client_name.toLowerCase())
   )
 
   async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -300,26 +299,20 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
               onBlur={() => setTimeout(() => setShowClientDrop(false), 150)}
               placeholder={isAcompanhamento ? 'Buscar cliente cadastrado...' : 'Nome do cliente visitado'}
             />
-            {isAcompanhamento && showClientDrop && filteredAtacado.length > 0 && (
+            {isAcompanhamento && showClientDrop && filteredClients.length > 0 && (
               <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-                {filteredAtacado.slice(0, 8).map(c => (
+                {filteredClients.slice(0, 10).map(c => (
                   <button
                     key={c.id}
                     type="button"
                     onMouseDown={() => {
-                      set('client_name', c.cliente)
-                      if (c.localizacao) set('local', c.localizacao)
+                      set('client_name', c.nome)
                       if (c.telefone) set('contact_phone', maskPhone(c.telefone))
                       setShowClientDrop(false)
                     }}
                     className="w-full text-left px-3 py-2.5 border-b border-slate-50 dark:border-slate-700 last:border-0 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
                   >
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{c.cliente}</p>
-                    {c.localizacao && (
-                      <p className="text-[10px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                        <MapPin size={9} />{c.localizacao}
-                      </p>
-                    )}
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{c.nome}</p>
                   </button>
                 ))}
               </div>
