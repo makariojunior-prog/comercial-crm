@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
-import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, FileSpreadsheet, Check, CreditCard, Briefcase, Plus, Trash2, Lock } from 'lucide-react'
+import { Settings, Sun, Moon, Monitor, GripVertical, ChevronUp, ChevronDown, Eye, EyeOff, LayoutDashboard, PanelLeft, RotateCcw, FileSpreadsheet, Check, CreditCard, Briefcase, Plus, Trash2, Lock, Tv } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -285,6 +285,9 @@ export default function SettingsPage() {
 
       {/* ─── Carteiras / Vendedores — somente Admin ─────────────── */}
       {isAdmin && <CarteirasSection />}
+
+      {/* ─── Dashboard TV — somente Admin ───────────────────────── */}
+      {isAdmin && <TvDashboardSection />}
 
       {/* ─── Admin note ─────────────────────────────────────────── */}
       {isAdmin && (
@@ -682,6 +685,95 @@ function CarteirasSection() {
           <Plus size={15} /> Adicionar
         </button>
       </div>
+    </Section>
+  )
+}
+
+function TvDashboardSection() {
+  const [pin,     setPin]     = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+  const [msg,     setMsg]     = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => {
+    supabase.from('crm_config').select('value').eq('key', 'tv_dashboard_pin').single()
+      .then(({ data }) => { if (data) setPin(data.value) })
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function save() {
+    if (!/^\d{4}$/.test(pin))       return setMsg({ ok: false, text: 'O PIN deve ter exatamente 4 dígitos numéricos.' })
+    if (pin !== confirm)             return setMsg({ ok: false, text: 'Os PINs não coincidem.' })
+    setSaving(true)
+    setMsg(null)
+    const { error } = await supabase.from('crm_config')
+      .upsert({ key: 'tv_dashboard_pin', value: pin, updated_at: new Date().toISOString() })
+    setSaving(false)
+    if (error) {
+      setMsg({ ok: false, text: 'Erro ao salvar: ' + error.message })
+    } else {
+      setMsg({ ok: true, text: 'PIN atualizado! O dashboard usará o novo PIN na próxima abertura.' })
+      setConfirm('')
+    }
+  }
+
+  return (
+    <Section icon={<Tv size={16} className="text-orange-500" />} title="Dashboard TV">
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+        PIN de 4 dígitos para acessar o painel da TV em{' '}
+        <a href="https://tv.cantinaemcasa.com" target="_blank" rel="noreferrer"
+          className="text-orange-500 hover:underline font-medium">tv.cantinaemcasa.com</a>.
+        O PIN atual protege o acesso ao dashboard.
+      </p>
+      {loading ? (
+        <div className="h-20 rounded-xl bg-slate-100 dark:bg-slate-700 animate-pulse" />
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label text-xs font-black uppercase text-slate-400">Novo PIN</label>
+              <input
+                className="input font-mono tracking-[0.4em] text-center text-lg"
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="••••"
+                value={pin}
+                onChange={e => { setPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setMsg(null) }}
+              />
+            </div>
+            <div>
+              <label className="label text-xs font-black uppercase text-slate-400">Confirmar PIN</label>
+              <input
+                className="input font-mono tracking-[0.4em] text-center text-lg"
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="••••"
+                value={confirm}
+                onChange={e => { setConfirm(e.target.value.replace(/\D/g, '').slice(0, 4)); setMsg(null) }}
+              />
+            </div>
+          </div>
+          {msg && (
+            <p className={`text-xs font-medium px-3 py-2 rounded-lg border ${
+              msg.ok
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
+            }`}>
+              {msg.text}
+            </p>
+          )}
+          <button
+            onClick={save}
+            disabled={saving || pin.length !== 4 || confirm.length !== 4}
+            className="btn-primary w-full justify-center flex items-center gap-2 disabled:opacity-50"
+          >
+            {saving ? 'Salvando…' : <><Check size={15} /> Salvar PIN</>}
+          </button>
+        </div>
+      )}
     </Section>
   )
 }
