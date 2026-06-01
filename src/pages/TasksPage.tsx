@@ -238,6 +238,11 @@ function TaskCard({ task, onToggle, onEdit, onDelete }: {
           )}
           
           <div className="flex flex-wrap items-center gap-3 mt-3">
+            {task.categoria && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-50 text-blue-600 border border-blue-100">
+                {task.categoria}
+              </span>
+            )}
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${prio.color} ${prio.bg}`}>
               {prio.label}
             </span>

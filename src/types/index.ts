@@ -64,6 +64,7 @@ export interface Task {
   priority: TaskPriority
   status: TaskStatus
   creator_id: string
+  categoria: string | null
   assignees?: { user_id: string; user_nome: string }[]
 }
 

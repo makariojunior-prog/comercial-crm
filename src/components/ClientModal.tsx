@@ -65,6 +65,32 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
 
+  async function createPerdendoTask(clienteNome: string, creatorId: string) {
+    const { data: taskRows, error: taskErr } = await supabase
+      .from('crm_tasks')
+      .insert({
+        title:      `Perdendo cliente - ${clienteNome}`,
+        categoria:  'AGENDAR',
+        priority:   'URGENTE_IMPORTANTE',
+        status:     'PENDENTE',
+        creator_id: creatorId,
+      })
+      .select('id')
+    if (taskErr || !taskRows?.length) return
+
+    const taskId = taskRows[0].id
+    const { data: users } = await supabase
+      .from('crm_users')
+      .select('id')
+      .eq('ativo', true)
+
+    if (users?.length) {
+      await supabase
+        .from('crm_task_assignees')
+        .insert(users.map(u => ({ task_id: taskId, user_id: u.id })))
+    }
+  }
+
   async function save() {
     if (!nome.trim()) return setError('Nome é obrigatório')
 
@@ -72,6 +98,7 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
     setError(null)
 
     const selectedRoute = routeOptions.find(o => o.id === routeId)
+    const prevStatus = client?.status
 
     const clientData = {
       nome:          nome.trim().toUpperCase(),
@@ -103,6 +130,15 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
         const { error: err } = await supabase.from('crm_clients').insert({ ...clientData, pedidos_count: 0 })
         if (err) throw err
       }
+
+      // Cria tarefa automática ao marcar cliente como Perdendo pela primeira vez
+      if (status === 'PERDENDO' && prevStatus !== 'PERDENDO') {
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (authUser) {
+          await createPerdendoTask(clientData.nome, authUser.id)
+        }
+      }
+
       onSaved()
       onClose()
     } catch (err) {
