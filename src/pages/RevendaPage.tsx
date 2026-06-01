@@ -33,7 +33,7 @@ export default function RevendaPage() {
     const { data } = await supabase
       .from('crm_clients')
       .select('*')
-      .eq('tipo', 'CANTINA REVENDA')
+      .in('tipo', ['CANTINA REVENDA', 'LUMAR/CANTINA'])
       .order('nome', { ascending: true })
     setClients((data ?? []) as Client[])
     setLoading(false)
@@ -74,7 +74,7 @@ export default function RevendaPage() {
           <Building2 className="text-orange-500" size={24} /> Revenda
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Clientes Cantina Revenda — {loading ? '...' : `${clients.length} cadastrados`}
+          Cantina Revenda + Lumar/Cantina — {loading ? '...' : `${clients.length} cadastrados`}
         </p>
       </div>
 
@@ -177,6 +177,11 @@ export default function RevendaPage() {
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${STATUS_COLORS[c.status]}`}>
                         {STATUS_LABELS[c.status]}
                       </span>
+                      {c.tipo === 'LUMAR/CANTINA' && (
+                        <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full border border-blue-100 dark:border-blue-800">
+                          LUMAR
+                        </span>
+                      )}
                       {c.carteira && (
                         <span className="text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded-full border border-orange-100 dark:border-orange-800">
                           {c.carteira}
