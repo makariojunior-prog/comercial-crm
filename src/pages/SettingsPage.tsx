@@ -697,9 +697,15 @@ function TvDashboardSection() {
   const [msg,     setMsg]     = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
-    supabase.from('crm_config').select('value').eq('key', 'tv_dashboard_pin').single()
-      .then(({ data }) => { if (data) setPin(data.value) })
-      .finally(() => setLoading(false))
+    async function load() {
+      try {
+        const { data } = await supabase.from('crm_config').select('value').eq('key', 'tv_dashboard_pin').single()
+        if (data) setPin(data.value)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [])
 
   async function save() {
