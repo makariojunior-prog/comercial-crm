@@ -23,9 +23,11 @@ export default function VarejoFilaWidget() {
       .eq('status_icon', '⚠️')
       .is('turno', null)
       .eq('origem', 'CARDAPIO WEB')
+      .neq('order_type', 'takeout')
       .order('created_at', { ascending: false })
       .limit(50)
-    setItems(data ?? [])
+    // Também exclui retiradas marcadas via entregador (não captadas pelo order_type)
+    setItems((data ?? []).filter(p => p.entregador !== 'RETIRADA'))
     setLoading(false)
   }, [])
 
