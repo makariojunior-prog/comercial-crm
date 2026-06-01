@@ -33,7 +33,7 @@ export default function RevendaPage() {
     const { data } = await supabase
       .from('crm_clients')
       .select('*')
-      .in('tipo', ['CANTINA REVENDA', 'LUMAR/CANTINA'])
+      .in('tipo', ['CANTINA REVENDA', 'LUMAR / CANTINA'])
       .order('nome', { ascending: true })
     setClients((data ?? []) as Client[])
     setLoading(false)
@@ -177,7 +177,7 @@ export default function RevendaPage() {
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${STATUS_COLORS[c.status]}`}>
                         {STATUS_LABELS[c.status]}
                       </span>
-                      {c.tipo === 'LUMAR/CANTINA' && (
+                      {c.tipo === 'LUMAR / CANTINA' && (
                         <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full border border-blue-100 dark:border-blue-800">
                           LUMAR
                         </span>
