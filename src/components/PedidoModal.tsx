@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react'
-import { X, AlertCircle, Phone, MapPin, User, Truck, CalendarClock, Clock } from 'lucide-react'
+import { X, AlertCircle, Phone, MapPin, User, Truck, CalendarClock, Clock, ShieldAlert } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { VarejoPedido } from '../types'
 import { TURNOS, EMPRESAS_ROTA } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
+import { useAuth } from '../contexts/AuthContext'
 
 interface Props {
   pedido: VarejoPedido
@@ -41,6 +42,7 @@ function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value
 
 export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
   useEscKey(useCallback(onClose, [onClose]))
+  const { isAdmin } = useAuth()
 
   const [form, setForm] = useState({
     data_entrega:   pedido.data_entrega ?? '',
@@ -53,6 +55,9 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
     empresa:        pedido.empresa ?? '',
     status_icon:    pedido.status_icon ?? '⚠️',
     origem:         pedido.origem ?? 'CARDAPIO WEB',
+    // campos ADM
+    valor_liquido:  pedido.valor_liquido != null ? String(pedido.valor_liquido) : '',
+    order_type:     pedido.order_type ?? 'delivery',
   })
 
   const [saving, setSaving] = useState(false)
@@ -76,21 +81,29 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
   async function save() {
     setSaving(true)
     setError(null)
+    const updatePayload: Record<string, unknown> = {
+      data_entrega:          form.data_entrega   || null,
+      turno:                 form.turno          || null,
+      restricao:             form.restricao      || null,
+      flag_restricao:        form.flag_restricao || null,
+      atendente:             form.atendente      || null,
+      rota_definida:         form.rota_definida  || null,
+      entregador:            form.entregador     || null,
+      empresa:               form.empresa        || null,
+      status_icon:           form.status_icon,
+      data_entrega_definida: !!(form.data_entrega && form.turno),
+      origem:                form.origem || null,
+    }
+
+    if (isAdmin) {
+      const val = parseFloat(form.valor_liquido.replace(',', '.'))
+      if (!isNaN(val) && val >= 0) updatePayload.valor_liquido = val
+      updatePayload.order_type = form.order_type
+    }
+
     const { error: err } = await supabase
       .from('varejo_pedidos')
-      .update({
-        data_entrega:          form.data_entrega   || null,
-        turno:                 form.turno          || null,
-        restricao:             form.restricao      || null,
-        flag_restricao:        form.flag_restricao || null,
-        atendente:             form.atendente      || null,
-        rota_definida:         form.rota_definida  || null,
-        entregador:            form.entregador     || null,
-        empresa:               form.empresa        || null,
-        status_icon:           form.status_icon,
-        data_entrega_definida: !!(form.data_entrega && form.turno),
-        origem:                form.origem || null,
-      })
+      .update(updatePayload)
       .eq('id', pedido.id)
 
     if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
@@ -306,6 +319,49 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
               </div>
             </div>
           </div>
+
+          {/* Seção ADM — Correção de valor e tipo */}
+          {isAdmin && (
+            <div className="border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-3 bg-amber-50/50 dark:bg-amber-900/10">
+              <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1.5">
+                <ShieldAlert size={13} /> Correção ADM
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Valor líquido (R$)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="input"
+                    value={form.valor_liquido}
+                    onChange={e => set('valor_liquido', e.target.value)}
+                    placeholder="0,00"
+                  />
+                  <p className="text-[10px] text-amber-500 mt-0.5">Frete atual: {brl(pedido.frete)}</p>
+                </div>
+                <div>
+                  <label className="label">Tipo de pedido</label>
+                  <div className="flex gap-2">
+                    {(['delivery', 'takeout'] as const).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => set('order_type', t)}
+                        className={`flex-1 py-2 rounded-lg border text-xs font-bold transition-all ${
+                          form.order_type === t
+                            ? 'border-amber-400 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {t === 'delivery' ? '🛵 Entrega' : '🏪 Retirada'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
 
