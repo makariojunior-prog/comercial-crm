@@ -576,7 +576,7 @@ export default function DashboardAtacado() {
                             {p.crm_client?.restricao && <p className="text-[10px] text-amber-600">{p.crm_client?.restricao}</p>}
                           </td>
                           <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{p.turno ?? '—'}</td>
-                          <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{p.crm_client?.pgto ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400">{p.pgto?.join(' + ') ?? p.crm_client?.pgto ?? '—'}</td>
                           <td className="px-3 py-2.5">
                             <button onClick={() => setEditPedidoId(p.id)} title="Editar"
                               className="text-slate-400 hover:text-blue-500 transition-colors">
@@ -841,7 +841,7 @@ function RotaRow({ pedido: p, onUpdate, onEdit, cobrancaAberto, drivers }: {
   const divida = cobrancaAberto.get(nome.toUpperCase().trim()) ?? 0
   const rota = p.crm_client?.rota ?? '—'
   const setor = p.crm_client?.setor
-  const pgto = p.crm_client?.pgto ?? '—'
+  const pgto = p.pgto?.join(' + ') ?? p.crm_client?.pgto ?? '—'
 
   // Local state prevents row from jumping while the user is still editing.
   // onUpdate is only called when focus leaves the row (onBlur).
@@ -997,6 +997,8 @@ function ContatoRow({ cliente: c, feito, onToggle, cobrancaAberto }: {
   )
 }
 
+const PGTO_OPTIONS = ['BOLETO', 'C. CRÉDITO', 'C. DÉBITO', 'DINHEIRO', 'LINK', 'PIX - CANTINA', 'PIX - LUCIANO', 'PRAZO 14 DIAS']
+
 // ─── Edit Pedido Modal ────────────────────────────────────────
 function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
   pedido: AtacadoPedido
@@ -1012,7 +1014,14 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
   const [turno, setTurno]           = useState(turnoEfetivo)
   const [entregador, setEntregador] = useState(p.entregador ?? '')
   const [valor, setValor]           = useState(p.valor > 0 ? String(p.valor) : '')
-  const [saving, setSaving]       = useState(false)
+  const [pgtoList, setPgtoList]     = useState<string[]>(p.pgto ?? (pgtoCliente ? [pgtoCliente] : []))
+  const [saving, setSaving]         = useState(false)
+
+  function togglePgto(opt: string) {
+    setPgtoList(prev =>
+      prev.includes(opt) ? prev.filter(x => x !== opt) : [...prev, opt]
+    )
+  }
 
   async function handleSave() {
     if (!date) return
@@ -1021,6 +1030,7 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
       data_entrega: date,
       turno:        turno || null,
       entregador:   entregador || null,
+      pgto:         pgtoList.length > 0 ? pgtoList : null,
     }
     const vStripped = valor.replace(/[^\d,.]/g, '')
     const vNorm = (vStripped.includes(',') && vStripped.includes('.'))
@@ -1100,12 +1110,39 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
           </div>
 
           {/* Pgto */}
-          {pgtoCliente && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-lg">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Pagamento padrão:</span>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{pgtoCliente}</span>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+              Forma de pagamento
+              {pgtoCliente && (
+                <span className="ml-1.5 font-normal text-[10px] text-blue-500">(padrão do cliente: {pgtoCliente})</span>
+              )}
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {PGTO_OPTIONS.map(opt => {
+                const selected = pgtoList.includes(opt)
+                const isDefault = opt === pgtoCliente
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => togglePgto(opt)}
+                    className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all ${
+                      selected
+                        ? 'bg-orange-500 border-orange-500 text-white'
+                        : isDefault
+                        ? 'border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {opt}{isDefault && !selected ? ' ★' : ''}
+                  </button>
+                )
+              })}
             </div>
-          )}
+            {pgtoList.length === 0 && pgtoCliente && (
+              <p className="text-[10px] text-slate-400 mt-1">Nenhuma selecionada — usará padrão do cliente</p>
+            )}
+          </div>
 
           {/* Valor */}
           <div>

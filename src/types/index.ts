@@ -544,6 +544,7 @@ export interface AtacadoPedido {
   recebimento: string | null
   conferencia: string | null
   ignorado: boolean
+  pgto: string[] | null
   created_at: string
   updated_at: string
   cliente?: AtacadoCliente | null
