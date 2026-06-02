@@ -154,6 +154,13 @@ export interface Client {
   observacao_extra: string | null
   status: ClientStatus
   pedidos_count: number
+  // Positivação (comissão de captação atacado)
+  indicador: string | null
+  positivado: boolean
+  positivado_em: string | null
+  comissao_status: string | null
+  comissao_valor: number | null
+  comissao_pago_em: string | null
 }
 
 export type EventStatus = 'AGENDADO' | 'REALIZADO' | 'CANCELADO'

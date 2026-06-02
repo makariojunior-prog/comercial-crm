@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { X, User, Phone, MapPin, Building2, MessageSquare, Save, AlertCircle, CheckCircle2, AlertTriangle, UserX, Briefcase, Package, Wrench, MessageCircle } from 'lucide-react'
+import { X, User, Phone, MapPin, Building2, MessageSquare, Save, AlertCircle, CheckCircle2, AlertTriangle, UserX, Briefcase, Package, Wrench, MessageCircle, Star } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
@@ -41,9 +41,12 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
   const [comodato, setComodato]       = useState(client?.comodato ?? '')
   const [valor, setValor]             = useState(client?.valor ?? '')
 
+  const [indicador, setIndicador]               = useState(client?.indicador ?? '')
+
   const [carteirasOptions, setCarteirasOptions] = useState<string[]>([])
   const [pgtoOptions, setPgtoOptions]           = useState<string[]>([])
   const [routeOptions, setRouteOptions]         = useState<{ id: string; name: string }[]>([])
+  const [userOptions, setUserOptions]           = useState<string[]>([])
 
   useEffect(() => {
     supabase.from('crm_carteiras').select('nome').eq('ativo', true).order('nome')
@@ -54,11 +57,15 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
       .then(({ data }) => {
         const opts = (data ?? []) as { id: string; name: string }[]
         setRouteOptions(opts)
-        // Se não houver route_id mas existir rota (texto), tenta casar pelo nome
         if (!client?.route_id && rotaLegacy.trim()) {
           const match = opts.find(o => o.name.toUpperCase() === rotaLegacy.trim().toUpperCase())
           if (match) setRouteId(match.id)
         }
+      })
+    supabase.from('crm_users').select('nome').eq('ativo', true).order('nome')
+      .then(({ data }) => {
+        const nomes = (data ?? []).map((u: any) => String(u.nome ?? '').toUpperCase().trim()).filter(Boolean)
+        setUserOptions([...new Set(nomes)].sort())
       })
   }, [])
 
@@ -120,6 +127,7 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
       restricao:     restricao.trim() || null,
       comodato:      comodato.trim() || null,
       valor:         valor.trim() || null,
+      indicador:     indicador.trim().toUpperCase() || null,
     }
 
     try {
@@ -233,6 +241,23 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
                   {pgtoOptions.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
+            </div>
+
+            {/* Indicador de positivação */}
+            <div>
+              <label className="label text-xs font-black uppercase text-slate-400 flex items-center gap-1.5">
+                <Star size={11} className="text-purple-500" /> Indicador (quem trouxe este cliente)
+              </label>
+              <select className="input" value={indicador} onChange={e => setIndicador(e.target.value)}>
+                <option value="">Nenhum / não indicado</option>
+                {indicador && !userOptions.includes(indicador.toUpperCase().trim()) && (
+                  <option value={indicador}>{indicador}</option>
+                )}
+                {userOptions.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Preencha apenas se este cliente foi captado por um atendente (comissão de positivação de R$ 50,00 ao atingir 3 pedidos + R$ 500)
+              </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
