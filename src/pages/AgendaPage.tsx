@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { AgendaCompromisso } from '../types'
 import { useAuth } from '../contexts/AuthContext'
+import { useSearchParams } from 'react-router-dom'
 
 const TIPOS = ['Visita', 'Reunião', 'Ligação', 'Entrega', 'Outros'] as const
 
@@ -43,6 +44,21 @@ export default function AgendaPage() {
   useEffect(() => {
     supabase.from('crm_staff').select('name').eq('active', true).order('name')
       .then(({ data }) => { if (data) setStaffOptions(data.map((s: any) => s.name)) })
+  }, [])
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const openId = searchParams.get('openId')
+    if (!openId) return
+    setSearchParams({}, { replace: true })
+    supabase.from('agenda_compromissos').select('*').eq('id', openId).single()
+      .then(({ data }) => {
+        if (data) {
+          const item = data as AgendaCompromisso
+          setWeekStart(startOfWeek(new Date(item.data + 'T12:00:00'), { weekStartsOn: 1 }))
+          setEditModal({ item })
+        }
+      })
   }, [])
 
   const load = useCallback(async () => {

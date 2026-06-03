@@ -4,6 +4,7 @@ import { format, addDays, parseISO, isWeekend, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { VarejoPedido } from '../types'
+import { useSearchParams } from 'react-router-dom'
 import PedidoModal from '../components/PedidoModal'
 import PosVendaTab from '../components/PosVendaTab'
 
@@ -637,6 +638,15 @@ export default function VarejoPage() {
   }, [selectedDate, tomorrow, actualTomorrow])
 
   useEffect(() => { load() }, [load])
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const openId = searchParams.get('openId')
+    if (!openId) return
+    setSearchParams({}, { replace: true })
+    supabase.from('varejo_pedidos').select('*').eq('id', openId).single()
+      .then(({ data }) => { if (data) setEditPedido(data as VarejoPedido) })
+  }, [])
 
   // Auto-navigate to most recent date with data (runs once on mount)
   useEffect(() => {

@@ -3,6 +3,7 @@ import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, Message
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
 import ClientModal from '../components/ClientModal'
+import { useSearchParams } from 'react-router-dom'
 
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/15ygrVoRh7cd8iVWn0eBXpEz-jBVsOa4jxemmmva2rnA/export?format=csv&gid=338699841'
 
@@ -167,6 +168,15 @@ export default function ClientsPage() {
   }
 
   useEffect(() => { loadClients() }, [statusFilter])
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const openId = searchParams.get('openId')
+    if (!openId) return
+    setSearchParams({}, { replace: true })
+    supabase.from('crm_clients').select('*').eq('id', openId).single()
+      .then(({ data }) => { if (data) { setEditingClient(data as Client); setShowModal(true) } })
+  }, [])
 
   useEffect(() => {
     supabase.from('cobranca').select('cliente_nome, valor').eq('situacao', 'EM ABERTO')

@@ -8,6 +8,7 @@ import {
   Clock, History, ChevronDown, Search, Pencil,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useSearchParams } from 'react-router-dom'
 import type { AtacadoPedido, Client } from '../types'
 
 // ─── Constants ────────────────────────────────────────────────
@@ -90,6 +91,7 @@ export default function DashboardAtacado() {
   const [showHistorico, setShowHistorico] = useState(false)
   const [histSoOcorrencia, setHistSoOcorrencia] = useState(false)
   const [editPedidoId, setEditPedidoId] = useState<number | null>(null)
+  const [directOpenPedido, setDirectOpenPedido] = useState<AtacadoPedido | null>(null)
   const [syncing, setSyncing]           = useState<string | null>(null)
   const [syncMsg, setSyncMsg]           = useState<string | null>(null)
   const [showConfig, setShowConfig]     = useState(false)
@@ -228,6 +230,16 @@ export default function DashboardAtacado() {
         setDrivers((data ?? []).map((d: any) => firstName(d.nome)).filter(Boolean))
       })
   }, [])
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const openId = searchParams.get('openId')
+    if (!openId) return
+    setSearchParams({}, { replace: true })
+    supabase.from('atacado_pedidos').select('*, crm_client:crm_clients(id,nome,rota)').eq('id', parseInt(openId, 10)).single()
+      .then(({ data }) => { if (data) setDirectOpenPedido(data as AtacadoPedido) })
+  }, [])
+
   useEffect(() => { loadRotina(rotinaDate) }, [rotinaDate, loadRotina])
   useEffect(() => { loadRotas() }, [loadRotas])
   useEffect(() => { if (showHistorico) loadHistorico() }, [showHistorico, loadHistorico])
@@ -750,6 +762,15 @@ export default function DashboardAtacado() {
           pedido={pedidoParaEditar}
           onClose={() => setEditPedidoId(null)}
           onSave={patch => savePedidoEdit(editPedidoId, patch)}
+          drivers={drivers}
+        />
+      )}
+      {/* Direct-open modal from global search */}
+      {directOpenPedido && (
+        <EditPedidoModal
+          pedido={directOpenPedido}
+          onClose={() => setDirectOpenPedido(null)}
+          onSave={patch => savePedidoEdit(directOpenPedido.id, patch).then(() => setDirectOpenPedido(null))}
           drivers={drivers}
         />
       )}

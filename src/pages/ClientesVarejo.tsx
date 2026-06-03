@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Store, Plus, Search, Phone, MapPin, Edit2, Trash2, X, Check, RefreshCw, Info } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useSearchParams } from 'react-router-dom'
 
 interface VarejoCliente {
   id: string
@@ -83,6 +84,15 @@ export default function ClientesVarejo() {
   }
 
   useEffect(() => { load() }, [])
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const openId = searchParams.get('openId')
+    if (!openId) return
+    setSearchParams({}, { replace: true })
+    supabase.from('varejo_clientes').select('*').eq('id', openId).single()
+      .then(({ data }) => { if (data) openEdit(data as VarejoCliente) })
+  }, [])
 
   const filtered = useMemo(() => {
     let list = clientes

@@ -7,6 +7,7 @@ import { exportVisits } from '../lib/export'
 import type { Visit } from '../types'
 import { getResponsaveis } from '../types'
 import VisitModal from '../components/VisitModal'
+import { useSearchParams } from 'react-router-dom'
 
 const statusColor: Record<string, string> = {
   'Realizada': 'bg-green-100 text-green-700',
@@ -42,6 +43,15 @@ export default function DashboardVisitas() {
   }
 
   useEffect(() => { load() }, [])
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const openId = searchParams.get('openId')
+    if (!openId) return
+    setSearchParams({}, { replace: true })
+    supabase.from('visits').select('*').eq('id', openId).single()
+      .then(({ data }) => { if (data) setEditVisit(data as Visit) })
+  }, [])
 
   async function deleteVisit(id: string) {
     if (!confirm('Excluir esta visita?')) return

@@ -33,8 +33,8 @@ async function runSearch(q: string): Promise<Result[]> {
   const [clientes, varejo_clients, varejo, atacado, negocios, visitas, agenda] = await Promise.all([
     // Clientes atacado
     supabase.from('crm_clients').select('id, nome, tipo, rota').ilike('nome', like).limit(5),
-    // Clientes varejo (tabela de referência rápida)
-    supabase.from('varejo_pedidos').select('telefone, cliente').ilike('cliente', like).not('cliente', 'is', null).limit(5),
+    // Clientes varejo (tabela de cadastros com UUID)
+    supabase.from('varejo_clientes').select('id, nome, telefone').ilike('nome', like).limit(5),
     // Pedidos varejo
     supabase.from('varejo_pedidos').select('id, num_pedido, cliente, data_entrega, status_icon')
       .or(isNum ? `num_pedido.eq.${q},cliente.ilike.${like}` : `cliente.ilike.${like},num_pedido.ilike.${like}`)
@@ -59,20 +59,18 @@ async function runSearch(q: string): Promise<Result[]> {
     results.push({
       id: `cliente-${c.id}`, title: c.nome,
       sub: [c.tipo, c.rota].filter(Boolean).join(' · '),
-      category: 'cliente', ...CAT.cliente,
+      category: 'cliente', label: CAT.cliente.label, icon: CAT.cliente.icon, color: CAT.cliente.color,
+      to: `/clientes?openId=${c.id}`,
     })
   }
 
-  // Clientes varejo — deduplica por nome de cliente
-  const seenVarClientes = new Set<string>()
-  for (const p of (varejo_clients.data ?? [])) {
-    const nome = (p.cliente ?? '').trim()
-    if (!nome || seenVarClientes.has(nome)) continue
-    seenVarClientes.add(nome)
+  // Clientes varejo
+  for (const c of (varejo_clients.data ?? [])) {
     results.push({
-      id: `clivar-${nome}`, title: nome,
-      sub: p.telefone ?? '',
-      category: 'cli_varejo', ...CAT.cli_varejo,
+      id: `clivar-${c.id}`, title: c.nome,
+      sub: c.telefone ?? '',
+      category: 'cli_varejo', label: CAT.cli_varejo.label, icon: CAT.cli_varejo.icon, color: CAT.cli_varejo.color,
+      to: `/clientes-varejo?openId=${c.id}`,
     })
   }
 
@@ -81,7 +79,8 @@ async function runSearch(q: string): Promise<Result[]> {
     results.push({
       id: `varejo-${p.id}`, title: `#${p.num_pedido} — ${p.cliente ?? ''}`,
       sub: p.data_entrega ? `Entrega ${p.data_entrega.split('-').reverse().join('/')}` : '',
-      category: 'pedido_varejo', ...CAT.pedido_varejo,
+      category: 'pedido_varejo', label: CAT.pedido_varejo.label, icon: CAT.pedido_varejo.icon, color: CAT.pedido_varejo.color,
+      to: `/varejo?openId=${p.id}`,
     })
   }
 
@@ -91,7 +90,8 @@ async function runSearch(q: string): Promise<Result[]> {
     results.push({
       id: `atacado-${p.id}`, title: `#${num} — ${p.cliente_nome ?? ''}`,
       sub: p.data_entrega ? `Entrega ${p.data_entrega.split('-').reverse().join('/')}` : '',
-      category: 'pedido_atacado', ...CAT.pedido_atacado,
+      category: 'pedido_atacado', label: CAT.pedido_atacado.label, icon: CAT.pedido_atacado.icon, color: CAT.pedido_atacado.color,
+      to: `/atacado?openId=${p.id}`,
     })
   }
 
@@ -100,7 +100,8 @@ async function runSearch(q: string): Promise<Result[]> {
     results.push({
       id: `negocio-${n.id}`, title: n.client_name,
       sub: [n.deal_type, n.status].filter(Boolean).join(' · '),
-      category: 'negocio', ...CAT.negocio,
+      category: 'negocio', label: CAT.negocio.label, icon: CAT.negocio.icon, color: CAT.negocio.color,
+      to: `/negocios?openId=${n.id}`,
     })
   }
 
@@ -109,7 +110,8 @@ async function runSearch(q: string): Promise<Result[]> {
     results.push({
       id: `visita-${v.id}`, title: v.client_name,
       sub: [v.visit_type, v.visit_date ? v.visit_date.split('-').reverse().slice(0,2).join('/') : ''].filter(Boolean).join(' · '),
-      category: 'visita', ...CAT.visita,
+      category: 'visita', label: CAT.visita.label, icon: CAT.visita.icon, color: CAT.visita.color,
+      to: `/visitas?openId=${v.id}`,
     })
   }
 
@@ -118,7 +120,8 @@ async function runSearch(q: string): Promise<Result[]> {
     results.push({
       id: `agenda-${a.id}`, title: a.titulo,
       sub: [a.tipo, a.cliente_nome, a.data ? a.data.split('-').reverse().join('/') : ''].filter(Boolean).join(' · '),
-      category: 'agenda', ...CAT.agenda,
+      category: 'agenda', label: CAT.agenda.label, icon: CAT.agenda.icon, color: CAT.agenda.color,
+      to: `/agenda?openId=${a.id}`,
     })
   }
 

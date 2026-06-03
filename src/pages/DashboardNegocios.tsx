@@ -20,6 +20,7 @@ import PosVendaWidget from '../components/PosVendaWidget'
 import ResumoPedidosWidget from '../components/ResumoPedidosWidget'
 import AgendaWidget from '../components/AgendaWidget'
 import { usePreferences, DEFAULT_DASHBOARD_WIDGETS } from '../contexts/PreferencesContext'
+import { useSearchParams } from 'react-router-dom'
 
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -44,6 +45,15 @@ export default function DashboardNegocios() {
   }
 
   useEffect(() => { load() }, [])
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const openId = searchParams.get('openId')
+    if (!openId) return
+    setSearchParams({}, { replace: true })
+    supabase.from('deals').select('*').eq('id', openId).single()
+      .then(({ data }) => { if (data) setQuickDeal(data as Deal) })
+  }, [])
 
   useEffect(() => {
     supabase
