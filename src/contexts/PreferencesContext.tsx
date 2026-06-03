@@ -6,9 +6,12 @@ export interface DashboardWidget {
   visible: boolean
 }
 
+export type SidebarMode = 'full' | 'icons' | 'bottom'
+
 export interface UserPreferences {
   navOrder: string[]
   dashboardWidgets: DashboardWidget[]
+  sidebarMode: SidebarMode
 }
 
 export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
@@ -45,6 +48,7 @@ export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
 const DEFAULT_PREFS: UserPreferences = {
   navOrder: [],
   dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
+  sidebarMode: 'full',
 }
 
 function storageKey(userId: string) {
@@ -77,7 +81,11 @@ function loadPrefs(userId: string): UserPreferences {
           : [w]
       )
     }
-    return { navOrder: parsed.navOrder ?? [], dashboardWidgets: widgets }
+    return {
+      navOrder: parsed.navOrder ?? [],
+      dashboardWidgets: widgets,
+      sidebarMode: (parsed.sidebarMode as SidebarMode | undefined) ?? 'full',
+    }
   } catch {
     return DEFAULT_PREFS
   }
@@ -87,6 +95,7 @@ interface PreferencesContextValue {
   prefs: UserPreferences
   updateNavOrder: (order: string[]) => void
   updateDashboardWidgets: (widgets: DashboardWidget[]) => void
+  updateSidebarMode: (mode: SidebarMode) => void
   resetNavOrder: () => void
   resetDashboardWidgets: () => void
 }
@@ -121,6 +130,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     })
   }, [userId])
 
+  const updateSidebarMode = useCallback((sidebarMode: SidebarMode) => {
+    setPrefs(prev => {
+      const next = { ...prev, sidebarMode }
+      if (userId) localStorage.setItem(storageKey(userId), JSON.stringify(next))
+      return next
+    })
+  }, [userId])
+
   const resetNavOrder = useCallback(() => {
     setPrefs(prev => {
       const next = { ...prev, navOrder: [] }
@@ -138,7 +155,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   }, [userId])
 
   return (
-    <PreferencesContext.Provider value={{ prefs, updateNavOrder, updateDashboardWidgets, resetNavOrder, resetDashboardWidgets }}>
+    <PreferencesContext.Provider value={{ prefs, updateNavOrder, updateDashboardWidgets, updateSidebarMode, resetNavOrder, resetDashboardWidgets }}>
       {children}
     </PreferencesContext.Provider>
   )
