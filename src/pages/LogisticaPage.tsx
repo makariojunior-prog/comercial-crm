@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Search, Truck, Users, Radio, Settings, AlertTriangle, CheckCircle, MapPin, Gauge, Wifi, WifiOff, ExternalLink, FileText } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Search, Truck, Users, Radio, Settings, AlertTriangle, CheckCircle, MapPin, Gauge, Wifi, WifiOff, ExternalLink, FileText, DollarSign } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Vehicle, Driver } from '../types'
 import { docExpiryStatus, daysUntil } from '../types'
@@ -7,10 +7,11 @@ import VehicleModal from '../components/VehicleModal'
 import DriverModal from '../components/DriverModal'
 import RomaneioTab from '../components/RomaneioTab'
 import RotasEntregaTab from '../components/RotasEntregaTab'
+import CustosTab from '../components/CustosTab'
 import { fetchPositions, loadCredentials, saveCredentials, clearCredentials } from '../lib/velotrack'
 import type { VelotrackPosition } from '../types'
 
-type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas'
+type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas' | 'custos'
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -316,11 +317,12 @@ export default function LogisticaPage() {
   }, [vehicles, drivers])
 
   const TABS = [
-    { id: 'romaneio'     as Tab, label: 'Romaneio',          icon: FileText, count: null },
-    { id: 'rotas'        as Tab, label: 'Rotas de Entrega',  icon: MapPin,   count: null },
-    { id: 'rastreamento' as Tab, label: 'Rastreamento',      icon: Radio,    count: null },
-    { id: 'veiculos'     as Tab, label: 'Veículos',          icon: Truck,    count: vehicles.filter(v => v.ativo).length },
-    { id: 'motoristas'   as Tab, label: 'Motoristas',        icon: Users,    count: drivers.filter(d => d.ativo).length },
+    { id: 'romaneio'     as Tab, label: 'Romaneio',          icon: FileText,    count: null },
+    { id: 'rotas'        as Tab, label: 'Rotas de Entrega',  icon: MapPin,      count: null },
+    { id: 'rastreamento' as Tab, label: 'Rastreamento',      icon: Radio,       count: null },
+    { id: 'veiculos'     as Tab, label: 'Veículos',          icon: Truck,       count: vehicles.filter(v => v.ativo).length },
+    { id: 'motoristas'   as Tab, label: 'Motoristas',        icon: Users,       count: drivers.filter(d => d.ativo).length },
+    { id: 'custos'       as Tab, label: 'Custos',            icon: DollarSign,  count: null },
   ]
 
   return (
@@ -375,7 +377,7 @@ export default function LogisticaPage() {
       </div>
 
       {/* Search (veiculos/motoristas) */}
-      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && (
+      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && tab !== 'custos' && (
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -392,6 +394,12 @@ export default function LogisticaPage() {
         <RomaneioTab />
       ) : tab === 'rotas' ? (
         <RotasEntregaTab />
+      ) : tab === 'custos' ? (
+        <CustosTab
+          vehicles={vehicles}
+          drivers={drivers}
+          onVehiclesChanged={load}
+        />
       ) : loading ? (
         <div className="flex justify-center py-12 text-slate-400">Carregando...</div>
       ) : tab === 'rastreamento' ? (
