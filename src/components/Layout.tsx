@@ -163,20 +163,10 @@ export default function Layout() {
             )}
           </nav>
 
-          {/* Sidebar footer — mode toggles + search */}
-          <div className={`border-t border-slate-700 ${isIconsMode ? 'flex flex-col gap-0.5 p-1.5' : 'flex items-center gap-1 p-2'}`}>
+          {/* Sidebar footer — mode toggles */}
+          <div className={`border-t border-slate-700 ${isIconsMode ? 'flex flex-col gap-0.5 p-1.5' : 'flex items-center justify-end gap-1 p-2'}`}>
             {isIconsMode ? (
               <>
-                <button
-                  onClick={() => setSearchOpen(true)}
-                  title="Buscar (Ctrl+K)"
-                  className="group relative flex items-center justify-center p-2.5 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
-                >
-                  <Search size={16} />
-                  <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                    Buscar
-                  </span>
-                </button>
                 <button
                   onClick={() => updateSidebarMode('full')}
                   title="Expandir sidebar"
@@ -210,16 +200,6 @@ export default function Layout() {
               </>
             ) : (
               <>
-                {/* Search trigger */}
-                <button
-                  onClick={() => setSearchOpen(true)}
-                  className="flex flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
-                >
-                  <Search size={14} />
-                  <span>Buscar</span>
-                  <kbd className="ml-auto text-[9px] font-mono px-1 py-0.5 rounded bg-slate-700 text-slate-500">⌃K</kbd>
-                </button>
-                {/* Collapse to icons */}
                 <button
                   onClick={() => updateSidebarMode('icons')}
                   title="Colapsar sidebar"
@@ -227,7 +207,6 @@ export default function Layout() {
                 >
                   <ChevronsLeft size={16} />
                 </button>
-                {/* Move to bottom */}
                 <button
                   onClick={() => updateSidebarMode('bottom')}
                   title="Mover para baixo"
@@ -258,39 +237,67 @@ export default function Layout() {
 
         {/* Desktop header — bottom mode only */}
         {isBottomMode && (
-          <header className="hidden lg:flex items-center gap-3 px-4 py-2.5 bg-slate-800 text-white shrink-0 border-b border-slate-700">
-            <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0" style={{ filter: 'invert(1)' }} />
-            <p className="font-bold text-sm flex-1">CRM Comercial · Cantina Lumar</p>
-            {profile && (
-              <div className="text-right mr-2">
-                <p className="text-xs font-medium text-white">{profile.nome || profile.email}</p>
-                <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
-              </div>
-            )}
+          <header className="hidden lg:flex items-center gap-4 px-5 py-3 bg-white dark:bg-slate-800 shrink-0 border-b border-slate-200 dark:border-slate-700/60">
+            <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0 opacity-80" />
+            <p className="font-bold text-sm text-slate-700 dark:text-slate-200 shrink-0">CRM Comercial</p>
+            {/* Central search */}
             <button
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-600 hover:text-white transition-colors"
+              className="flex flex-1 items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600/50 hover:border-orange-300 dark:hover:border-orange-600/50 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-left max-w-2xl mx-auto"
             >
-              <Search size={14} />
-              <span>Buscar</span>
-              <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-slate-600 text-slate-500">⌃K</kbd>
+              <Search size={16} className="text-slate-400 shrink-0" />
+              <span className="flex-1 text-sm text-slate-400 select-none">Buscar clientes, pedidos, negócios, visitas...</span>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-slate-600 text-slate-400 border border-slate-200 dark:border-slate-500 shrink-0">⌃K</kbd>
             </button>
-            <button onClick={signOut} title="Sair" className="p-1.5 text-slate-400 hover:text-white transition-colors">
-              <LogOut size={16} />
-            </button>
+            {profile && (
+              <div className="flex items-center gap-2.5 shrink-0">
+                <div className="text-right hidden xl:block">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
+                  <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
+                </div>
+                <button onClick={signOut} title="Sair"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+                  <LogOut size={14} /> <span className="hidden xl:inline">Sair</span>
+                </button>
+              </div>
+            )}
           </header>
         )}
 
-        {/* Fixed search button — desktop, full/icons mode */}
+        {/* Desktop top bar — full/icons mode (replaces fixed button) */}
         {!isBottomMode && (
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="hidden lg:flex fixed top-3 right-4 z-40 items-center gap-2 rounded-lg bg-slate-700/90 px-3 py-1.5 text-xs text-slate-300 shadow-md backdrop-blur hover:bg-slate-600 hover:text-white transition-colors"
-          >
-            <Search size={14} />
-            <span>Buscar</span>
-            <kbd className="text-[9px] font-mono px-1 py-0.5 rounded bg-slate-600 text-slate-500">⌃K</kbd>
-          </button>
+          <header className="hidden lg:flex items-center gap-4 px-5 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/60 shrink-0">
+            {/* Search bar — central and prominent */}
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex flex-1 items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600/50 hover:border-orange-300 dark:hover:border-orange-600/50 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-left max-w-2xl"
+            >
+              <Search size={16} className="text-slate-400 shrink-0" />
+              <span className="flex-1 text-sm text-slate-400 select-none">
+                Buscar clientes, pedidos, negócios, visitas...
+              </span>
+              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-slate-600 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-500 shrink-0">
+                ⌃K
+              </kbd>
+            </button>
+
+            {/* User info + logout */}
+            {profile && (
+              <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+                <div className="text-right hidden xl:block">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
+                  <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
+                </div>
+                <button
+                  onClick={signOut}
+                  title="Sair"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                >
+                  <LogOut size={14} /> <span className="hidden xl:inline">Sair</span>
+                </button>
+              </div>
+            )}
+          </header>
         )}
 
         {/* Page content */}
