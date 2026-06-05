@@ -123,8 +123,8 @@ const MAINT_STYLE: Record<string, { bg: string; text: string; label: string }> =
 
 type Periodo = 'semana' | 'mes' | 'trimestre' | 'ano'
 
-function periodoRange(p: Periodo): { from: string; to: string } {
-  const today = new Date()
+function periodoRange(p: Periodo, selectedMonth?: Date): { from: string; to: string } {
+  const today = selectedMonth || new Date()
   const fmt = (d: Date) => format(d, 'yyyy-MM-dd')
   if (p === 'semana')    return { from: fmt(startOfWeek(today, { weekStartsOn: 1 })), to: fmt(endOfWeek(today, { weekStartsOn: 1 })) }
   if (p === 'mes')       return { from: fmt(startOfMonth(today)), to: fmt(endOfMonth(today)) }
@@ -620,6 +620,8 @@ interface Props {
 export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Props) {
   const [subTab, setSubTab] = useState<'lancamentos' | 'manutencoes'>('lancamentos')
   const [periodo, setPeriodo] = useState<Periodo>('mes')
+  const [selectedMonth, setSelectedMonth] = useState(new Date())
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [useCustomDate, setUseCustomDate] = useState(false)
   const [customDateFrom, setCustomDateFrom] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [customDateTo, setCustomDateTo] = useState(format(new Date(), 'yyyy-MM-dd'))
@@ -635,7 +637,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
 
   const { from, to } = useCustomDate
     ? { from: customDateFrom, to: customDateTo }
-    : periodoRange(periodo)
+    : periodoRange(periodo, periodo === 'mes' ? selectedMonth : new Date())
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -718,10 +720,66 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
     setManutencoes(p => p.filter(m => m.id !== id))
   }
 
-  const PERIOD_LABELS: Record<Periodo, string> = { semana: 'Esta semana', mes: 'Este mês', trimestre: 'Trim.', ano: 'Este ano' }
+  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+  const currentMonthLabel = `${monthNames[selectedMonth.getMonth()]} ${selectedMonth.getFullYear()}`
+
+  function handleMonthSelect(month: number, year: number) {
+    const newDate = new Date(year, month, 1)
+    setSelectedMonth(newDate)
+    setShowMonthPicker(false)
+  }
+
+  const PERIOD_LABELS: Record<Periodo, string> = { semana: 'Esta semana', mes: currentMonthLabel, trimestre: 'Trim.', ano: 'Este ano' }
 
   return (
     <div className="space-y-4">
+      {/* ── Month Picker Modal ── */}
+      {showMonthPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4">Selecionar Mês e Ano</h3>
+
+            <div className="space-y-4">
+              {/* Year selector */}
+              <div>
+                <label className="label text-xs mb-2">Ano</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear() - 1, selectedMonth.getMonth(), 1))}
+                    className="btn-ghost px-3 py-1 text-xs">←</button>
+                  <input type="number" className="input text-center"
+                    value={selectedMonth.getFullYear()}
+                    onChange={e => setSelectedMonth(new Date(parseInt(e.target.value), selectedMonth.getMonth(), 1))} />
+                  <button onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear() + 1, selectedMonth.getMonth(), 1))}
+                    className="btn-ghost px-3 py-1 text-xs">→</button>
+                </div>
+              </div>
+
+              {/* Month grid */}
+              <div>
+                <label className="label text-xs mb-2">Mês</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {monthNames.map((m, idx) => (
+                    <button key={idx} onClick={() => handleMonthSelect(idx, selectedMonth.getFullYear())}
+                      className={`py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+                        selectedMonth.getMonth() === idx
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                      }`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowMonthPicker(false)} className="btn-secondary flex-1">Fechar</button>
+              <button onClick={() => setShowMonthPicker(false)} className="btn-primary flex-1">OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Filters bar ── */}
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2 items-center">
@@ -730,7 +788,10 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
             <>
               <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-medium">
                 {(['semana', 'mes', 'trimestre', 'ano'] as Periodo[]).map(p => (
-                  <button key={p} onClick={() => setPeriodo(p)}
+                  <button key={p} onClick={() => {
+                    setPeriodo(p)
+                    if (p === 'mes') setShowMonthPicker(true)
+                  }}
                     className={`px-3 py-1.5 transition-colors ${periodo === p ? 'bg-orange-500 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                     {PERIOD_LABELS[p]}
                   </button>
