@@ -787,7 +787,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
           {!useCustomDate ? (
             <>
               <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-medium">
-                {(['semana', 'mes', 'trimestre', 'ano'] as Periodo[]).map(p => (
+                {(['semana', 'mes', 'ano'] as Periodo[]).map(p => (
                   <button key={p} onClick={() => {
                     setPeriodo(p)
                     if (p === 'mes') setShowMonthPicker(true)
