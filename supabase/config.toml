@@ -372,6 +372,12 @@ verify_jwt = false
 [functions.varejo-webhook]
 verify_jwt = false
 
+[functions.process-conversations]
+verify_jwt = false
+
+[functions.reprocess-conversations]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

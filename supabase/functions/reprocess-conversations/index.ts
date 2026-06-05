@@ -70,7 +70,7 @@ Respond with only the JSON object, nothing else.`
       ],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 100,
+        maxOutputTokens: 256,
       },
     }),
   })
@@ -151,7 +151,6 @@ Deno.serve(async (req) => {
             categoria,
             resumo,
             status_ia: 'success',
-            updated_at: new Date().toISOString(),
           })
           .eq('id', conversa.id)
 
