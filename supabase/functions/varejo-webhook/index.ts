@@ -20,7 +20,6 @@ function getStatusIcon(status: string): string {
 function getOrigem(salesChannel: string, deliveredBy: string): string {
   const ch = (salesChannel ?? '').toLowerCase()
   const by = (deliveredBy ?? '').toLowerCase()
-  // delivered_by é o campo mais confiável: 'food99' identifica 99Food independente do sales_channel
   if (by === 'food99') return '99FOOD'
   if (ch === 'ifood' || by === 'ifood' || by === 'ifood_shipping') return 'IFOOD'
   return 'CARDAPIO WEB'
@@ -36,31 +35,19 @@ function getTurno(isoDateTime: string | null): string | null {
   return 'NOITE'
 }
 
-async function processOrder(payload: any): Promise<void> {
-  const orderId = payload?.order_id
-  if (!orderId) return
-
-  console.log(`📦 Recebido webhook: order_id=${orderId} event=${payload?.event_type}`)
-
-  // Busca detalhes completos do pedido na API do Cardápio Web
+async function fetchOrderFromAPI(orderId: string): Promise<any | null> {
   const apiRes = await fetch(`${CARDAPIO_BASE}/api/partner/v1/orders/${orderId}`, {
     headers: { 'X-API-KEY': CARDAPIO_API_KEY },
     signal: AbortSignal.timeout(12000),
   })
-
   if (!apiRes.ok) {
     console.error(`❌ API Cardápio Web: ${apiRes.status} para order_id=${orderId}`)
-    return
+    return null
   }
+  return await apiRes.json()
+}
 
-  const order = await apiRes.json()
-
-  // Apenas delivery e takeout
-  if (order.order_type !== 'delivery' && order.order_type !== 'takeout') {
-    console.log(`ℹ️ Ignorado: pedido ${order.display_id} tipo=${order.order_type}`)
-    return
-  }
-
+async function upsertOrder(orderId: string, order: any): Promise<void> {
   // Workaround: Cardápio Web às vezes retorna order_type='takeout' para pedidos
   // que têm endereço de entrega (bug da API). Se há bairro/rua, é delivery.
   const addr = order.delivery_address ?? {}
@@ -80,21 +67,48 @@ async function processOrder(payload: any): Promise<void> {
     ? null
     : `${rua ? rua + ', ' : ''}${numero} - ${bairro}, ${addr.city || 'Goiânia'} - ${addr.state || 'GO'}${addr.zip_code ? ', ' + addr.zip_code : ''}`
 
-  // Tenta atualizar pedido existente — preserva campos do atendente
-  // origem é recalculado para corrigir casos onde o 1º evento chegou antes da entregadora ser atribuída
-  const updateFields: Record<string, unknown> = {
-    status_icon: statusIcon,
-    origem:       origem,
-    order_type:   isTakeout ? 'takeout' : order.order_type,
-    valor_liquido: total - frete,
-    restricao: order.observation || null,
-    updated_at: new Date().toISOString(),
-  }
+  let turno: string | null = null
+  let dataEntregaCalc: string | null = null
+  let scheduledStart: string | null = null
+  let dataEntregaDefinida = false
+
+  // isScheduled: turno/data_entrega vêm da API apenas para pedidos agendados.
+  // Para imediatos, esses campos são gerenciados pelo atendente no CRM — nunca sobrescrever.
+  const isScheduled = !isTakeout && order.order_timing === 'scheduled'
+
   if (!isTakeout) {
-    updateFields.frete = frete
-    updateFields.bairro = bairro || null
+    scheduledStart = order.schedule?.scheduled_date_time_start ?? null
+    turno = isScheduled ? getTurno(scheduledStart) : null
+    dataEntregaCalc = isScheduled
+      ? (scheduledStart?.substring(0, 10) ?? null)
+      : new Date().toISOString().substring(0, 10)
+    dataEntregaDefinida = !!(dataEntregaCalc && turno)
+  }
+
+  // Campos que sempre refletem o estado mais recente da API
+  const updateFields: Record<string, unknown> = {
+    status_icon:       statusIcon,
+    origem:            origem,
+    order_type:        isTakeout ? 'takeout' : 'delivery',
+    valor_liquido:     total - frete,
+    restricao:         order.observation || null,
+    cardapio_order_id: orderId,
+    updated_at:        new Date().toISOString(),
+  }
+
+  if (!isTakeout) {
+    updateFields.frete             = frete
+    updateFields.bairro            = bairro || null
     updateFields.endereco_completo = enderecoCompleto
-    updateFields.complemento = addr.complement || null
+    updateFields.complemento       = addr.complement || null
+    // turno/scheduled_start/data_entrega_definida/data_entrega são gerenciados
+    // pelo atendente para pedidos imediatos — nunca sobrescrever via resync
+    if (isScheduled) {
+      updateFields.turno                 = turno
+      updateFields.scheduled_start       = scheduledStart
+      updateFields.data_entrega_definida = dataEntregaDefinida
+      if (dataEntregaCalc) updateFields.data_entrega = dataEntregaCalc
+    }
   }
 
   const { data: updated, error: updErr } = await supabase
@@ -106,11 +120,11 @@ async function processOrder(payload: any): Promise<void> {
   if (updErr) console.error(`Supabase update error: ${updErr.message}`)
 
   if (updated && updated.length > 0) {
-    console.log(`🔄 Atualizado: ${displayId} → status=${statusIcon}`)
+    console.log(`🔄 Atualizado: ${displayId} status=${statusIcon} type=${isTakeout ? 'takeout' : 'delivery'} valor=${total - frete}`)
     return
   }
 
-  // Pedido novo — monta e insere
+  // Pedido novo — insere
   const telefone = String(order.customer?.phone ?? '').replace(/\D/g, '')
 
   let qtdPedidos = 1
@@ -122,48 +136,32 @@ async function processOrder(payload: any): Promise<void> {
     qtdPedidos = (count ?? 0) + 1
   }
 
-  let dataEntrega: string | null
-  let turno: string | null
-  let scheduledStart: string | null = null
-
-  if (isTakeout) {
-    // Retirada: data da venda = hoje (created_at pode ainda não estar no payload)
-    dataEntrega = new Date().toISOString().substring(0, 10)
-    turno = null
-  } else {
-    const isScheduled = order.order_timing === 'scheduled'
-    scheduledStart = order.schedule?.scheduled_date_time_start ?? null
-    turno = isScheduled ? getTurno(scheduledStart) : null
-    dataEntrega = isScheduled
-      ? (scheduledStart?.substring(0, 10) ?? null)
-      : new Date().toISOString().substring(0, 10)
-  }
-
   const record: Record<string, unknown> = {
-    num_pedido:           displayId,
-    data_entrega:         dataEntrega,
-    status_icon:          statusIcon,
-    marcador:             '⭕️',
-    cliente:              order.customer?.name ?? null,
-    origem:               origem,
-    order_type:           isTakeout ? 'takeout' : 'delivery',
-    valor_liquido:        total - frete,
-    frete:                frete,
-    qtd_pedidos_cliente:  qtdPedidos,
-    telefone:             telefone || null,
-    restricao:            order.observation || null,
-    order_timing:         order.order_timing ?? null,
-    data_entrega_definida: isTakeout ? true : !!(dataEntrega && turno),
-    source:               'webhook',
-    updated_at:           new Date().toISOString(),
+    num_pedido:            displayId,
+    data_entrega:          isTakeout ? new Date().toISOString().substring(0, 10) : dataEntregaCalc,
+    status_icon:           statusIcon,
+    marcador:              '⭕️',
+    cliente:               order.customer?.name ?? null,
+    origem:                origem,
+    order_type:            isTakeout ? 'takeout' : 'delivery',
+    valor_liquido:         total - frete,
+    frete:                 frete,
+    qtd_pedidos_cliente:   qtdPedidos,
+    telefone:              telefone || null,
+    restricao:             order.observation || null,
+    order_timing:          order.order_timing ?? null,
+    data_entrega_definida: isTakeout ? true : dataEntregaDefinida,
+    cardapio_order_id:     orderId,
+    source:                'webhook',
+    updated_at:            new Date().toISOString(),
   }
 
   if (!isTakeout) {
-    record.bairro = bairro || null
-    record.turno = turno
-    record.scheduled_start = scheduledStart
-    record.endereco_completo = enderecoCompleto
-    record.complemento = addr.complement || null
+    record.bairro              = bairro || null
+    record.turno               = turno
+    record.scheduled_start     = scheduledStart
+    record.endereco_completo   = enderecoCompleto
+    record.complemento         = addr.complement || null
   }
 
   const { error: insErr } = await supabase
@@ -171,28 +169,92 @@ async function processOrder(payload: any): Promise<void> {
     .insert(record)
 
   if (insErr) console.error(`❌ Insert error (${displayId}): ${insErr.message}`)
-  else console.log(`✅ Novo pedido: ${displayId} (${isTakeout ? 'retirada' : origem}) | data=${dataEntrega}`)
+  else console.log(`✅ Novo pedido: ${displayId} (${isTakeout ? 'retirada' : origem}) | data=${record.data_entrega}`)
+}
+
+async function processOrder(payload: any): Promise<void> {
+  const orderId = payload?.order_id
+  if (!orderId) return
+
+  console.log(`📦 Webhook: order_id=${orderId} event=${payload?.event_type}`)
+
+  const order = await fetchOrderFromAPI(orderId)
+  if (!order) return
+
+  if (order.order_type !== 'delivery' && order.order_type !== 'takeout') {
+    console.log(`ℹ️ Ignorado: pedido ${order.display_id} tipo=${order.order_type}`)
+    return
+  }
+
+  await upsertOrder(orderId, order)
+}
+
+// Rebusca todos os pedidos abertos do Cardápio Web dos últimos 2 dias
+async function resyncRecentes(): Promise<{ ok: boolean; total: number; atualizados: number; erros: number }> {
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)
+
+  const { data: pedidos, error } = await supabase
+    .from('varejo_pedidos')
+    .select('num_pedido, cardapio_order_id')
+    .not('cardapio_order_id', 'is', null)
+    .gte('data_entrega', twoDaysAgo)
+    .not('status_icon', 'in', '("✅","❌")')
+
+  if (error) {
+    console.error('resync query error:', error.message)
+    return { ok: false, total: 0, atualizados: 0, erros: 1 }
+  }
+
+  const lista = pedidos ?? []
+  console.log(`🔁 Resync: ${lista.length} pedidos abertos a verificar`)
+
+  let atualizados = 0
+  let erros = 0
+
+  for (const p of lista) {
+    try {
+      const order = await fetchOrderFromAPI(p.cardapio_order_id!)
+      if (!order) { erros++; continue }
+      await upsertOrder(p.cardapio_order_id!, order)
+      atualizados++
+    } catch (e: any) {
+      console.error(`resync error ${p.num_pedido}:`, e.message)
+      erros++
+    }
+    // Pausa para não estourar rate limit da API
+    await new Promise(r => setTimeout(r, 300))
+  }
+
+  console.log(`✅ Resync: ${atualizados} atualizados, ${erros} erros de ${lista.length} total`)
+  return { ok: true, total: lista.length, atualizados, erros }
 }
 
 Deno.serve(async (req) => {
-  // Health check
   if (req.method === 'GET') {
     return new Response(JSON.stringify({ status: 'ok', service: 'varejo-webhook' }), {
       headers: { 'Content-Type': 'application/json' }
     })
   }
 
-  // Responde 200 imediatamente para o Cardápio Web não marcar como falha
   let payload: any = null
   try { payload = await req.json() } catch { /* payload inválido */ }
 
+  // Resync periódico — chamado pelo pg_cron ou manualmente
+  if (payload?.type === 'resync') {
+    const result = await resyncRecentes()
+    return new Response(JSON.stringify(result), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+
+  // Webhook normal do Cardápio Web
   const task = processOrder(payload).catch(e => console.error('processOrder fatal:', e.message))
 
   try {
     // @ts-ignore — disponível no Supabase Edge Runtime
     EdgeRuntime.waitUntil(task)
   } catch {
-    // fallback: task já está rodando em background
+    // fallback
   }
 
   return new Response('OK', { status: 200 })

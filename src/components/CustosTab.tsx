@@ -620,6 +620,9 @@ interface Props {
 export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Props) {
   const [subTab, setSubTab] = useState<'lancamentos' | 'manutencoes'>('lancamentos')
   const [periodo, setPeriodo] = useState<Periodo>('mes')
+  const [useCustomDate, setUseCustomDate] = useState(false)
+  const [customDateFrom, setCustomDateFrom] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [customDateTo, setCustomDateTo] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [vehicleFilter, setVehicleFilter] = useState('todos')
   const [catFilter, setCatFilter] = useState('todas')
   const [custos, setCustos] = useState<FrotaCusto[]>([])
@@ -630,7 +633,9 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
   const [registrarMan, setRegistrarMan] = useState<FrotaManutencao | null>(null)
   const [expandedVehicle, setExpandedVehicle] = useState<string | null>(null)
 
-  const { from, to } = periodoRange(periodo)
+  const { from, to } = useCustomDate
+    ? { from: customDateFrom, to: customDateTo }
+    : periodoRange(periodo)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -718,31 +723,54 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
   return (
     <div className="space-y-4">
       {/* ── Filters bar ── */}
-      <div className="flex flex-wrap gap-2 items-center">
-        {/* Period selector */}
-        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-medium">
-          {(['semana', 'mes', 'trimestre', 'ano'] as Periodo[]).map(p => (
-            <button key={p} onClick={() => setPeriodo(p)}
-              className={`px-3 py-1.5 transition-colors ${periodo === p ? 'bg-orange-500 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-              {PERIOD_LABELS[p]}
-            </button>
-          ))}
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Period selector / Custom date toggle */}
+          {!useCustomDate ? (
+            <>
+              <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-medium">
+                {(['semana', 'mes', 'trimestre', 'ano'] as Periodo[]).map(p => (
+                  <button key={p} onClick={() => setPeriodo(p)}
+                    className={`px-3 py-1.5 transition-colors ${periodo === p ? 'bg-orange-500 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                    {PERIOD_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setUseCustomDate(true)} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <Calendar size={13} className="inline mr-1" /> Período Personalizado
+              </button>
+            </>
+          ) : (
+            <div className="flex gap-2 items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">De:</label>
+                <input type="date" className="input text-sm py-1.5 w-32" value={customDateFrom} onChange={e => setCustomDateFrom(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Até:</label>
+                <input type="date" className="input text-sm py-1.5 w-32" value={customDateTo} onChange={e => setCustomDateTo(e.target.value)} />
+              </div>
+              <button onClick={() => setUseCustomDate(false)} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                Usar períodos rápidos
+              </button>
+            </div>
+          )}
+
+          {/* Vehicle filter */}
+          <select className="input text-sm py-1.5 w-auto ml-auto" value={vehicleFilter} onChange={e => setVehicleFilter(e.target.value)}>
+            <option value="todos">Todos os veículos</option>
+            {vehicles.filter(v => v.ativo).map(v => (
+              <option key={v.id} value={v.id}>{v.apelido}</option>
+            ))}
+          </select>
+
+          <button onClick={loadData} className="btn-ghost p-2">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={() => setEditCusto(null)} className="btn-primary text-sm py-1.5">
+            <Plus size={15} /> Lançamento
+          </button>
         </div>
-
-        {/* Vehicle filter */}
-        <select className="input text-sm py-1.5 w-auto" value={vehicleFilter} onChange={e => setVehicleFilter(e.target.value)}>
-          <option value="todos">Todos os veículos</option>
-          {vehicles.filter(v => v.ativo).map(v => (
-            <option key={v.id} value={v.id}>{v.apelido}</option>
-          ))}
-        </select>
-
-        <button onClick={loadData} className="btn-ghost p-2 ml-auto">
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-        </button>
-        <button onClick={() => setEditCusto(null)} className="btn-primary text-sm py-1.5">
-          <Plus size={15} /> Lançamento
-        </button>
       </div>
 
       {/* ── KPI cards ── */}

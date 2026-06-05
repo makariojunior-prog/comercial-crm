@@ -53,6 +53,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
     rota_definida:  pedido.rota_definida ?? '',
     entregador:     pedido.entregador ?? '',
     empresa:        pedido.empresa ?? '',
+    veiculo:        pedido.veiculo ?? '',
     status_icon:    pedido.status_icon ?? '⚠️',
     origem:         pedido.origem ?? 'CARDAPIO WEB',
     // campos ADM
@@ -62,8 +63,9 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
 
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState<string | null>(null)
-  const [drivers, setDrivers] = useState<{ id: string; nome: string }[]>([])
-  const [users,   setUsers]   = useState<{ id: string; nome: string }[]>([])
+  const [drivers,  setDrivers]  = useState<{ id: string; nome: string }[]>([])
+  const [users,    setUsers]    = useState<{ id: string; nome: string }[]>([])
+  const [vehicles, setVehicles] = useState<{ id: string; apelido: string; placa: string | null }[]>([])
 
   useEffect(() => {
     let active = true
@@ -71,6 +73,8 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
       .then(({ data }) => { if (active) setDrivers(data ?? []) })
     supabase.from('crm_users').select('id, nome').order('nome')
       .then(({ data }) => { if (active) setUsers(data ?? []) })
+    supabase.from('crm_vehicles').select('id, apelido, placa').eq('ativo', true).order('apelido')
+      .then(({ data }) => { if (active) setVehicles(data ?? []) })
     return () => { active = false }
   }, [])
 
@@ -90,6 +94,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
       rota_definida:         form.rota_definida  || null,
       entregador:            form.entregador     || null,
       empresa:               form.empresa        || null,
+      veiculo:               form.veiculo        || null,
       status_icon:           form.status_icon,
       data_entrega_definida: !!(form.data_entrega && form.turno),
       origem:                form.origem || null,
@@ -297,6 +302,17 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                   )}
                   {drivers.map(d => (
                     <option key={d.id} value={firstName(d.nome)}>{firstName(d.nome)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Veículo</label>
+                <select className="input" value={form.veiculo} onChange={e => set('veiculo', e.target.value)}>
+                  <option value="">— Selecione —</option>
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.apelido}>
+                      {v.apelido}{v.placa ? ` (${v.placa})` : ''}
+                    </option>
                   ))}
                 </select>
               </div>

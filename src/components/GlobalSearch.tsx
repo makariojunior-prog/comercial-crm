@@ -27,8 +27,9 @@ const CAT = {
 type CatKey = keyof typeof CAT
 
 async function runSearch(q: string): Promise<Result[]> {
-  const like = `%${q}%`
-  const isNum = /^\d+$/.test(q.trim())
+  const clean = q.trim().replace(/^#/, '')
+  const like = `%${clean}%`
+  const isNum = /^\d+$/.test(clean)
 
   const [clientes, varejo_clients, varejo, atacado, negocios, visitas, agenda] = await Promise.all([
     // Clientes atacado
@@ -37,11 +38,11 @@ async function runSearch(q: string): Promise<Result[]> {
     supabase.from('varejo_clientes').select('id, nome, telefone').ilike('nome', like).limit(5),
     // Pedidos varejo
     supabase.from('varejo_pedidos').select('id, num_pedido, cliente, data_entrega, status_icon')
-      .or(isNum ? `num_pedido.eq.${q},cliente.ilike.${like}` : `cliente.ilike.${like},num_pedido.ilike.${like}`)
+      .or(isNum ? `num_pedido.eq.${clean},cliente.ilike.${like}` : `cliente.ilike.${like},num_pedido.ilike.${like}`)
       .limit(5),
     // Pedidos atacado
     supabase.from('atacado_pedidos').select('id, numero_pedido, id_venda, cliente_nome, data_entrega')
-      .or(isNum ? `numero_pedido.eq.${parseInt(q)},id_venda.eq.${parseInt(q)}` : `cliente_nome.ilike.${like}`)
+      .or(isNum ? `numero_pedido.eq.${parseInt(clean)},id_venda.eq.${parseInt(clean)}` : `cliente_nome.ilike.${like}`)
       .limit(5),
     // Negócios
     supabase.from('deals').select('id, client_name, status, deal_type').ilike('client_name', like).limit(4),

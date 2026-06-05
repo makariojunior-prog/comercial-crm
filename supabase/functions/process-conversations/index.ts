@@ -16,17 +16,47 @@ interface CrmConversation {
 
 const CATEGORIAS = ['QUALIDADE', 'LOGÍSTICA', 'RECLAMAÇÃO', 'ELOGIO', 'PEDIDO', 'DÚVIDA', 'OUTROS', 'EQUIPE']
 
-async function analyzeWithGemini(text: string): Promise<{ categoria: string; resumo: string }> {
+async function getStopWords(): Promise<Set<string>> {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  )
+
+  const { data, error } = await supabase
+    .from('ia_stop_words')
+    .select('word')
+
+  if (error) {
+    console.error('Error fetching stop words:', error)
+    return new Set()
+  }
+
+  return new Set((data || []).map((row: { word: string }) => row.word.toLowerCase()))
+}
+
+function cleanText(text: string, stopWords: Set<string>): string {
+  return text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(word => !stopWords.has(word))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+async function analyzeWithGemini(text: string, stopWords: Set<string>): Promise<{ categoria: string; resumo: string }> {
   const apiKey = Deno.env.get('GOOGLE_API_KEY')
   if (!apiKey) throw new Error('GOOGLE_API_KEY not configured')
+
+  const cleanedText = cleanText(text, stopWords)
 
   const prompt = `Analyze this customer message and respond with ONLY a JSON object (no markdown, no code blocks):
 {
   "categoria": "one of: ${CATEGORIAS.join(', ')}",
-  "resumo": "2-3 word summary in Portuguese"
+  "resumo": "2-3 word summary in Portuguese - be concise and extract only key information"
 }
 
-Message: "${text}"
+Message: "${cleanedText}"
 
 Respond with only the JSON object, nothing else.`
 
@@ -88,6 +118,9 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
+    // Fetch stop words once
+    const stopWords = await getStopWords()
+
     // Fetch unprocessed conversations
     const { data: conversas, error: fetchError } = await supabase
       .from('crm_conversations')
@@ -103,7 +136,7 @@ Deno.serve(async (req) => {
 
     for (const conversa of conversas || []) {
       try {
-        const { categoria, resumo } = await analyzeWithGemini(conversa.texto)
+        const { categoria, resumo } = await analyzeWithGemini(conversa.texto, stopWords)
 
         const { error: updateError } = await supabase
           .from('crm_conversations')
