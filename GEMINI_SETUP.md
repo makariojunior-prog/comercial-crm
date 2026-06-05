@@ -9,6 +9,8 @@ Este documento descreve o setup completo da integração com Google Gemini Flash
 - Edge Function `process-conversations` criada para processar conversas pendentes
 - Edge Function `reprocess-conversations` criada para reprocessar conversas com erro
 - Tabela `crm_conversations` já configurada com campos: `status_ia`, `categoria`, `resumo`
+- ✅ **CORREÇÃO (2026-06-05)**: Modelo atualizado de `gemini-2.0-flash` (inválido) para `gemini-1.5-flash`
+- ✅ **CORREÇÃO**: Tratamento robusto de JSON responses com suporte a markdown code blocks
 
 ## 📋 Passos para Fazer Deploy
 

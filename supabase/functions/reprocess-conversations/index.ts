@@ -52,7 +52,7 @@ Message: "${cleanedText}"
 
 Respond with only the JSON object, nothing else.`
 
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -78,7 +78,7 @@ Respond with only the JSON object, nothing else.`
   if (!response.ok) {
     const error = await response.text()
     console.error('Gemini API error:', error)
-    throw new Error(`Gemini API error: ${response.status}`)
+    throw new Error(`Gemini API error: ${response.status} - ${error}`)
   }
 
   const data = await response.json() as {
@@ -92,12 +92,28 @@ Respond with only the JSON object, nothing else.`
   }
 
   const text_content = data.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text_content) throw new Error('No response from Gemini')
+  if (!text_content) {
+    console.error('Gemini response:', JSON.stringify(data))
+    throw new Error('No response from Gemini')
+  }
 
-  const result = JSON.parse(text_content)
-  return {
-    categoria: result.categoria || 'OUTROS',
-    resumo: result.resumo || '',
+  // Extract JSON from response (handle markdown code blocks)
+  let jsonStr = text_content.trim()
+  if (jsonStr.startsWith('```json')) {
+    jsonStr = jsonStr.replace(/^```json\n/, '').replace(/\n```$/, '')
+  } else if (jsonStr.startsWith('```')) {
+    jsonStr = jsonStr.replace(/^```\n/, '').replace(/\n```$/, '')
+  }
+
+  try {
+    const result = JSON.parse(jsonStr)
+    return {
+      categoria: result.categoria || 'OUTROS',
+      resumo: result.resumo || '',
+    }
+  } catch (parseError) {
+    console.error('JSON parse error. Raw response:', text_content)
+    throw new Error(`Failed to parse JSON from Gemini: ${parseError}`)
   }
 }
 
