@@ -60,69 +60,92 @@ Message: "${cleanedText}"
 
 Respond with only the JSON object, nothing else.`
 
-  const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
+  const maxRetries = 3
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=' + apiKey, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
             {
-              text: prompt,
+              parts: [
+                {
+                  text: prompt,
+                },
+              ],
             },
           ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 256,
-      },
-    }),
-  })
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 256,
+          },
+        }),
+      })
 
-  if (!response.ok) {
-    const error = await response.text()
-    console.error('Gemini API error:', error)
-    throw new Error(`Gemini API error: ${response.status} - ${error}`)
-  }
+      // Retry on rate limit (429) and server errors (5xx)
+      if (!response.ok) {
+        if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+          const backoffMs = Math.pow(2, attempt) * 500
+          console.warn(`Attempt ${attempt + 1}: Status ${response.status}, retrying in ${backoffMs}ms...`)
+          await new Promise(resolve => setTimeout(resolve, backoffMs))
+          continue
+        }
 
-  const data = await response.json() as {
-    candidates?: Array<{
-      content?: {
-        parts?: Array<{
-          text?: string
+        const error = await response.text()
+        console.error('Gemini API error:', error)
+        throw new Error(`Gemini API error: ${response.status}`)
+      }
+
+      const data = await response.json() as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              text?: string
+            }>
+          }
         }>
       }
-    }>
-  }
 
-  const text_content = data.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text_content) {
-    console.error('Gemini response:', JSON.stringify(data))
-    throw new Error('No response from Gemini')
-  }
+      const text_content = data.candidates?.[0]?.content?.parts?.[0]?.text
+      if (!text_content) {
+        console.error('Gemini response:', JSON.stringify(data))
+        throw new Error('No response from Gemini')
+      }
 
-  // Extract JSON from response (handle markdown code blocks)
-  let jsonStr = text_content.trim()
-  if (jsonStr.startsWith('```json')) {
-    jsonStr = jsonStr.replace(/^```json\n/, '').replace(/\n```$/, '')
-  } else if (jsonStr.startsWith('```')) {
-    jsonStr = jsonStr.replace(/^```\n/, '').replace(/\n```$/, '')
-  }
+      // Extract JSON from response (handle markdown code blocks)
+      let jsonStr = text_content.trim()
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/^```json\n/, '').replace(/\n```$/, '')
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/^```\n/, '').replace(/\n```$/, '')
+      }
 
-  try {
-    const result = JSON.parse(jsonStr)
-    return {
-      categoria: result.categoria || 'OUTROS',
-      resumo: result.resumo || '',
+      try {
+        const result = JSON.parse(jsonStr)
+        return {
+          categoria: result.categoria || 'OUTROS',
+          resumo: result.resumo || '',
+        }
+      } catch (parseError) {
+        console.error('JSON parse error. Raw response:', text_content)
+        throw new Error(`Failed to parse JSON from Gemini: ${parseError}`)
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+      if (attempt < maxRetries) {
+        const backoffMs = Math.pow(2, attempt) * 500
+        console.warn(`Attempt ${attempt + 1} failed, retrying in ${backoffMs}ms...`)
+        await new Promise(resolve => setTimeout(resolve, backoffMs))
+      }
     }
-  } catch (parseError) {
-    console.error('JSON parse error. Raw response:', text_content)
-    throw new Error(`Failed to parse JSON from Gemini: ${parseError}`)
   }
+
+  throw lastError || new Error('Failed after all retry attempts')
 }
 
 Deno.serve(async (req) => {
