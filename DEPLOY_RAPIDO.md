@@ -89,7 +89,8 @@ supabase login
 
 ### "GOOGLE_API_KEY not configured"
 No Painel Supabase → Project Settings → Functions → Secrets:
-- Adicione: `GOOGLE_API_KEY` = `AIzaSyB-5rg-pfJ-sFAFRFjdqo9jBdLRn6NEYrA`
+- Adicione: `GOOGLE_API_KEY` = [sua chave do Google AI Studio]
+- ⚠️ NUNCA commite chaves de API no repositório!
 
 ---
 
