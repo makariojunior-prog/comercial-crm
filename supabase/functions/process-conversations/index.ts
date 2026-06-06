@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
           .update({
             categoria,
             resumo,
-            status_ia: 'success',
+            status_ia: 'OK',
           })
           .eq('id', conversa.id)
 
