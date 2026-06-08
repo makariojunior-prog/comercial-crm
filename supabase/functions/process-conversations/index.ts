@@ -44,43 +44,46 @@ function cleanText(text: string, stopWords: Set<string>): string {
     .trim()
 }
 
-async function analyzeWithClaude(text: string, stopWords: Set<string>): Promise<{ categoria: string; resumo: string }> {
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
+async function analyzeWithGemini(text: string, stopWords: Set<string>): Promise<{ categoria: string; resumo: string }> {
+  const apiKey = Deno.env.get('GOOGLE_API_KEY')
+  if (!apiKey) throw new Error('GOOGLE_API_KEY not configured')
 
   const cleanedText = cleanText(text, stopWords)
 
-  const prompt = `Analise esta mensagem de cliente e responda com APENAS um objeto JSON (sem markdown, sem blocos de código):
+  const prompt = `Analyze this customer message and respond with ONLY a JSON object (no markdown, no code blocks):
 {
-  "categoria": "uma de: ${CATEGORIAS.join(', ')}",
-  "resumo": "resumo de 2-3 palavras em português - seja conciso e extraia apenas informações-chave"
+  "categoria": "one of: ${CATEGORIAS.join(', ')}",
+  "resumo": "2-3 word summary in Portuguese - be concise and extract only key information"
 }
 
-Mensagem: "${cleanedText}"
+Message: "${cleanedText}"
 
-Responda apenas com o objeto JSON, nada mais.`
+Respond with only the JSON object, nothing else.`
 
   const maxRetries = 3
   let lastError: Error | null = null
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' + apiKey, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4.5-20241022',
-          max_tokens: 256,
-          messages: [
+          contents: [
             {
-              role: 'user',
-              content: prompt,
+              parts: [
+                {
+                  text: prompt,
+                },
+              ],
             },
           ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 256,
+          },
         }),
       })
 
@@ -94,21 +97,24 @@ Responda apenas com o objeto JSON, nada mais.`
         }
 
         const error = await response.text()
-        console.error('Claude API error:', error)
-        throw new Error(`Claude API error: ${response.status}`)
+        console.error('Gemini API error:', error)
+        throw new Error(`Gemini API error: ${response.status}`)
       }
 
       const data = await response.json() as {
-        content?: Array<{
-          type?: string
-          text?: string
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              text?: string
+            }>
+          }
         }>
       }
 
-      const text_content = data.content?.[0]?.text
+      const text_content = data.candidates?.[0]?.content?.parts?.[0]?.text
       if (!text_content) {
-        console.error('Claude response:', JSON.stringify(data))
-        throw new Error('No response from Claude')
+        console.error('Gemini response:', JSON.stringify(data))
+        throw new Error('No response from Gemini')
       }
 
       // Extract JSON from response (handle markdown code blocks)
@@ -127,7 +133,7 @@ Responda apenas com o objeto JSON, nada mais.`
         }
       } catch (parseError) {
         console.error('JSON parse error. Raw response:', text_content)
-        throw new Error(`Failed to parse JSON from Claude: ${parseError}`)
+        throw new Error(`Failed to parse JSON from Gemini: ${parseError}`)
       }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
@@ -169,7 +175,7 @@ Deno.serve(async (req) => {
 
     for (const conversa of conversas || []) {
       try {
-        const { categoria, resumo } = await analyzeWithClaude(conversa.texto, stopWords)
+        const { categoria, resumo } = await analyzeWithGemini(conversa.texto, stopWords)
 
         const { error: updateError } = await supabase
           .from('crm_conversations')
