@@ -55,6 +55,7 @@ export default function ClientesVarejo() {
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('todos')
+  const [sortBy, setSortBy]     = useState<'nome' | 'ultimo_pedido'>('nome')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing]   = useState<VarejoCliente | null>(null)
   const [form, setForm]         = useState<FormData>(EMPTY_FORM)
@@ -72,7 +73,9 @@ export default function ClientesVarejo() {
       const { data } = await supabase
         .from('varejo_clientes')
         .select('*')
-        .order('nome')
+        .order(sortBy === 'ultimo_pedido' ? 'ultimo_pedido' : 'nome', {
+          ascending: sortBy === 'ultimo_pedido' ? false : true,
+        })
         .range(page * PAGE, (page + 1) * PAGE - 1)
       if (!data || data.length === 0) break
       all = [...all, ...(data as VarejoCliente[])]
@@ -83,7 +86,7 @@ export default function ClientesVarejo() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [sortBy])
 
   const [searchParams, setSearchParams] = useSearchParams()
   useEffect(() => {
@@ -230,6 +233,14 @@ export default function ClientesVarejo() {
         >
           <option value="todos">Todos</option>
           {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value as 'nome' | 'ultimo_pedido')}
+          className="text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none"
+        >
+          <option value="nome">Ordenar: Nome A-Z</option>
+          <option value="ultimo_pedido">Ordenar: Último pedido (↓)</option>
         </select>
       </div>
 
