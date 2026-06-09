@@ -15,7 +15,7 @@ import type { Vehicle, Driver } from '../types'
 export type CustoCategoria =
   | 'combustivel' | 'troca_oleo' | 'pneu' | 'revisao' | 'filtro'
   | 'freios' | 'correia' | 'alinhamento' | 'seguro' | 'ipva'
-  | 'multa' | 'lavagem' | 'manutencao' | 'outros'
+  | 'multa' | 'lavagem' | 'manutencao' | 'rastreamento' | 'outros'
 
 export interface FrotaCusto {
   id: string
@@ -29,6 +29,10 @@ export interface FrotaCusto {
   preco_litro: number | null
   data_gasto: string
   observacoes: string | null
+  recorrente: boolean
+  tipo_recorrencia: 'mensal' | 'trimestral' | 'semestral' | 'anual' | null
+  proxima_data_recorrencia: string | null
+  ativo: boolean
   created_at: string
   updated_at: string
   vehicle?: { id: string; apelido: string; placa: string | null } | null
@@ -69,6 +73,7 @@ const CATEGORIAS: Record<CustoCategoria, { label: string; emoji: string; isMaint
   multa:       { label: 'Multa',                emoji: '⚠️', isMaint: false },
   lavagem:     { label: 'Lavagem',              emoji: '🚿', isMaint: false },
   manutencao:  { label: 'Manutenção Geral',     emoji: '🔩', isMaint: true  },
+  rastreamento: { label: 'Rastreamento GPS',    emoji: '📡', isMaint: false },
   outros:      { label: 'Outros',               emoji: '📦', isMaint: false },
 }
 
@@ -155,10 +160,12 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
     preco_litro: custo?.preco_litro?.toString() ?? '',
     data_gasto:  custo?.data_gasto ?? format(new Date(), 'yyyy-MM-dd'),
     observacoes: custo?.observacoes ?? '',
+    recorrente:  custo?.recorrente ?? false,
+    tipo_recorrencia: (custo?.tipo_recorrencia ?? 'mensal') as 'mensal' | 'trimestral' | 'semestral' | 'anual',
   })
   const [saving, setSaving] = useState(false)
 
-  const set = (k: keyof typeof form, v: string) => setForm(p => ({ ...p, [k]: v }))
+  const set = (k: keyof typeof form, v: string | boolean) => setForm(p => ({ ...p, [k]: v }))
 
   // Auto-calc valor from litros × preco_litro for combustivel
   useEffect(() => {
@@ -167,6 +174,16 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
     const p = parseFloat(form.preco_litro)
     if (!isNaN(l) && !isNaN(p) && l > 0 && p > 0) set('valor', (l * p).toFixed(2))
   }, [form.litros, form.preco_litro, form.categoria])
+
+  function calcProximaRecorrencia(): string | null {
+    if (!form.recorrente) return null
+    const dataBase = parseISO(form.data_gasto)
+    const intervalos: Record<string, number> = {
+      mensal: 30, trimestral: 90, semestral: 180, anual: 365
+    }
+    const dias = intervalos[form.tipo_recorrencia] || 30
+    return format(new Date(dataBase.getTime() + dias * 86400000), 'yyyy-MM-dd')
+  }
 
   async function save() {
     if (!form.vehicle_id || !form.valor || !form.data_gasto) return
@@ -182,6 +199,10 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
       preco_litro: form.preco_litro ? parseFloat(form.preco_litro) : null,
       data_gasto:  form.data_gasto,
       observacoes: form.observacoes || null,
+      recorrente:  form.recorrente,
+      tipo_recorrencia: form.recorrente ? form.tipo_recorrencia : null,
+      proxima_data_recorrencia: form.recorrente ? calcProximaRecorrencia() : null,
+      ativo:       true,
       updated_at:  new Date().toISOString(),
     }
 
@@ -300,6 +321,33 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
             <label className="label">Observações</label>
             <textarea rows={2} className="input resize-none" placeholder="Detalhes adicionais..."
               value={form.observacoes} onChange={e => set('observacoes', e.target.value)} />
+          </div>
+
+          {/* Recorrência */}
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+            <label className="flex items-center gap-3 cursor-pointer mb-3">
+              <input type="checkbox" className="w-4 h-4 rounded border-slate-300 dark:border-slate-600"
+                checked={form.recorrente} onChange={e => set('recorrente', e.target.checked)} />
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Este é um custo recorrente?</span>
+            </label>
+
+            {form.recorrente && (
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
+                <label className="label">Frequência de Recorrência *</label>
+                <select className="input" value={form.tipo_recorrencia}
+                  onChange={e => set('tipo_recorrencia', e.target.value as any)}>
+                  <option value="mensal">📅 Mensal (30 dias)</option>
+                  <option value="trimestral">📅 Trimestral (90 dias)</option>
+                  <option value="semestral">📅 Semestral (180 dias)</option>
+                  <option value="anual">📅 Anual (365 dias)</option>
+                </select>
+                {calcProximaRecorrencia() && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                    Próximo lançamento previsto: <strong>{format(parseISO(calcProximaRecorrencia()!), 'dd/MM/yyyy')}</strong>
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -948,15 +996,27 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
                     {isOpen && (
                       <div className="border-t border-slate-100 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700/50">
                         {info.itens.map(c => (
-                          <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                          <div key={c.id} className={`flex items-center gap-3 px-4 py-2.5 ${c.recorrente ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>
                             <span className="text-base w-6 text-center shrink-0">{CATEGORIAS[c.categoria]?.emoji}</span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-slate-700 dark:text-slate-200">
-                                {c.descricao || CATEGORIAS[c.categoria]?.label}
-                              </p>
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className="text-sm text-slate-700 dark:text-slate-200">
+                                  {c.descricao || CATEGORIAS[c.categoria]?.label}
+                                </p>
+                                {c.recorrente && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                                    🔄 {c.tipo_recorrencia}
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[11px] text-slate-400 flex items-center gap-2">
                                 <Calendar size={9} />
                                 {format(parseISO(c.data_gasto), 'dd/MM/yyyy')}
+                                {c.recorrente && c.proxima_data_recorrencia && (
+                                  <span className="text-blue-600 dark:text-blue-400">
+                                    · próximo: {format(parseISO(c.proxima_data_recorrencia), 'dd/MM/yyyy')}
+                                  </span>
+                                )}
                                 {c.km_odometro && <span>· {c.km_odometro.toLocaleString('pt-BR')} km</span>}
                                 {c.litros && <span>· {c.litros}L</span>}
                                 {c.driver?.nome && <span>· {c.driver.nome}</span>}
