@@ -82,10 +82,10 @@ export default function PosVendaWidget() {
                   onClick={() => setModal(c)}
                   className="w-full flex items-center gap-1 px-2 py-1.5 rounded bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800/50 hover:bg-sky-100 dark:hover:bg-sky-900/40 active:scale-95 transition-all text-left group"
                 >
-                  <span className="text-[9px] text-slate-600 dark:text-slate-400 truncate flex-1 font-medium">
+                  <span className="text-sm text-slate-600 dark:text-slate-400 truncate flex-1 font-medium">
                     {c.nome ?? c.telefone}
                   </span>
-                  <span className="text-[8px] text-slate-400 whitespace-nowrap">
+                  <span className="text-xs text-slate-400 whitespace-nowrap">
                     {c.dias_sem_contato}d
                   </span>
                 </button>
@@ -134,14 +134,14 @@ export default function PosVendaWidget() {
                   key={r.id}
                   className="flex flex-col gap-0.5 px-2 py-1.5 rounded bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50"
                 >
-                  <p className="text-[9px] text-slate-700 dark:text-slate-300 font-medium truncate">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 font-medium truncate">
                     {r.nome || r.telefone}
                   </p>
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-[8px] text-slate-500 dark:text-slate-400">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
                       {format(new Date(r.created_at), 'HH:mm')}
                     </span>
-                    <span className="text-[8px] text-slate-400 truncate flex-1 text-right">
+                    <span className="text-xs text-slate-400 truncate flex-1 text-right">
                       {r.usuario_nome || 'atendente'}
                     </span>
                   </div>
