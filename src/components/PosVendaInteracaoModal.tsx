@@ -236,7 +236,7 @@ export default function PosVendaInteracaoModal({ cliente, tipoDefault, onClose }
                           <button
                             onClick={() => deletar(h.id)}
                             disabled={deleting === h.id}
-                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-400 hover:text-red-600 transition-colors"
                             title="Deletar interação"
                           >
                             <Trash2 size={14} />
