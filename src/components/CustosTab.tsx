@@ -185,10 +185,22 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
     if (!form.recorrente) return null
     const dataBase = parseISO(form.data_gasto)
     const intervalos: Record<string, number> = {
-      mensal: 30, trimestral: 90, semestral: 180, anual: 365
+      mensal: 1, trimestral: 3, semestral: 6, anual: 12
     }
-    const dias = intervalos[form.tipo_recorrencia] || 30
-    return format(new Date(dataBase.getTime() + dias * 86400000), 'yyyy-MM-dd')
+    const meses = intervalos[form.tipo_recorrencia] || 1
+
+    const ano = dataBase.getFullYear()
+    const mes = dataBase.getMonth()
+    const dia = dataBase.getDate()
+
+    const alvoAno = ano + Math.floor((mes + meses) / 12)
+    const alvoMes = ((mes + meses) % 12 + 12) % 12
+
+    // Último dia do mês alvo — evita transbordo (ex: 31/01 + 1 mês = 28/02)
+    const ultimoDiaAlvo = new Date(alvoAno, alvoMes + 1, 0).getDate()
+    const diaFinal = Math.min(dia, ultimoDiaAlvo)
+
+    return format(new Date(alvoAno, alvoMes, diaFinal), 'yyyy-MM-dd')
   }
 
   async function save() {
@@ -366,10 +378,10 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
                   <label className="label">Frequência de Recorrência *</label>
                   <select className="input" value={form.tipo_recorrencia}
                     onChange={e => set('tipo_recorrencia', e.target.value as any)}>
-                    <option value="mensal">📅 Mensal (30 dias)</option>
-                    <option value="trimestral">📅 Trimestral (90 dias)</option>
-                    <option value="semestral">📅 Semestral (180 dias)</option>
-                    <option value="anual">📅 Anual (365 dias)</option>
+                    <option value="mensal">📅 Mensal (a cada 1 mês)</option>
+                    <option value="trimestral">📅 Trimestral (a cada 3 meses)</option>
+                    <option value="semestral">📅 Semestral (a cada 6 meses)</option>
+                    <option value="anual">📅 Anual (a cada 12 meses)</option>
                   </select>
                 </div>
 

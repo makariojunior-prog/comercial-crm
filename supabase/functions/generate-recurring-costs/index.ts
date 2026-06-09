@@ -27,10 +27,20 @@ interface FrotaCusto {
   ativo: boolean
 }
 
-function adicionarDias(data: Date, dias: number): Date {
-  const novaData = new Date(data)
-  novaData.setDate(novaData.getDate() + dias)
-  return novaData
+function adicionarMeses(data: Date, meses: number): Date {
+  const ano = data.getFullYear()
+  const mes = data.getMonth()
+  const dia = data.getDate()
+
+  // Mês alvo (pode ultrapassar 11; o Date normaliza ano/mês)
+  const alvoAno = ano + Math.floor((mes + meses) / 12)
+  const alvoMes = ((mes + meses) % 12 + 12) % 12
+
+  // Último dia do mês alvo — evita "transbordo" (ex: 31/01 + 1 mês = 28/02, não 03/03)
+  const ultimoDiaAlvo = new Date(alvoAno, alvoMes + 1, 0).getDate()
+  const diaFinal = Math.min(dia, ultimoDiaAlvo)
+
+  return new Date(alvoAno, alvoMes, diaFinal)
 }
 
 function formatarData(data: Date): string {
@@ -67,19 +77,19 @@ async function gerarLancamentosRecorrentes() {
     console.log(`Processando custo recorrente: ${custo.id}`)
 
     const intervalos: Record<string, number> = {
-      mensal: 30,
-      trimestral: 90,
-      semestral: 180,
-      anual: 365,
+      mensal: 1,
+      trimestral: 3,
+      semestral: 6,
+      anual: 12,
     }
 
-    const diasIntervalo = intervalos[custo.tipo_recorrencia || 'mensal'] || 30
+    const mesesIntervalo = intervalos[custo.tipo_recorrencia || 'mensal'] || 1
 
     // Determinar a data de fim
     let dataFim: Date
     if (custo.recorrencia_indefinida) {
       // Gerar até 2 anos no futuro
-      dataFim = adicionarDias(new Date(), 730)
+      dataFim = adicionarMeses(new Date(), 24)
     } else if (custo.data_fim_recorrencia) {
       dataFim = new Date(custo.data_fim_recorrencia)
     } else {
@@ -97,9 +107,9 @@ async function gerarLancamentosRecorrentes() {
 
     let dataProxima: Date
     if (ultimoLancamento) {
-      dataProxima = adicionarDias(new Date(ultimoLancamento.data_gasto), diasIntervalo)
+      dataProxima = adicionarMeses(new Date(ultimoLancamento.data_gasto), mesesIntervalo)
     } else {
-      dataProxima = adicionarDias(new Date(custo.data_gasto), diasIntervalo)
+      dataProxima = adicionarMeses(new Date(custo.data_gasto), mesesIntervalo)
     }
 
     // Gerar lançamentos até a data final
@@ -129,7 +139,7 @@ async function gerarLancamentosRecorrentes() {
         ativo: true,
       })
 
-      dataProxima = adicionarDias(dataProxima, diasIntervalo)
+      dataProxima = adicionarMeses(dataProxima, mesesIntervalo)
       iteracoes++
     }
 
