@@ -157,7 +157,9 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
       <div className="w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-xl shadow-lg flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b p-4">
-          <h2 className="text-lg font-semibold">Finalizar Pedido</h2>
+          <h2 className="text-lg font-semibold">
+            {existing ? 'Alterar Conciliação' : 'Finalizar Pedido'}
+          </h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
             <X size={20} />
           </button>
@@ -301,7 +303,7 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
             disabled={saving || !tipoOcorrenciaId}
             className="flex-1 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 font-medium"
           >
-            {saving ? 'Salvando...' : 'Confirmar e Finalizar'}
+            {saving ? 'Salvando...' : existing ? 'Salvar Alterações' : 'Confirmar e Finalizar'}
           </button>
         </div>
       </div>

@@ -12,7 +12,7 @@ const fmt = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 interface Props {
-  date: string
+  date?: string
   entregador?: string
   turnoManha?: boolean
   turnoTarde?: boolean
@@ -26,17 +26,20 @@ interface Props {
 type SubTab = 'pendentes' | 'historico'
 
 export default function ConciliacaoTab({
-  date,
-  entregador = '',
-  turnoManha = true,
-  turnoTarde = true,
-  turnoNoite = true,
-  empresaLumar = true,
-  empresaCantina = true,
   drivers = [],
 }: Props) {
   const { profile, isAdmin } = useAuth()
   const { items, load } = useRomaneioPedidos()
+
+  // Filtros de Romaneio
+  const todayStr = new Date().toISOString().split('T')[0]
+  const [filterDate, setFilterDate] = useState(todayStr)
+  const [filterEntregador, setFilterEntregador] = useState('')
+  const [filterTurnoManha, setFilterTurnoManha] = useState(true)
+  const [filterTurnoTarde, setFilterTurnoTarde] = useState(true)
+  const [filterTurnoNoite, setFilterTurnoNoite] = useState(true)
+  const [filterEmpresaLumar, setFilterEmpresaLumar] = useState(true)
+  const [filterEmpresaCantina, setFilterEmpresaCantina] = useState(true)
 
   // Sub-abas e estado de UI
   const [subTab, setSubTab] = useState<SubTab>('pendentes')
@@ -64,27 +67,27 @@ export default function ConciliacaoTab({
   // Carregamento inicial
   useEffect(() => {
     loadAll()
-  }, [date, entregador, turnoManha, turnoTarde, turnoNoite, empresaLumar, empresaCantina])
+  }, [filterDate, filterEntregador, filterTurnoManha, filterTurnoTarde, filterTurnoNoite, filterEmpresaLumar, filterEmpresaCantina])
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
       // 1. Carregar pedidos do romaneio
       await load({
-        date,
-        entregador,
-        turnoManha,
-        turnoTarde,
-        turnoNoite,
-        empresaLumar,
-        empresaCantina,
+        date: filterDate,
+        entregador: filterEntregador,
+        turnoManha: filterTurnoManha,
+        turnoTarde: filterTurnoTarde,
+        turnoNoite: filterTurnoNoite,
+        empresaLumar: filterEmpresaLumar,
+        empresaCantina: filterEmpresaCantina,
       })
 
       // 2. Carregar conciliações do dia
       const { data: conc } = await supabase
         .from('romaneio_conciliacao')
         .select('*')
-        .eq('data_entrega', date)
+        .eq('data_entrega', filterDate)
         .eq('status', 'finalizado')
 
       const concMap = new Map<string, RomaneioConciliacao>()
@@ -97,11 +100,12 @@ export default function ConciliacaoTab({
       setConciliados(concMap)
 
       // 3. Carregar histórico (últimos 30 dias)
+      const dataMinima = new Date(new Date(filterDate).setDate(new Date(filterDate).getDate() - 30)).toISOString().split('T')[0]
       const { data: hist } = await supabase
         .from('romaneio_conciliacao')
         .select('*, tipo_ocorrencia:tipos_ocorrencia(nome,emoji,cor)')
         .eq('status', 'finalizado')
-        .gte('data_entrega', new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0])
+        .gte('data_entrega', dataMinima)
         .order('data_conciliacao', { ascending: false })
 
       setHistorico((hist || []) as RomaneioConciliacao[])
@@ -119,7 +123,7 @@ export default function ConciliacaoTab({
     } finally {
       setLoading(false)
     }
-  }, [date, entregador, turnoManha, turnoTarde, turnoNoite, empresaLumar, empresaCantina, load])
+  }, [filterDate, filterEntregador, filterTurnoManha, filterTurnoTarde, filterTurnoNoite, filterEmpresaLumar, filterEmpresaCantina, load])
 
   // Itens pendentes (sem conciliação)
   const itensPendentes = useMemo(() => {
@@ -145,11 +149,9 @@ export default function ConciliacaoTab({
 
     try {
       const itensSelecionados = itensPendentes.filter(i => selected.has(i.uid))
-      const { data: tiposDefault } = await supabase
-        .from('tipos_ocorrencia')
-        .select('id')
-        .eq('nome', 'Sem Ocorrência')
-        .single()
+
+      // Encontrar tipo "Sem Ocorrência"
+      const tipoSemOcorrencia = tipos.find(t => t.nome === 'Sem Ocorrência')
 
       const conciliacoes = itensSelecionados.map(item => ({
         empresa: item.empresa,
@@ -163,9 +165,9 @@ export default function ConciliacaoTab({
         data_conciliacao: new Date().toISOString(),
         usuario_conciliacao_id: profile?.id || null,
         usuario_conciliacao_nome: profile?.nome || profile?.email || null,
-        metodos_pagamento: [],
+        metodos_pagamento: [{tipo: 'Dinheiro', valor: item.valor}] as any,
         valor_recebido: item.valor,
-        tipo_ocorrencia_id: tiposDefault?.id || null,
+        tipo_ocorrencia_id: tipoSemOcorrencia?.id || null,
         observacoes: null,
       }))
 
@@ -182,7 +184,7 @@ export default function ConciliacaoTab({
     } finally {
       setFinalizandoLote(false)
     }
-  }, [selected, itensPendentes, profile, loadAll])
+  }, [selected, itensPendentes, tipos, profile, loadAll])
 
   const handleDeleteConciliacao = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja deletar esta conciliação?')) return
@@ -206,8 +208,23 @@ export default function ConciliacaoTab({
 
   const handleModalOpenHistorico = (conc: RomaneioConciliacao) => {
     if (!isAdmin) return
+    // Reconverter para RomaneioItem para edição
+    const item: RomaneioItem = {
+      uid: `${conc.empresa === 'LUMAR' ? 'L' : 'C'}${conc.pedido_ref}`,
+      empresa: conc.empresa as 'LUMAR' | 'CANTINA',
+      pedido: conc.numero_pedido || conc.pedido_ref,
+      cliente: conc.cliente_nome || '—',
+      turno: '',
+      rota: '',
+      pgto: '',
+      valor: conc.valor_pedido,
+      obs: '',
+      ocorrencia_db: '',
+      data_entrega: conc.data_entrega,
+      entregador: conc.entregador,
+    }
+    setEditingItem(item)
     setEditingExisting(conc)
-    setEditingItem(null)
     setShowModal(true)
   }
 
@@ -216,6 +233,96 @@ export default function ConciliacaoTab({
 
   return (
     <div className="space-y-4">
+      {/* Filtros de Romaneio */}
+      <div className="space-y-3 bg-slate-50 p-3 rounded border border-slate-200">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Data */}
+          <div>
+            <label className="text-xs font-semibold text-slate-700">Data</label>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={e => setFilterDate(e.target.value)}
+              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+
+          {/* Entregador */}
+          <div>
+            <label className="text-xs font-semibold text-slate-700">Entregador</label>
+            <select
+              value={filterEntregador}
+              onChange={e => setFilterEntregador(e.target.value)}
+              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Todos</option>
+              <option value="RETIRADA">🏪 RETIRADA</option>
+              {drivers.map(d => (
+                <option key={d.id} value={d.nome}>{d.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Placeholder para alinhar */}
+          <div />
+        </div>
+
+        {/* Turnos */}
+        <div className="flex gap-2 items-center">
+          <span className="text-xs font-semibold text-slate-700">Turnos:</span>
+          <label className="flex items-center gap-1 text-sm">
+            <input
+              type="checkbox"
+              checked={filterTurnoManha}
+              onChange={e => setFilterTurnoManha(e.target.checked)}
+              className="w-4 h-4 accent-orange-500"
+            />
+            MANHÃ
+          </label>
+          <label className="flex items-center gap-1 text-sm">
+            <input
+              type="checkbox"
+              checked={filterTurnoTarde}
+              onChange={e => setFilterTurnoTarde(e.target.checked)}
+              className="w-4 h-4 accent-orange-500"
+            />
+            TARDE
+          </label>
+          <label className="flex items-center gap-1 text-sm">
+            <input
+              type="checkbox"
+              checked={filterTurnoNoite}
+              onChange={e => setFilterTurnoNoite(e.target.checked)}
+              className="w-4 h-4 accent-orange-500"
+            />
+            NOITE
+          </label>
+        </div>
+
+        {/* Empresas */}
+        <div className="flex gap-2 items-center">
+          <span className="text-xs font-semibold text-slate-700">Empresas:</span>
+          <label className="flex items-center gap-1 text-sm">
+            <input
+              type="checkbox"
+              checked={filterEmpresaLumar}
+              onChange={e => setFilterEmpresaLumar(e.target.checked)}
+              className="w-4 h-4 accent-orange-500"
+            />
+            🚚 LUMAR
+          </label>
+          <label className="flex items-center gap-1 text-sm">
+            <input
+              type="checkbox"
+              checked={filterEmpresaCantina}
+              onChange={e => setFilterEmpresaCantina(e.target.checked)}
+              className="w-4 h-4 accent-orange-500"
+            />
+            🍔 CANTINA
+          </label>
+        </div>
+      </div>
+
       {/* Sub-abas */}
       <div className="flex gap-2 border-b">
         <button
@@ -243,18 +350,34 @@ export default function ConciliacaoTab({
       {/* Aba: Pendentes */}
       {subTab === 'pendentes' && (
         <div className="space-y-4">
-          {selected.size > 0 && (
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 p-3 rounded">
-              <span className="text-sm font-semibold text-blue-700">
-                {selected.size} pedido(s) selecionado(s)
-              </span>
-              <button
-                onClick={handleFinalizarLote}
-                disabled={finalizandoLote}
-                className="ml-auto px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {finalizandoLote ? 'Finalizando...' : 'Finalizar Selecionados'}
-              </button>
+          {itensPendentes.length > 0 && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 p-3 rounded flex-wrap">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selected.size === itensPendentes.length && itensPendentes.length > 0}
+                  onChange={e => {
+                    if (e.target.checked) {
+                      setSelected(new Set(itensPendentes.map(i => i.uid)))
+                    } else {
+                      setSelected(new Set())
+                    }
+                  }}
+                  className="w-4 h-4 accent-orange-500"
+                />
+                <span className="text-sm font-semibold text-blue-700">
+                  {selected.size > 0 ? `${selected.size}/${itensPendentes.length} pedidos` : 'Selecionar Todos'}
+                </span>
+              </label>
+              {selected.size > 0 && (
+                <button
+                  onClick={handleFinalizarLote}
+                  disabled={finalizandoLote}
+                  className="ml-auto px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {finalizandoLote ? 'Finalizando...' : 'Finalizar Selecionados'}
+                </button>
+              )}
             </div>
           )}
 
@@ -300,6 +423,25 @@ export default function ConciliacaoTab({
             </div>
           )}
         </div>
+      )}
+
+      {/* Modal de Finalização/Edição */}
+      {showModal && editingItem && (
+        <FinalizarConciliacaoModal
+          item={editingItem}
+          existing={editingExisting}
+          onClose={() => {
+            setShowModal(false)
+            setEditingItem(null)
+            setEditingExisting(null)
+          }}
+          onSaved={() => {
+            setShowModal(false)
+            setEditingItem(null)
+            setEditingExisting(null)
+            loadAll()
+          }}
+        />
       )}
 
       {/* Aba: Histórico */}
