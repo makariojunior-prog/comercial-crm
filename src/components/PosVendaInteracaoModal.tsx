@@ -73,6 +73,7 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
       observacao:     obs.trim(),
       usuario_id:     user?.id ?? null,
       usuario_nome:   atendenteNome,
+      tipo:           cliente.prioridade,
     })
     setSaving(false)
     if (error) { setSaveError(error.message); return }
@@ -186,19 +187,27 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {hist.map(h => (
+                  {hist.map(h => {
+                    const hcfg = P[h.tipo] ?? P[1]
+                    return (
                     <div key={h.id} className="text-xs bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 border border-slate-100 dark:border-slate-700">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p className="font-semibold text-slate-600 dark:text-slate-300">
-                          {format(parseISO(h.data_interacao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                        </p>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${hcfg.badge}`}>
+                            {hcfg.icon} {hcfg.label}
+                          </span>
+                          <p className="font-semibold text-slate-600 dark:text-slate-300 truncate">
+                            {format(parseISO(h.data_interacao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                          </p>
+                        </div>
                         {h.usuario_nome && (
                           <span className="text-[10px] text-slate-400 shrink-0">{h.usuario_nome}</span>
                         )}
                       </div>
                       <p className="text-slate-500 dark:text-slate-400 leading-relaxed">{h.observacao}</p>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
