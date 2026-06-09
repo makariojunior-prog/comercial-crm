@@ -63,8 +63,8 @@ export default function MapaEntregasTab() {
   const loadPedidos = useCallback(async () => {
     setLoading(true)
     try {
-      const start = startOfDay(selectedDate).toISOString()
-      const end = endOfDay(selectedDate).toISOString()
+      const start = startOfDay(selectedDate).toISOString().split('T')[0]
+      const end = endOfDay(selectedDate).toISOString().split('T')[0]
 
       const { data, error } = await supabase
         .from('varejo_pedidos')
@@ -76,15 +76,18 @@ export default function MapaEntregasTab() {
         .gte('data_entrega', start)
         .lte('data_entrega', end)
         .neq('status_icon', '❌')
+        .order('data_entrega', { ascending: true })
 
       if (error) throw error
 
-      const typed = data as VarejoPedido[]
+      const typed = (data || []) as VarejoPedido[]
+      console.log(`📦 Carregados ${typed.length} pedidos de entrega para ${start}`)
       setPedidos(typed)
 
       // Auto-geocode pending orders
       const pending = typed.filter((p) => !p.lat || !p.lng)
       if (pending.length > 0) {
+        console.log(`🌍 Geocodificando ${pending.length} pedidos...`)
         setGeoencodingPending(true)
         try {
           await geocodePendingPedidos(typed)
@@ -95,7 +98,7 @@ export default function MapaEntregasTab() {
         }
       }
     } catch (error) {
-      console.error('Error loading pedidos:', error)
+      console.error('❌ Erro ao carregar pedidos:', error)
     } finally {
       setLoading(false)
     }
@@ -269,7 +272,12 @@ export default function MapaEntregasTab() {
           {filteredPedidos.length === 0 ? (
             <div className="text-center py-8 text-slate-500">
               <AlertCircle size={32} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Nenhum pedido encontrado para os filtros selecionados</p>
+              <p className="text-sm font-medium">Nenhum pedido encontrado</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {pedidos.length === 0
+                  ? 'Nenhum pedido de entrega para esta data'
+                  : 'Verifique os filtros selecionados'}
+              </p>
             </div>
           ) : (
             <div className="space-y-2">

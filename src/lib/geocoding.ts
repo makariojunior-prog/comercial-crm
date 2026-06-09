@@ -62,17 +62,26 @@ export async function geocodePendingPedidos(pedidos: VarejoPedido[]): Promise<vo
   const pending = pedidos.filter((p) => !p.lat || !p.lng)
   if (pending.length === 0) return
 
-  console.log(`🌍 Geocodificando ${pending.length} pedidos...`)
+  console.log(`🌍 Iniciando geocodificação de ${pending.length} pedidos...`)
+
+  let successCount = 0
+  let failCount = 0
 
   for (let i = 0; i < pending.length; i++) {
     const pedido = pending[i]
     if (i > 0) await sleep(RATE_LIMIT_MS) // Aguarda entre requisições
 
     const coords = await geocodeAddress(pedido.endereco_completo || '', pedido.bairro)
-    if (!coords) continue
+    if (!coords) {
+      failCount++
+      console.warn(
+        `⚠️ Falha ao geocodificar: ${pedido.cliente} (${pedido.endereco_completo})`
+      )
+      continue
+    }
 
     try {
-      await supabase
+      const { error } = await supabase
         .from('varejo_pedidos')
         .update({
           lat: coords.lat,
@@ -80,12 +89,23 @@ export async function geocodePendingPedidos(pedidos: VarejoPedido[]): Promise<vo
           geocoded_at: new Date().toISOString(),
         })
         .eq('id', pedido.id)
+
+      if (error) {
+        console.error(`❌ Erro ao salvar coords para ${pedido.num_pedido}:`, error)
+        failCount++
+      } else {
+        successCount++
+        console.log(
+          `✅ ${pedido.num_pedido}: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+        )
+      }
     } catch (error) {
-      console.error(`Erro ao salvar coords para pedido ${pedido.id}`, error)
+      console.error(`❌ Exceção ao salvar ${pedido.id}:`, error)
+      failCount++
     }
   }
 
-  console.log(`✅ Geocodificação concluída`)
+  console.log(`✅ Geocodificação concluída: ${successCount} ✓, ${failCount} ✗`)
 }
 
 function sleep(ms: number): Promise<void> {
