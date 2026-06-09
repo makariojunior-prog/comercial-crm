@@ -42,26 +42,41 @@ async function analyzeWithGemini(text: string, stopWords: Set<string>): Promise<
 
   const cleanedText = cleanText(text, stopWords)
 
+  // Truncate text if too long to avoid token limits
+  const maxTextLength = 500
+  const truncatedText = cleanedText.length > maxTextLength ? cleanedText.substring(0, maxTextLength) + '...' : cleanedText
+
   const prompt = `Analyze this customer message and respond with ONLY a JSON object (no markdown, no code blocks):
 {
   "categoria": "one of: ${CATEGORIAS.join(', ')}",
   "resumo": "2-3 word summary in Portuguese - be concise and extract only key information"
 }
 
-Message: "${cleanedText}"
+Message: "${truncatedText}"
 
 Respond with only the JSON object, nothing else.`
 
-  const maxRetries = 3
+  const maxRetries = 5
   let lastError: Error | null = null
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
+      // Add delay between retries to avoid rate limiting (exponential backoff starting at 1s)
+      if (attempt > 0) {
+        const delayMs = Math.pow(2, attempt - 1) * 1000 + Math.random() * 1000
+        console.log(`Attempt ${attempt + 1}/${maxRetries + 1}: Waiting ${Math.round(delayMs)}ms before retry...`)
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+      }
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 90000) // 90 second timeout for this specific request
+
       const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=' + apiKey, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
         body: JSON.stringify({
           contents: [
             {
@@ -78,6 +93,8 @@ Respond with only the JSON object, nothing else.`
           },
         }),
       })
+
+      clearTimeout(timeout)
 
       // Retry on rate limit (429) and server errors (5xx)
       if (!response.ok) {
@@ -109,23 +126,51 @@ Respond with only the JSON object, nothing else.`
         throw new Error('No response from Gemini')
       }
 
-      // Extract JSON from response (handle markdown code blocks)
+      // Extract and validate JSON from response (robust parsing)
       let jsonStr = text_content.trim()
-      if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replace(/^```json\n/, '').replace(/\n```$/, '')
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/^```\n/, '').replace(/\n```$/, '')
+
+      // Remove markdown code blocks (flexible: handle \r\n, \n, spaces)
+      if (jsonStr.startsWith('```')) {
+        // Remove opening ``` and optional "json" language marker
+        jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, '')
+        // Remove closing ```
+        jsonStr = jsonStr.replace(/\s*```\s*$/, '')
       }
 
+      jsonStr = jsonStr.trim()
+      console.log(`Extracted JSON string (first 200 chars): ${jsonStr.substring(0, 200)}`)
+
+      let result: any
       try {
-        const result = JSON.parse(jsonStr)
-        return {
-          categoria: result.categoria || 'OUTROS',
-          resumo: result.resumo || '',
-        }
+        result = JSON.parse(jsonStr)
       } catch (parseError) {
-        console.error('JSON parse error. Raw response:', text_content)
-        throw new Error(`Failed to parse JSON from Gemini: ${parseError}`)
+        // If JSON.parse fails, try to extract JSON object manually
+        console.warn('JSON.parse failed, attempting regex extraction...')
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) {
+          throw new Error(`Invalid JSON format. Raw response: ${text_content.substring(0, 500)}`)
+        }
+        try {
+          result = JSON.parse(jsonMatch[0])
+        } catch (e) {
+          throw new Error(`Failed to parse extracted JSON: ${e}. Content: ${jsonMatch[0].substring(0, 200)}`)
+        }
+      }
+
+      // Validate required fields
+      if (!result.categoria || !result.resumo) {
+        throw new Error(`Missing required fields. Got: categoria="${result.categoria}", resumo="${result.resumo}"`)
+      }
+
+      // Validate categoria is in allowed list
+      if (!CATEGORIAS.includes(result.categoria)) {
+        console.warn(`Invalid categoria "${result.categoria}", defaulting to OUTROS`)
+        result.categoria = 'OUTROS'
+      }
+
+      return {
+        categoria: result.categoria,
+        resumo: String(result.resumo).trim(),
       }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))

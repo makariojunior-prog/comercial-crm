@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, MapPin, Truck, CalendarDays, ChevronDown, ChevronRight, Navigation, Pencil, Plus, Trash2, Save, Users, Download, Upload } from 'lucide-react'
 import { format } from 'date-fns'
+import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -110,116 +111,150 @@ export default function RotasEntregaTab() {
       .select('*')
       .order('rota, setor')
 
-    // Build CSV with BOM for UTF-8
-    const headers = ['Setor', 'Cidade', 'Região', 'Distância (km)', 'Rota', 'Rota ID']
-    const rows = (sectors as any[])?.map(s => [
-      s.setor || '',
-      s.cidade || '',
-      s.regiao || '',
-      s.distancia_km ?? '',
-      s.rota || '',
-      s.route_id || ''
-    ]) || []
+    // Build rows for Excel
+    const rows = (sectors as any[])?.map(s => ({
+      'Setor': s.setor || '',
+      'Cidade': s.cidade || '',
+      'Região': s.regiao || '',
+      'Distância (km)': s.distancia_km ?? '',
+      'Rota': s.rota || '',
+      'Rota ID': s.route_id || ''
+    })) || []
 
-    const csv = [headers, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Rotas')
 
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `rotas_${format(new Date(), 'yyyy-MM-dd')}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 20 }, // Setor
+      { wch: 20 }, // Cidade
+      { wch: 20 }, // Região
+      { wch: 15 }, // Distância
+      { wch: 20 }, // Rota
+      { wch: 25 }  // Rota ID
+    ]
+
+    // Download
+    XLSX.writeFile(wb, `rotas_${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
   }
 
   async function importFromExcel() {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.csv,.xlsx'
+    input.accept = '.xlsx,.xls,.csv'
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0]
       if (!file) return
 
-      const text = await file.text()
-      const lines = text.trim().split('\n')
-      if (lines.length < 2) { alert('Arquivo vazio'); return }
+      try {
+        let rows: any[] = []
 
-      // Parse CSV (simple parser)
-      const parseRow = (line: string) => {
-        const result = []
-        let current = ''
-        let insideQuotes = false
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i]
-          if (char === '"') {
-            if (insideQuotes && line[i + 1] === '"') {
-              current += '"'
-              i++
-            } else {
-              insideQuotes = !insideQuotes
+        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+          // Parse Excel file
+          const arrayBuffer = await file.arrayBuffer()
+          const wb = XLSX.read(arrayBuffer, { type: 'array' })
+          const ws = wb.Sheets[wb.SheetNames[0]]
+          rows = XLSX.utils.sheet_to_json(ws)
+        } else {
+          // Parse CSV file
+          const text = await file.text()
+          const lines = text.trim().split('\n')
+          if (lines.length < 2) { alert('Arquivo vazio'); return }
+
+          const parseRow = (line: string) => {
+            const result = []
+            let current = ''
+            let insideQuotes = false
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i]
+              if (char === '"') {
+                if (insideQuotes && line[i + 1] === '"') {
+                  current += '"'
+                  i++
+                } else {
+                  insideQuotes = !insideQuotes
+                }
+              } else if (char === ',' && !insideQuotes) {
+                result.push(current)
+                current = ''
+              } else {
+                current += char
+              }
             }
-          } else if (char === ',' && !insideQuotes) {
             result.push(current)
-            current = ''
-          } else {
-            current += char
+            return result
+          }
+
+          const headers = parseRow(lines[0])
+          for (let i = 1; i < lines.length; i++) {
+            if (!lines[i].trim()) continue
+            const row = parseRow(lines[i])
+            const obj: any = {}
+            headers.forEach((h, idx) => {
+              obj[h] = row[idx] || ''
+            })
+            rows.push(obj)
           }
         }
-        result.push(current)
-        return result
-      }
 
-      const headers = parseRow(lines[0])
-      const setor_idx = headers.findIndex(h => h.toLowerCase().includes('setor'))
-      const cidade_idx = headers.findIndex(h => h.toLowerCase().includes('cidade'))
-      const regiao_idx = headers.findIndex(h => h.toLowerCase().includes('região'))
-      const dist_idx = headers.findIndex(h => h.toLowerCase().includes('distância') || h.toLowerCase().includes('km'))
-      const rota_idx = headers.findIndex(h => h.toLowerCase().includes('rota'))
-      const route_id_idx = headers.findIndex(h => h.toLowerCase().includes('rota id'))
+        if (rows.length === 0) { alert('Nenhuma linha encontrada no arquivo'); return }
 
-      if (setor_idx === -1) { alert('Coluna "Setor" não encontrada'); return }
-
-      let updated = 0
-      let created = 0
-
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue
-
-        const row = parseRow(lines[i])
-        const setor = row[setor_idx]?.trim()
-        if (!setor) continue
-
-        const data = {
-          setor,
-          cidade: row[cidade_idx]?.trim() || null,
-          regiao: row[regiao_idx]?.trim() || null,
-          distancia_km: dist_idx >= 0 && row[dist_idx]?.trim() ? Number(row[dist_idx].trim()) : null,
-          rota: row[rota_idx]?.trim() || null,
-          route_id: route_id_idx >= 0 && row[route_id_idx]?.trim() ? row[route_id_idx].trim() : null,
+        // Find column indexes (case-insensitive)
+        const getColIndex = (key: string) => {
+          const keys = Object.keys(rows[0] || {})
+          return keys.findIndex(k => k.toLowerCase().includes(key.toLowerCase()))
         }
 
-        // Try to update existing or insert new
-        const { data: existing } = await supabase
-          .from('crm_delivery_sectors')
-          .select('id')
-          .eq('setor', setor)
-          .maybeSingle()
+        const headers = Object.keys(rows[0] || {})
+        const setor_col = headers.find(h => h.toLowerCase().includes('setor'))
+        const cidade_col = headers.find(h => h.toLowerCase().includes('cidade'))
+        const regiao_col = headers.find(h => h.toLowerCase().includes('região'))
+        const dist_col = headers.find(h => h.toLowerCase().includes('distância') || h.toLowerCase().includes('km'))
+        const rota_col = headers.find(h => h.toLowerCase().includes('rota') && !h.toLowerCase().includes('id'))
+        const route_id_col = headers.find(h => h.toLowerCase().includes('rota id'))
 
-        if (existing?.id) {
-          await supabase.from('crm_delivery_sectors').update(data).eq('id', existing.id)
-          updated++
-        } else {
-          await supabase.from('crm_delivery_sectors').insert(data)
-          created++
+        if (!setor_col) { alert('Coluna "Setor" não encontrada'); return }
+
+        let updated = 0
+        let created = 0
+
+        for (const row of rows) {
+          const setor = String(row[setor_col] || '').trim()
+          if (!setor) continue
+
+          const data = {
+            setor,
+            cidade: String(row[cidade_col] || '').trim() || null,
+            regiao: String(row[regiao_col] || '').trim() || null,
+            distancia_km: dist_col && row[dist_col] ? Number(String(row[dist_col]).replace(',', '.')) : null,
+            rota: rota_col ? String(row[rota_col] || '').trim() || null : null,
+            route_id: route_id_col ? String(row[route_id_col] || '').trim() || null : null,
+          }
+
+          // Try to update existing or insert new
+          const { data: existing } = await supabase
+            .from('crm_delivery_sectors')
+            .select('id')
+            .eq('setor', setor)
+            .maybeSingle()
+
+          if (existing?.id) {
+            await supabase.from('crm_delivery_sectors').update(data).eq('id', existing.id)
+            updated++
+          } else {
+            await supabase.from('crm_delivery_sectors').insert(data)
+            created++
+          }
         }
-      }
 
-      alert(`Importação concluída: ${created} setores criados, ${updated} setores atualizados`)
-      await loadRoutes()
+        alert(`Importação concluída: ${created} setores criados, ${updated} setores atualizados`)
+        await loadRoutes()
+      } catch (err) {
+        console.error('Erro ao importar:', err)
+        alert(`Erro ao importar arquivo: ${err instanceof Error ? err.message : 'Erro desconhecido'}`)
+      }
     }
     input.click()
   }
@@ -276,13 +311,13 @@ export default function RotasEntregaTab() {
           <div className="flex items-center gap-2 pb-2">
             <button
               onClick={exportToExcel}
-              title="Exportar rotas para Excel"
+              title="Exportar rotas para planilha Excel (XLSX)"
               className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-300 hover:text-orange-600 transition-colors">
               <Download size={13} /> Exportar
             </button>
             <button
               onClick={importFromExcel}
-              title="Importar rotas do Excel"
+              title="Importar rotas da planilha Excel (XLSX ou CSV)"
               className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors">
               <Upload size={13} /> Importar
             </button>
