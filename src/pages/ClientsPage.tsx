@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench, LayoutGrid, List, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react'
+import { Plus, Search, User, Phone, MapPin, Edit2, Trash2, ExternalLink, MessageCircle, Briefcase, Wrench, LayoutGrid, List, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, AlertTriangle, History } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
 import ClientModal from '../components/ClientModal'
+import ClientHistoryModal from '../components/ClientHistoryModal'
 import { useSearchParams } from 'react-router-dom'
 
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/15ygrVoRh7cd8iVWn0eBXpEz-jBVsOa4jxemmmva2rnA/export?format=csv&gid=338699841'
@@ -90,6 +91,7 @@ export default function ClientsPage() {
   const [syncing,       setSyncing]       = useState(false)
   const [syncMsg,       setSyncMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [cobrancaMap,   setCobrancaMap]   = useState<Map<string, number>>(new Map())
+  const [historyClient, setHistoryClient] = useState<Client | null>(null)
 
   async function syncFromSheets() {
     setSyncing(true)
@@ -366,6 +368,9 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setHistoryClient(client)} className="p-1.5 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-600" title="Histórico do cliente">
+                          <History size={14} />
+                        </button>
                         <button onClick={() => { setEditingClient(client); setShowModal(true) }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600">
                           <Edit2 size={14} />
                         </button>
@@ -451,6 +456,13 @@ export default function ClientsPage() {
 
                 <div className="flex shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
+                    onClick={() => setHistoryClient(client)}
+                    className="p-1.5 hover:bg-blue-50 rounded-lg text-slate-400 hover:text-blue-600"
+                    title="Histórico do cliente"
+                  >
+                    <History size={14} />
+                  </button>
+                  <button
                     onClick={() => { setEditingClient(client); setShowModal(true) }}
                     className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600"
                   >
@@ -485,10 +497,18 @@ export default function ClientsPage() {
       )}
 
       {(showModal || editingClient) && (
-        <ClientModal 
-          client={editingClient} 
-          onClose={() => { setShowModal(false); setEditingClient(null) }} 
-          onSaved={loadClients} 
+        <ClientModal
+          client={editingClient}
+          onClose={() => { setShowModal(false); setEditingClient(null) }}
+          onSaved={loadClients}
+        />
+      )}
+
+      {historyClient && (
+        <ClientHistoryModal
+          clientId={historyClient.id}
+          clienteName={historyClient.nome}
+          onClose={() => setHistoryClient(null)}
         />
       )}
     </div>

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Store, Plus, Search, Phone, MapPin, Edit2, Trash2, X, Check, RefreshCw, Info } from 'lucide-react'
+import { Store, Plus, Search, Phone, MapPin, Edit2, Trash2, X, Check, RefreshCw, Info, History } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import ClientHistoryModal from '../components/ClientHistoryModal'
 import { useSearchParams } from 'react-router-dom'
 
 interface VarejoCliente {
@@ -63,6 +64,7 @@ export default function ClientesVarejo() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [syncing, setSyncing]   = useState(false)
   const [syncMsg, setSyncMsg]   = useState<string | null>(null)
+  const [historyClient, setHistoryClient] = useState<VarejoCliente | null>(null)
 
   async function load() {
     setLoading(true)
@@ -363,6 +365,9 @@ export default function ClientesVarejo() {
                     {canEdit && (
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          <button onClick={() => setHistoryClient(c)} className="p-1 text-slate-400 hover:text-teal-500 transition-colors" title="Histórico">
+                            <History size={14} />
+                          </button>
                           <button onClick={() => openEdit(c)} className="p-1 text-slate-400 hover:text-blue-500 transition-colors" title="Editar">
                             <Edit2 size={14} />
                           </button>
@@ -464,6 +469,14 @@ export default function ClientesVarejo() {
             </div>
           </div>
         </div>
+      )}
+
+      {historyClient && (
+        <ClientHistoryModal
+          clientId={historyClient.id}
+          clienteName={historyClient.nome}
+          onClose={() => setHistoryClient(null)}
+        />
       )}
     </div>
   )
