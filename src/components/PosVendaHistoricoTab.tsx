@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Calendar } from 'lucide-react'
+import { Search, Calendar, Trash2 } from 'lucide-react'
 import { format, parseISO, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import type { PosVendaInteracao } from '../types'
@@ -16,6 +16,7 @@ export default function PosVendaHistoricoTab() {
   const [data, setData] = useState<HistoricoItem[]>([])
   const [loading, setLoading] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState<'todos' | '1' | '2'>('todos')
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -55,19 +56,27 @@ export default function PosVendaHistoricoTab() {
     }
   }, [debouncedSearch, from, to])
 
-  const filtered = data.filter(item => {
-    if (filtroTipo === '1') {
-      // Pós-venda: observação com "pós" ou "follow-up"
-      const obs = (item.observacao || '').toLowerCase()
-      return !obs.includes('recompra') && !obs.includes('recompra')
-    }
-    if (filtroTipo === '2') {
-      // Recompra: observação com "recompra"
-      const obs = (item.observacao || '').toLowerCase()
-      return obs.includes('recompra')
-    }
+  const filtrar = (item: HistoricoItem) => {
+    if (filtroTipo === '1') return item.tipo === 1
+    if (filtroTipo === '2') return item.tipo === 2
     return true
-  })
+  }
+  const filtered = data.filter(filtrar)
+
+  async function deletar(id: string) {
+    if (!confirm('Tem certeza que deseja deletar esta interação?')) return
+    setDeleting(id)
+    const { error } = await supabase
+      .from('crm_posvendas_interacoes')
+      .delete()
+      .eq('id', id)
+    setDeleting(null)
+    if (error) {
+      alert(`Erro ao deletar: ${error.message}`)
+      return
+    }
+    setData(data.filter(d => d.id !== id))
+  }
 
   return (
     <div className="space-y-3">
@@ -128,7 +137,7 @@ export default function PosVendaHistoricoTab() {
                   isRecompra
                     ? 'border-l-red-400 bg-red-50/30 dark:bg-red-900/10'
                     : 'border-l-sky-400 bg-sky-50/30 dark:bg-sky-900/10'
-                }`}
+                } group`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -155,10 +164,18 @@ export default function PosVendaHistoricoTab() {
                       {item.usuario_nome && <span>👤 {item.usuario_nome}</span>}
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">
                       {item.telefone}
                     </p>
+                    <button
+                      onClick={() => deletar(item.id)}
+                      disabled={deleting === item.id}
+                      className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-400 hover:text-red-600 transition-colors"
+                      title="Deletar interação"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               </div>
