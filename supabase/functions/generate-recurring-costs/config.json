@@ -1,0 +1,5 @@
+{
+  "runtime": "deno1.40.x",
+  "entrypoint": "index.ts",
+  "importMapPath": "../../import_map.json"
+}

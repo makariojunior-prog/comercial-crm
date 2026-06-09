@@ -222,9 +222,21 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
       const { data } = await supabase.from('frota_custos').insert(payload).select('id').single()
       custoId = data?.id
 
-      // Se é recorrente, gerar lançamentos futuros
+      // Se é recorrente, chamar edge function para gerar lançamentos futuros
       if (form.recorrente && custoId) {
-        await gerarLancamentosRecorrentes(custoId, payload)
+        try {
+          const supabaseUrl = (window as any).SUPABASE_URL || 'https://taicaxtjtikdajmhtsxc.supabase.co'
+          await fetch(`${supabaseUrl}/functions/v1/generate-recurring-costs`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${(window as any).SUPABASE_ANON_KEY || localStorage.getItem('sb-anon-key') || ''}`,
+            },
+            body: JSON.stringify({ custo_id: custoId }),
+          })
+        } catch (err) {
+          console.error('Erro ao gerar lançamentos recorrentes:', err)
+        }
       }
     }
 
@@ -243,33 +255,6 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
     onClose()
   }
 
-  async function gerarLancamentosRecorrentes(custoOriginalId: string, custoData: any) {
-    const intervalos: Record<string, number> = {
-      mensal: 30, trimestral: 90, semestral: 180, anual: 365
-    }
-    const diasIntervalo = intervalos[form.tipo_recorrencia] || 30
-
-    let dataAtual = new Date(form.data_gasto)
-    const dataFim = form.recorrencia_indefinida ? new Date('2030-12-31') : new Date(form.data_fim_recorrencia)
-    const novosCustos = []
-
-    // Gerar lançamentos para os próximos 24 meses (ou até data_fim)
-    while (dataAtual <= dataFim && novosCustos.length < 24) {
-      dataAtual = new Date(dataAtual.getTime() + diasIntervalo * 86400000)
-      if (dataAtual <= dataFim) {
-        novosCustos.push({
-          ...custoData,
-          data_gasto: format(dataAtual, 'yyyy-MM-dd'),
-          custo_recorrente_id: custoOriginalId,
-          id: undefined
-        })
-      }
-    }
-
-    if (novosCustos.length > 0) {
-      await supabase.from('frota_custos').insert(novosCustos)
-    }
-  }
 
   const isCombustivel = form.categoria === 'combustivel'
 
