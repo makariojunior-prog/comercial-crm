@@ -66,7 +66,7 @@ export function useRomaneioPedidos() {
     if (isRetiradaFilter) {
       qL = (qL as any).or('entregador.eq.RETIRADA,entregador.eq.BALCÃO,entregador.eq.RETIRADA/BALCÃO')
     } else if (entregador) {
-      qL = (qL as any).ilike('entregador', `%${entregador}%`)
+      qL = (qL as any).eq('entregador', entregador)
     }
 
     let qC = supabase
@@ -79,7 +79,7 @@ export function useRomaneioPedidos() {
       qC = (qC as any).eq('entregador', 'RETIRADA')
     } else {
       qC = qC.not('entregador', 'eq', 'RETIRADA')
-      if (entregador) qC = (qC as any).ilike('entregador', `%${entregador}%`)
+      if (entregador) qC = (qC as any).eq('entregador', entregador)
     }
 
     const [{ data: atacado }, { data: cantina }] = await Promise.all([

@@ -11,6 +11,13 @@ import type { RomaneioConciliacao, TipoOcorrencia } from '../types'
 const fmt = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+// Os pedidos guardam o entregador abreviado (ex.: "DIOGO"), enquanto
+// crm_drivers.nome traz o nome completo (ex.: "DIOGO DE MORAES FONTENELE").
+// Igual ao RomaneioTab, usamos só o primeiro nome para casar com o banco.
+function firstName(nome: string) {
+  return nome.trim().split(/\s+/)[0].toUpperCase()
+}
+
 interface Props {
   date?: string
   entregador?: string
@@ -258,7 +265,7 @@ export default function ConciliacaoTab({
               <option value="">Todos</option>
               <option value="RETIRADA">🏪 RETIRADA</option>
               {drivers.map(d => (
-                <option key={d.id} value={d.nome}>{d.nome}</option>
+                <option key={d.id} value={firstName(d.nome)}>{firstName(d.nome)}</option>
               ))}
             </select>
           </div>
