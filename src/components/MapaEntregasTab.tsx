@@ -1,3 +1,6 @@
+import 'leaflet/dist/leaflet.css'
+import 'react-leaflet-cluster/dist/styles.css'
+
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { MapPin, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
@@ -7,6 +10,13 @@ import { supabase } from '../lib/supabase'
 import { geocodePendingPedidos } from '../lib/geocoding'
 import type { VarejoPedido } from '../types'
 import { format, addDays, startOfDay, endOfDay, ptBR } from 'date-fns'
+
+// Fix Leaflet default icon (required for marker display)
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+})
 
 type StatusFilter = '⚠️' | '🛵' | '✅'
 
