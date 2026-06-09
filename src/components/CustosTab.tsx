@@ -735,6 +735,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
   const [editMan, setEditMan] = useState<FrotaManutencao | null | undefined>(undefined)
   const [registrarMan, setRegistrarMan] = useState<FrotaManutencao | null>(null)
   const [expandedVehicle, setExpandedVehicle] = useState<string | null>(null)
+  const [deletingCusto, setDeletingCusto] = useState<FrotaCusto | null>(null)
 
   const { from, to } = useCustomDate
     ? { from: customDateFrom, to: customDateTo }
@@ -809,10 +810,30 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
     manutencoes.filter(m => ['overdue', 'danger', 'warning'].includes(maintStatus(m))).length,
   [manutencoes])
 
-  async function deleteCusto(id: string) {
-    if (!confirm('Excluir este lançamento?')) return
-    await supabase.from('frota_custos').delete().eq('id', id)
-    setCustos(p => p.filter(c => c.id !== id))
+  async function deleteCusto(custo: FrotaCusto, deleteType: 'this' | 'all' = 'this') {
+    // Se é um lançamento recorrente gerado, mostrar opções
+    if (custo.custo_recorrente_id && deleteType === 'this') {
+      setDeletingCusto(custo)
+      return
+    }
+
+    // Se escolher deletar este e todos os subsequentes
+    if (deleteType === 'all' && custo.custo_recorrente_id) {
+      await supabase
+        .from('frota_custos')
+        .delete()
+        .eq('custo_recorrente_id', custo.custo_recorrente_id)
+        .gte('data_gasto', custo.data_gasto)
+      setCustos(p => p.filter(c =>
+        c.custo_recorrente_id !== custo.custo_recorrente_id ||
+        new Date(c.data_gasto) < new Date(custo.data_gasto)
+      ))
+      return
+    }
+
+    // Deletar apenas este lançamento
+    await supabase.from('frota_custos').delete().eq('id', custo.id)
+    setCustos(p => p.filter(c => c.id !== custo.id))
   }
 
   async function cancelarRecorrencia(custoRecorrenteId: string, dataAPartir: string) {
@@ -1134,7 +1155,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
                                   <X size={12} />
                                 </button>
                               )}
-                              <button onClick={() => deleteCusto(c.id)} className="btn-ghost p-1.5 text-red-400"><Trash2 size={12} /></button>
+                              <button onClick={() => deleteCusto(c)} className="btn-ghost p-1.5 text-red-400"><Trash2 size={12} /></button>
                             </div>
                           </div>
                         ))}
@@ -1256,6 +1277,59 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
           onClose={() => setRegistrarMan(null)}
           onSaved={() => { loadData(); onVehiclesChanged() }}
         />
+      )}
+
+      {/* Modal de confirmação para deletar lançamento recorrente */}
+      {deletingCusto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
+                <AlertTriangle size={20} className="text-red-600 dark:text-red-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">Deletar lançamento recorrente?</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                  Este é um lançamento gerado automaticamente. Como você gostaria de proceder?
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-700/40 rounded-lg p-3 space-y-2">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                📅 {format(parseISO(deletingCusto.data_gasto), 'dd/MM/yyyy')}
+              </div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">
+                {deletingCusto.descricao || CATEGORIAS[deletingCusto.categoria]?.label}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  deleteCusto(deletingCusto, 'this')
+                  setDeletingCusto(null)
+                }}
+                className="w-full text-sm font-medium px-4 py-2.5 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors">
+                Apenas este lançamento
+              </button>
+              <button
+                onClick={() => {
+                  deleteCusto(deletingCusto, 'all')
+                  setDeletingCusto(null)
+                }}
+                className="w-full text-sm font-medium px-4 py-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                Este e todos os subsequentes
+              </button>
+            </div>
+
+            <button
+              onClick={() => setDeletingCusto(null)}
+              className="w-full text-sm font-medium px-4 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
