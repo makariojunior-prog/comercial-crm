@@ -231,10 +231,6 @@ export default function ConciliacaoTab({
   const pendentesCount = itensPendentes.length
   const historicoCount = historicoFiltrado.length
 
-  useEffect(() => {
-    console.log('[ConciliacaoTab] items:', items.length, 'conciliados:', conciliados.size, 'pendentes:', itensPendentes.length)
-  }, [items, conciliados, itensPendentes])
-
   return (
     <div className="space-y-4">
       {/* Filtros de Romaneio */}

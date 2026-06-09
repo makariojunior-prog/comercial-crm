@@ -43,8 +43,6 @@ export function useRomaneioPedidos() {
       empresaCantina = true,
     } = params
 
-    console.log('[useRomaneioPedidos] Carregando com:', { date, entregador, turnoManha, turnoTarde, turnoNoite })
-
     const nenhum = !turnoManha && !turnoTarde && !turnoNoite
     const buildOr = () => {
       if (nenhum) return undefined
@@ -68,7 +66,7 @@ export function useRomaneioPedidos() {
     if (isRetiradaFilter) {
       qL = (qL as any).or('entregador.eq.RETIRADA,entregador.eq.BALCÃO,entregador.eq.RETIRADA/BALCÃO')
     } else if (entregador) {
-      qL = (qL as any).eq('entregador', entregador)
+      qL = (qL as any).ilike('entregador', `%${entregador}%`)
     }
 
     let qC = supabase
@@ -81,7 +79,7 @@ export function useRomaneioPedidos() {
       qC = (qC as any).eq('entregador', 'RETIRADA')
     } else {
       qC = qC.not('entregador', 'eq', 'RETIRADA')
-      if (entregador) qC = (qC as any).eq('entregador', entregador)
+      if (entregador) qC = (qC as any).ilike('entregador', `%${entregador}%`)
     }
 
     const [{ data: atacado }, { data: cantina }] = await Promise.all([
@@ -119,9 +117,7 @@ export function useRomaneioPedidos() {
       entregador: p.entregador,
     }))
 
-    const totais = [...lumar, ...cant]
-    console.log('[useRomaneioPedidos] Retornou', totais.length, 'items:', totais.map(i => `${i.uid}(${i.entregador})`))
-    setItems(totais)
+    setItems([...lumar, ...cant])
     setLoading(false)
   }, [])
 
