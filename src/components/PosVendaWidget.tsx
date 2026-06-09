@@ -10,8 +10,24 @@ export default function PosVendaWidget() {
   const [clientes, setClientes] = useState<PosVendaCliente[]>([])
   const [recomprasHoje, setRecomprasHoje] = useState<PosVendaInteracao[]>([])
   const [loading, setLoading]   = useState(true)
-  const [modal, setModal]       = useState<PosVendaCliente | null>(null)
+  const [modal, setModal]       = useState<{ cliente: PosVendaCliente; tipo: 1 | 2 | 3 } | null>(null)
   const navigate = useNavigate()
+
+  // Abre o modal a partir de uma interação de recompra (painel direito),
+  // reconstruindo um PosVendaCliente mínimo a partir dos dados da interação.
+  function abrirRecompra(r: PosVendaInteracao) {
+    const cliente: PosVendaCliente = {
+      telefone:         r.telefone,
+      nome:             r.nome,
+      ult_compra:       r.data_interacao,
+      ult_interacao:    r.data_interacao,
+      dias_pos_compra:  0,
+      dias_sem_contato: 0,
+      n_pedidos:        0,
+      prioridade:       2,
+    }
+    setModal({ cliente, tipo: 2 })
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -79,7 +95,7 @@ export default function PosVendaWidget() {
               {clientes.slice(0, 5).map(c => (
                 <button
                   key={c.telefone}
-                  onClick={() => setModal(c)}
+                  onClick={() => setModal({ cliente: c, tipo: 1 })}
                   className="w-full flex items-center gap-1 px-2 py-1.5 rounded bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800/50 hover:bg-sky-100 dark:hover:bg-sky-900/40 active:scale-95 transition-all text-left group"
                 >
                   <span className="text-sm text-slate-600 dark:text-slate-400 truncate flex-1 font-medium">
@@ -130,9 +146,10 @@ export default function PosVendaWidget() {
           {!loading && recomprasHoje.length > 0 && (
             <div className="space-y-1">
               {recomprasHoje.slice(0, 5).map(r => (
-                <div
+                <button
                   key={r.id}
-                  className="flex flex-col gap-0.5 px-2 py-1.5 rounded bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50"
+                  onClick={() => abrirRecompra(r)}
+                  className="w-full flex flex-col gap-0.5 px-2 py-1.5 rounded bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50 hover:bg-red-100 dark:hover:bg-red-900/40 active:scale-95 transition-all text-left"
                 >
                   <p className="text-sm text-slate-700 dark:text-slate-300 font-medium truncate">
                     {r.nome || r.telefone}
@@ -145,7 +162,7 @@ export default function PosVendaWidget() {
                       {r.usuario_nome || 'atendente'}
                     </span>
                   </div>
-                </div>
+                </button>
               ))}
               {recomprasHoje.length > 5 && (
                 <p className="text-[9px] text-center text-slate-400">+{recomprasHoje.length - 5}</p>
@@ -166,7 +183,8 @@ export default function PosVendaWidget() {
 
       {modal && (
         <PosVendaInteracaoModal
-          cliente={modal}
+          cliente={modal.cliente}
+          tipoDefault={modal.tipo}
           onClose={() => { setModal(null); load() }}
         />
       )}

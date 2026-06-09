@@ -131,6 +131,7 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
       {modal && (
         <PosVendaInteracaoModal
           cliente={modal}
+          tipoDefault={filtro === '2' ? 2 : filtro === '1' ? 1 : modal.prioridade}
           onClose={() => { setModal(null); load() }}
         />
       )}

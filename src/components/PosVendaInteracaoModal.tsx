@@ -34,22 +34,22 @@ export function fmtTel(tel: string): string {
 
 interface Props {
   cliente: PosVendaCliente
+  /** Tipo da interação, definido implicitamente pela aba (1 = Pós-Venda, 2 = Recompra). */
+  tipoDefault: 1 | 2 | 3
   onClose: () => void
 }
 
-export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
+export default function PosVendaInteracaoModal({ cliente, tipoDefault, onClose }: Props) {
   const { user, profile } = useAuth()
   const atendenteNome = profile?.nome || profile?.email || user?.email?.split('@')[0] || 'Atendente'
   const [data, setData]         = useState(format(new Date(), 'yyyy-MM-dd'))
   const [obs, setObs]           = useState('')
-  const [tipo, setTipo]         = useState<1 | 2 | 3>(cliente.prioridade ?? 1)
   const [saving, setSaving]     = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [hist, setHist]         = useState<PosVendaInteracao[]>([])
   const [loadHist, setLoadHist] = useState(true)
-  const cfg = P[cliente.prioridade] ?? P[3]
-  const tipoCfg = P[tipo] ?? P[1]
+  const cfg = P[tipoDefault] ?? P[3]
 
   useEffect(() => {
     (async () => {
@@ -76,15 +76,20 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
       observacao:     obs.trim(),
       usuario_id:     user?.id ?? null,
       usuario_nome:   atendenteNome,
-      tipo:           tipo,
+      tipo:           tipoDefault,
     })
     setSaving(false)
     if (error) { setSaveError(error.message); return }
     setData(format(new Date(), 'yyyy-MM-dd'))
     setObs('')
-    setTipo(cliente.prioridade ?? 1)
-    setHist([])
-    setLoadHist(true)
+    // Recarrega o histórico para refletir a nova interação
+    const { data: rows } = await supabase
+      .from('crm_posvendas_interacoes')
+      .select('*')
+      .eq('telefone', cliente.telefone)
+      .order('data_interacao', { ascending: false })
+      .limit(30)
+    setHist((rows ?? []) as PosVendaInteracao[])
   }
 
   async function deletar(id: string) {
@@ -164,31 +169,16 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
                 por <span className="font-semibold text-slate-500 dark:text-slate-300">{atendenteNome}</span>
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-2">
               <input
                 type="date"
-                className="input text-sm"
+                className="input text-sm flex-1"
                 value={data}
                 onChange={e => setData(e.target.value)}
               />
-              <div className="flex gap-1">
-                {(Object.entries(P) as [string, any][]).map(([key, cfg]) => {
-                  const t = parseInt(key) as 1 | 2 | 3
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setTipo(t)}
-                      className={`flex-1 text-[10px] font-bold px-2 py-1.5 rounded-lg transition-all ${
-                        tipo === t
-                          ? `${cfg.badge} ring-2 ring-offset-1 dark:ring-offset-slate-800`
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
-                      }`}
-                    >
-                      {cfg.icon} {cfg.label}
-                    </button>
-                  )
-                })}
-              </div>
+              <span className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap ${cfg.badge}`}>
+                {cfg.icon} {cfg.label}
+              </span>
             </div>
             <textarea
               className="input text-sm w-full h-24 resize-none"
