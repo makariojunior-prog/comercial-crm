@@ -1034,6 +1034,8 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
   const [date, setDate]             = useState(p.data_entrega ?? format(new Date(), 'yyyy-MM-dd'))
   const [turno, setTurno]           = useState(turnoEfetivo)
   const [entregador, setEntregador] = useState(p.entregador ?? '')
+  const [veiculo, setVeiculo]       = useState(p.veiculo ?? '')
+  const [observacoes, setObservacoes] = useState(p.observacoes ?? '')
   const [valor, setValor]           = useState(p.valor > 0 ? String(p.valor) : '')
   const [pgtoList, setPgtoList]     = useState<string[]>(p.pgto ?? (pgtoCliente ? [pgtoCliente] : []))
   const [saving, setSaving]         = useState(false)
@@ -1051,6 +1053,8 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
       data_entrega: date,
       turno:        turno || null,
       entregador:   entregador || null,
+      veiculo:      veiculo || null,
+      observacoes:  observacoes || null,
       pgto:         pgtoList.length > 0 ? pgtoList : null,
     }
     const vStripped = valor.replace(/[^\d,.]/g, '')
@@ -1128,6 +1132,26 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
               <option value="RETIRADA">🏭 RETIRADA / BALCÃO</option>
               {drivers.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
+          </div>
+
+          {/* Veículo */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Veículo de entrega</label>
+            <input
+              type="text" placeholder="Ex: Van Branca, Carro 01, Bicicleta..."
+              value={veiculo} onChange={e => setVeiculo(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
+            />
+          </div>
+
+          {/* Observações */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Observações</label>
+            <textarea
+              placeholder="Notas específicas para este pedido..."
+              value={observacoes} onChange={e => setObservacoes(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-none min-h-[80px]"
+            />
           </div>
 
           {/* Pgto */}

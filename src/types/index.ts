@@ -544,6 +544,7 @@ export interface AtacadoPedido {
   valor: number
   turno: string | null
   entregador: string | null
+  veiculo: string | null
   tipo: string
   ocorrencia: string | null
   data_emissao: string | null
@@ -553,6 +554,7 @@ export interface AtacadoPedido {
   conferencia: string | null
   ignorado: boolean
   pgto: string[] | null
+  observacoes: string | null
   created_at: string
   updated_at: string
   cliente?: AtacadoCliente | null
