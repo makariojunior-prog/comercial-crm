@@ -664,3 +664,43 @@ export interface CrmConversation {
   visto: boolean
   archived: boolean
 }
+
+// ─── Conciliação Financeira (Romaneio) ─────────────────────────
+export interface TipoOcorrencia {
+  id: string
+  nome: string
+  emoji: string
+  cor: string
+  ativo: boolean
+  ordem: number
+  created_at: string
+}
+
+export interface ConciliacaoMetodoPagamento {
+  tipo: 'Pix' | 'Dinheiro' | 'Cartão' | 'Boleto'
+  valor: number
+}
+
+export interface RomaneioConciliacao {
+  id: string
+  empresa: 'LUMAR' | 'CANTINA'
+  pedido_ref: string
+  pedido_uid: string
+  cliente_nome: string | null
+  numero_pedido: string | null
+  data_entrega: string | null
+  entregador: string | null
+  valor_pedido: number
+  status: 'pendente' | 'finalizado'
+  data_conciliacao: string | null
+  usuario_conciliacao_id: string | null
+  usuario_conciliacao_nome: string | null
+  metodos_pagamento: ConciliacaoMetodoPagamento[]
+  valor_recebido: number
+  divergencia: number
+  tipo_ocorrencia_id: string | null
+  tipo_ocorrencia?: TipoOcorrencia | null
+  observacoes: string | null
+  created_at: string
+  updated_at: string
+}
