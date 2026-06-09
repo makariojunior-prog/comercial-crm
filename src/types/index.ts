@@ -414,7 +414,7 @@ export const ROUTE_FREQUENCIES = [
 ] as const
 
 // ─── Notes ─────────────────────────────────────────────────────
-export type NoteColor = 'yellow' | 'green' | 'blue' | 'pink' | 'purple' | 'slate'
+export type NoteColor = 'yellow' | 'green' | 'blue' | 'pink' | 'purple' | 'slate' | 'red'
 
 export interface Note {
   id: string
@@ -445,6 +445,7 @@ export const NOTE_COLORS: Record<NoteColor, { bg: string; border: string; dot: s
   pink:   { bg: 'bg-pink-50',    border: 'border-pink-300',   dot: 'bg-pink-400',    label: 'Rosa'    },
   purple: { bg: 'bg-purple-50',  border: 'border-purple-300', dot: 'bg-purple-500',  label: 'Roxo'    },
   slate:  { bg: 'bg-slate-50',   border: 'border-slate-300',  dot: 'bg-slate-400',   label: 'Cinza'   },
+  red:    { bg: 'bg-red-50',     border: 'border-red-300',    dot: 'bg-red-500',     label: 'Vermelho' },
 }
 
 // ─── Pós-Venda Varejo ──────────────────────────────────────────

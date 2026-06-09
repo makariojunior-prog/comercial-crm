@@ -122,7 +122,7 @@ export default function NoteModal({ note, defaultMentions = [], onClose, onSaved
 
           {/* Content */}
           <textarea
-            className="w-full bg-transparent border-none outline-none text-sm text-slate-700 placeholder:text-slate-400 resize-none min-h-[120px] leading-relaxed"
+            className="w-full bg-transparent border-none outline-none text-sm text-slate-700 placeholder:text-slate-400 resize-none min-h-[240px] leading-relaxed"
             placeholder="Escreva sua nota aqui..."
             value={content}
             onChange={e => setContent(e.target.value)}
@@ -155,7 +155,7 @@ export default function NoteModal({ note, defaultMentions = [], onClose, onSaved
                     key={u.id}
                     type="button"
                     onClick={() => toggleMention(u.id)}
-                    className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                    className={`px-2 py-0.5 rounded-full text-[9px] font-bold border transition-all ${
                       selected
                         ? 'bg-slate-700 border-slate-800 text-white shadow-sm'
                         : 'bg-white/60 border-black/10 text-slate-600 hover:bg-white/80'
