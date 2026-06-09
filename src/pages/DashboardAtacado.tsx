@@ -275,7 +275,14 @@ export default function DashboardAtacado() {
       const pedido = [...pedidosNovos, ...pedidosDia, ...historico].find(p => p.id === id)
       if (pedido?.crm_client?.turno) patch.turno = pedido.crm_client.turno
     }
-    await supabase.from('atacado_pedidos').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await supabase
+      .from('atacado_pedidos')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) {
+      // Propaga o erro para o modal exibi-lo ao usuário (evita falha silenciosa)
+      throw new Error(error.message)
+    }
     await Promise.all([loadNovos(), loadRotas()])
     if (showHistorico) await loadHistorico()
     setEditPedidoId(null)
@@ -1026,10 +1033,10 @@ function ContatoRow({ cliente: c, feito, onToggle, cobrancaAberto }: {
 const PGTO_OPTIONS = ['BOLETO', 'C. CRÉDITO', 'C. DÉBITO', 'DINHEIRO', 'LINK', 'PIX - CANTINA', 'PIX - LUCIANO', 'PRAZO 14 DIAS']
 
 // ─── Edit Pedido Modal ────────────────────────────────────────
-function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {
+export function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {
   pedido: AtacadoPedido
   onClose: () => void
-  onSave: (patch: Partial<AtacadoPedido>) => void
+  onSave: (patch: Partial<AtacadoPedido>) => void | Promise<void>
   drivers: string[]
   vehicles: { id: string; apelido: string; placa: string | null }[]
 }) {
@@ -1045,6 +1052,7 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {
   const [valor, setValor]           = useState(p.valor > 0 ? String(p.valor) : '')
   const [pgtoList, setPgtoList]     = useState<string[]>(p.pgto ?? (pgtoCliente ? [pgtoCliente] : []))
   const [saving, setSaving]         = useState(false)
+  const [saveError, setSaveError]   = useState<string | null>(null)
 
   function togglePgto(opt: string) {
     setPgtoList(prev =>
@@ -1055,6 +1063,7 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {
   async function handleSave() {
     if (!date) return
     setSaving(true)
+    setSaveError(null)
     const patch: Partial<AtacadoPedido> = {
       data_entrega: date,
       turno:        turno || null,
@@ -1069,7 +1078,14 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {
       : vStripped.includes(',') ? vStripped.replace(',', '.') : vStripped
     const parsedValor = parseFloat(vNorm)
     if (!isNaN(parsedValor) && parsedValor > 0) patch.valor = parsedValor
-    await onSave(patch)
+    try {
+      await onSave(patch)
+    } catch (e: unknown) {
+      // Mantém o modal aberto e mostra o erro em vez de falhar em silêncio
+      setSaveError(e instanceof Error ? e.message : 'Erro desconhecido ao salvar')
+      setSaving(false)
+      return
+    }
     setSaving(false)
   }
 
@@ -1212,12 +1228,20 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {
             />
           </div>
         </div>
-        <div className="flex gap-2 px-5 py-4 border-t border-slate-100 dark:border-slate-700 shrink-0">
-          <button onClick={onClose} className="flex-1 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
-          <button onClick={handleSave} disabled={!date || saving}
-            className="flex-1 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors">
-            {saving ? 'Salvando…' : 'Salvar'}
-          </button>
+        <div className="px-5 pt-3 border-t border-slate-100 dark:border-slate-700 shrink-0 space-y-2">
+          {saveError && (
+            <div className="flex items-start gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+              <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+              <span className="flex-1">Erro ao salvar: {saveError}</span>
+            </div>
+          )}
+          <div className="flex gap-2 pb-4">
+            <button onClick={onClose} className="flex-1 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
+            <button onClick={handleSave} disabled={!date || saving}
+              className="flex-1 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors">
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -6,6 +6,8 @@ import {
   RefreshCw, Share2, AlertCircle, Truck, Check, AlertTriangle, X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { EditPedidoModal } from '../pages/DashboardAtacado'
+import type { AtacadoPedido } from '../types'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -263,7 +265,7 @@ export default function RomaneioTab() {
     if (uid.startsWith('L')) {
       const { data } = await supabase
         .from('atacado_pedidos')
-        .select('*')
+        .select('*, crm_client:crm_clients(id,nome,rota,pgto,turno)')
         .eq('id', id)
         .single()
       if (data) {
@@ -790,7 +792,33 @@ export default function RomaneioTab() {
       </div>
 
       {/* Modal de edição de pedido */}
-      {editingPedidoUid && editingPedidoData && (
+      {/* LUMAR (atacado) → usa o MESMO editor do Dashboard Atacado para
+          manter UX consistente e evitar divergência de comportamento. */}
+      {editingPedidoUid?.startsWith('L') && editingPedidoData && (
+        <EditPedidoModal
+          pedido={editingPedidoData as AtacadoPedido}
+          drivers={drivers.map(d => firstName(d.nome)).filter(Boolean)}
+          vehicles={vehicles}
+          onClose={() => {
+            setEditingPedidoUid(null)
+            setEditingPedidoData(null)
+          }}
+          onSave={async patch => {
+            const id = parseInt(editingPedidoUid.slice(1), 10)
+            const { error } = await supabase
+              .from('atacado_pedidos')
+              .update({ ...patch, updated_at: new Date().toISOString() })
+              .eq('id', id)
+            if (error) throw new Error(error.message)
+            await load()
+            setEditingPedidoUid(null)
+            setEditingPedidoData(null)
+          }}
+        />
+      )}
+
+      {/* CANTINA (varejo) → editor próprio, pois os campos diferem do atacado. */}
+      {editingPedidoUid?.startsWith('C') && editingPedidoData && (
         <RomaneioEditModal
           uid={editingPedidoUid}
           pedidoData={editingPedidoData}
@@ -826,9 +854,11 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
   const [veiculo, setVeiculo] = useState(pedidoData.veiculo ?? '')
   const [observacoes, setObservacoes] = useState(pedidoData.observacoes ?? '')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   async function save() {
     setSaving(true)
+    setSaveError(null)
     const id = parseInt(uid.slice(1))
     const table = isAtacado ? 'atacado_pedidos' : 'varejo_pedidos'
     const patch = {
@@ -838,14 +868,16 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
       veiculo: veiculo || null,
       observacoes: observacoes || null,
     }
-    try {
-      await supabase.from(table).update(patch).eq('id', id)
-      onSaved()
-    } catch (err) {
-      console.error('Erro ao salvar:', err)
-    } finally {
-      setSaving(false)
+    // PostgREST devolve o erro no objeto de retorno (não lança), então
+    // precisamos checar `error` explicitamente em vez de usar try/catch.
+    const { error } = await supabase.from(table).update(patch).eq('id', id)
+    setSaving(false)
+    if (error) {
+      console.error('Erro ao salvar:', error)
+      setSaveError(error.message)
+      return
     }
+    onSaved()
   }
 
   return (
@@ -921,14 +953,22 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
           </div>
         </div>
 
-        <div className="flex gap-2 px-5 py-4 border-t border-slate-100 dark:border-slate-700 shrink-0">
-          <button onClick={onClose} className="flex-1 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-            Cancelar
-          </button>
-          <button onClick={save} disabled={saving}
-            className="flex-1 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors">
-            {saving ? 'Salvando…' : 'Salvar'}
-          </button>
+        <div className="px-5 pt-3 border-t border-slate-100 dark:border-slate-700 shrink-0 space-y-2">
+          {saveError && (
+            <div className="flex items-start gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+              <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+              <span className="flex-1">Erro ao salvar: {saveError}</span>
+            </div>
+          )}
+          <div className="flex gap-2 pb-4">
+            <button onClick={onClose} className="flex-1 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+              Cancelar
+            </button>
+            <button onClick={save} disabled={saving}
+              className="flex-1 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors">
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
