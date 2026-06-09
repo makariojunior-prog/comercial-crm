@@ -328,7 +328,7 @@ export default function LogisticaPage() {
     { id: 'veiculos'     as Tab, label: 'Veículos',          icon: Truck,       count: vehicles.filter(v => v.ativo).length },
     { id: 'motoristas'   as Tab, label: 'Motoristas',        icon: Users,       count: drivers.filter(d => d.ativo).length },
     { id: 'custos'       as Tab, label: 'Custos',            icon: DollarSign,  count: null },
-    ...(isAdmin ? [{ id: 'config_ocorrencias' as Tab, label: '⚙️ Ocorrências', icon: Settings, count: null }] : []),
+    ...(isAdmin ? [{ id: 'config_ocorrencias' as Tab, label: 'Ocorrências', icon: Settings, count: null }] : []),
   ]
 
   return (
