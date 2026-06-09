@@ -3,12 +3,14 @@ import { RefreshCw, ShoppingBag, AlertTriangle, CheckCircle2, Bike, ChevronLeft,
 import { format, addDays, parseISO, isWeekend, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import type { VarejoPedido } from '../types'
 import { useSearchParams } from 'react-router-dom'
 import PedidoModal from '../components/PedidoModal'
 import PosVendaTab from '../components/PosVendaTab'
+import PosVendaHistoricoTab from '../components/PosVendaHistoricoTab'
 
-type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico' | 'posvendas' | 'retirada'
+type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico' | 'posvendas' | 'posvendas-historico' | 'retirada'
 
 const isRetirada = (p: VarejoPedido) =>
   p.order_type === 'takeout' ||
@@ -600,6 +602,7 @@ async function syncFromSheets(): Promise<number> {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function VarejoPage() {
+  const { isAdmin } = useAuth()
   const [pedidos, setPedidos] = useState<VarejoPedido[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
@@ -721,6 +724,7 @@ export default function VarejoPage() {
     { id: 'amanha'    as Tab, label: `Amanhã ${format(parseISO(actualTomorrow), 'dd/MM')}`, count: amanha.length },
     { id: 'historico' as Tab, label: 'Histórico',      count: 0 },
     { id: 'posvendas' as Tab, label: 'Pós-Venda',      count: posVendaAtivos, alert: posVendaAtivos > 0 },
+    ...(isAdmin ? [{ id: 'posvendas-historico' as Tab, label: 'Histórico Pós-Venda', count: 0 }] : []),
   ]
 
   const displayDate = format(parseISO(selectedDate), "EEEE, dd/MM", { locale: ptBR })
@@ -827,6 +831,14 @@ export default function VarejoPage() {
       {/* Content */}
       {tab === 'posvendas' ? (
         <PosVendaTab onCountsChange={(p1, p2) => setPosVendaAtivos(p1 + p2)} />
+      ) : tab === 'posvendas-historico' ? (
+        isAdmin ? (
+          <PosVendaHistoricoTab />
+        ) : (
+          <div className="card p-10 text-center text-slate-400">
+            <p className="text-sm">Apenas administradores podem acessar este histórico.</p>
+          </div>
+        )
       ) : tab === 'historico' ? (
         <HistoricoTab onEdit={setEditPedido} />
       ) : loading ? (
