@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, MapPin, Truck, CalendarDays, ChevronDown, ChevronRight, Navigation, Pencil, Plus, Trash2, Save, Users } from 'lucide-react'
+import { Search, MapPin, Truck, CalendarDays, ChevronDown, ChevronRight, Navigation, Pencil, Plus, Trash2, Save, Users, Download, Upload } from 'lucide-react'
+import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -74,6 +75,8 @@ type SubTab = 'consulta' | 'programacao' | 'rotas'
 // ─── Main component ───────────────────────────────────────────────
 
 export default function RotasEntregaTab() {
+  const { canAccess, isAdmin } = useAuth()
+  const canEditRoutes = isAdmin || canAccess('logistica')
   const [subTab, setSubTab] = useState<SubTab>('consulta')
   const [routes, setRoutes] = useState<DeliveryRoute[]>([])
   const [loadingRoutes, setLoadingRoutes] = useState(true)
@@ -98,6 +101,127 @@ export default function RotasEntregaTab() {
       c[row.route_id] = (c[row.route_id] || 0) + 1
     }
     setClientCounts(c)
+  }
+
+  async function exportToExcel() {
+    // Fetch all sectors for export
+    const { data: sectors } = await supabase
+      .from('crm_delivery_sectors')
+      .select('*')
+      .order('rota, setor')
+
+    // Build CSV with BOM for UTF-8
+    const headers = ['Setor', 'Cidade', 'Região', 'Distância (km)', 'Rota', 'Rota ID']
+    const rows = (sectors as any[])?.map(s => [
+      s.setor || '',
+      s.cidade || '',
+      s.regiao || '',
+      s.distancia_km ?? '',
+      s.rota || '',
+      s.route_id || ''
+    ]) || []
+
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `rotas_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  async function importFromExcel() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv,.xlsx'
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      const text = await file.text()
+      const lines = text.trim().split('\n')
+      if (lines.length < 2) { alert('Arquivo vazio'); return }
+
+      // Parse CSV (simple parser)
+      const parseRow = (line: string) => {
+        const result = []
+        let current = ''
+        let insideQuotes = false
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i]
+          if (char === '"') {
+            if (insideQuotes && line[i + 1] === '"') {
+              current += '"'
+              i++
+            } else {
+              insideQuotes = !insideQuotes
+            }
+          } else if (char === ',' && !insideQuotes) {
+            result.push(current)
+            current = ''
+          } else {
+            current += char
+          }
+        }
+        result.push(current)
+        return result
+      }
+
+      const headers = parseRow(lines[0])
+      const setor_idx = headers.findIndex(h => h.toLowerCase().includes('setor'))
+      const cidade_idx = headers.findIndex(h => h.toLowerCase().includes('cidade'))
+      const regiao_idx = headers.findIndex(h => h.toLowerCase().includes('região'))
+      const dist_idx = headers.findIndex(h => h.toLowerCase().includes('distância') || h.toLowerCase().includes('km'))
+      const rota_idx = headers.findIndex(h => h.toLowerCase().includes('rota'))
+      const route_id_idx = headers.findIndex(h => h.toLowerCase().includes('rota id'))
+
+      if (setor_idx === -1) { alert('Coluna "Setor" não encontrada'); return }
+
+      let updated = 0
+      let created = 0
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue
+
+        const row = parseRow(lines[i])
+        const setor = row[setor_idx]?.trim()
+        if (!setor) continue
+
+        const data = {
+          setor,
+          cidade: row[cidade_idx]?.trim() || null,
+          regiao: row[regiao_idx]?.trim() || null,
+          distancia_km: dist_idx >= 0 && row[dist_idx]?.trim() ? Number(row[dist_idx].trim()) : null,
+          rota: row[rota_idx]?.trim() || null,
+          route_id: route_id_idx >= 0 && row[route_id_idx]?.trim() ? row[route_id_idx].trim() : null,
+        }
+
+        // Try to update existing or insert new
+        const { data: existing } = await supabase
+          .from('crm_delivery_sectors')
+          .select('id')
+          .eq('setor', setor)
+          .maybeSingle()
+
+        if (existing?.id) {
+          await supabase.from('crm_delivery_sectors').update(data).eq('id', existing.id)
+          updated++
+        } else {
+          await supabase.from('crm_delivery_sectors').insert(data)
+          created++
+        }
+      }
+
+      alert(`Importação concluída: ${created} setores criados, ${updated} setores atualizados`)
+      await loadRoutes()
+    }
+    input.click()
   }
 
   useEffect(() => {
@@ -134,18 +258,36 @@ export default function RotasEntregaTab() {
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
-        {SUB_TABS.map(t => (
-          <button key={t.id} onClick={() => setSubTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-              subTab === t.id
-                ? 'border-orange-500 text-orange-600 dark:text-orange-400'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}>
-            <t.icon size={14} />
-            {t.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex gap-1">
+          {SUB_TABS.map(t => (
+            <button key={t.id} onClick={() => setSubTab(t.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                subTab === t.id
+                  ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}>
+              <t.icon size={14} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {canEditRoutes && (
+          <div className="flex items-center gap-2 pb-2">
+            <button
+              onClick={exportToExcel}
+              title="Exportar rotas para Excel"
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-300 hover:text-orange-600 transition-colors">
+              <Download size={13} /> Exportar
+            </button>
+            <button
+              onClick={importFromExcel}
+              title="Importar rotas do Excel"
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors">
+              <Upload size={13} /> Importar
+            </button>
+          </div>
+        )}
       </div>
 
       {subTab === 'consulta' ? (
@@ -454,7 +596,8 @@ function RouteDetailCard({ route, sectorCount, clientCount, expanded, editing, o
   onRouteSaved: () => void
   onSectorsChanged: () => void
 }) {
-  const { isAdmin } = useAuth()
+  const { isAdmin, canAccess } = useAuth()
+  const canEditRoutes = isAdmin || canAccess('logistica')
   const [showClients, setShowClients] = useState(false)
   const summary = scheduleSummary(route.schedule)
   const dayBadges = summary.map(s => DIA_ABREV[s.dia] ?? s.dia)
@@ -497,7 +640,7 @@ function RouteDetailCard({ route, sectorCount, clientCount, expanded, editing, o
 
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           <div className="flex items-center gap-1.5">
-            {isAdmin && (
+            {canEditRoutes && (
               <button
                 onClick={onToggleEdit}
                 title="Editar rota"
