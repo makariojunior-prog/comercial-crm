@@ -66,22 +66,36 @@ export default function MapaEntregasTab() {
       const start = startOfDay(selectedDate).toISOString().split('T')[0]
       const end = endOfDay(selectedDate).toISOString().split('T')[0]
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('varejo_pedidos')
         .select(
           'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete, order_type'
         )
         .eq('empresa', 'CANTINA')
-        .eq('order_type', 'delivery') // Apenas pedidos de ENTREGA
-        .gte('data_entrega', start)
-        .lte('data_entrega', end)
-        .neq('status_icon', '❌')
-        .order('data_entrega', { ascending: true })
 
-      if (error) throw error
+      // Filtrar por range de data
+      query = query.gte('data_entrega', start)
+      query = query.lte('data_entrega', end)
+      query = query.neq('status_icon', '❌')
+
+      // Filtrar por order_type se existir (pode ser 'delivery', 'takeout', etc)
+      // Por enquanto incluir todos com endereco_completo preenchido
+      query = query.not('endereco_completo', 'is', null)
+
+      query = query.order('data_entrega', { ascending: true })
+
+      const { data, error } = await query
+
+      if (error) {
+        console.error('Query error:', error)
+        throw error
+      }
 
       const typed = (data || []) as VarejoPedido[]
-      console.log(`📦 Carregados ${typed.length} pedidos de entrega para ${start}`)
+      console.log(`📦 Carregados ${typed.length} pedidos para ${start}`)
+      if (typed.length > 0) {
+        console.log('Primeiros pedidos:', typed.slice(0, 2))
+      }
       setPedidos(typed)
 
       // Auto-geocode pending orders
