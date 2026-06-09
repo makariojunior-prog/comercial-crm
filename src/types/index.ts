@@ -467,6 +467,8 @@ export interface PosVendaInteracao {
   nome: string | null
   data_interacao: string
   observacao: string
+  usuario_id: string | null
+  usuario_nome: string | null
 }
 
 // ─── Comentários Redes Sociais ─────────────────────────────────

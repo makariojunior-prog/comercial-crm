@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import type { PosVendaCliente, PosVendaInteracao } from '../types'
 
 export const P: Record<number, { icon: string; label: string; border: string; badge: string }> = {
@@ -37,6 +38,8 @@ interface Props {
 }
 
 export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
+  const { user, profile } = useAuth()
+  const atendenteNome = profile?.nome || profile?.email || user?.email?.split('@')[0] || 'Atendente'
   const [data, setData]         = useState(format(new Date(), 'yyyy-MM-dd'))
   const [obs, setObs]           = useState('')
   const [saving, setSaving]     = useState(false)
@@ -68,6 +71,8 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
       nome:           cliente.nome,
       data_interacao: data,
       observacao:     obs.trim(),
+      usuario_id:     user?.id ?? null,
+      usuario_nome:   atendenteNome,
     })
     setSaving(false)
     if (error) { setSaveError(error.message); return }
@@ -133,7 +138,12 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
         <div className="overflow-y-auto flex-1 p-4 space-y-5">
           {/* New interaction form */}
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Nova interação</p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Nova interação</p>
+              <span className="text-[11px] text-slate-400">
+                por <span className="font-semibold text-slate-500 dark:text-slate-300">{atendenteNome}</span>
+              </span>
+            </div>
             <input
               type="date"
               className="input text-sm w-full"
@@ -178,9 +188,14 @@ export default function PosVendaInteracaoModal({ cliente, onClose }: Props) {
                 <div className="space-y-2">
                   {hist.map(h => (
                     <div key={h.id} className="text-xs bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 border border-slate-100 dark:border-slate-700">
-                      <p className="font-semibold text-slate-600 dark:text-slate-300 mb-0.5">
-                        {format(parseISO(h.data_interacao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                      </p>
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <p className="font-semibold text-slate-600 dark:text-slate-300">
+                          {format(parseISO(h.data_interacao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                        </p>
+                        {h.usuario_nome && (
+                          <span className="text-[10px] text-slate-400 shrink-0">{h.usuario_nome}</span>
+                        )}
+                      </div>
                       <p className="text-slate-500 dark:text-slate-400 leading-relaxed">{h.observacao}</p>
                     </div>
                   ))}

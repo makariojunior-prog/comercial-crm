@@ -152,6 +152,7 @@ export default function PosVendaHistoricoTab() {
                     <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
                       <span>📅 {format(parseISO(item.data_interacao), 'dd/MM/yyyy')}</span>
                       <span>🕐 {format(parseISO(item.created_at), 'HH:mm:ss')}</span>
+                      {item.usuario_nome && <span>👤 {item.usuario_nome}</span>}
                     </div>
                   </div>
                   <div className="text-right shrink-0">

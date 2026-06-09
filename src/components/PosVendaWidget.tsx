@@ -3,12 +3,10 @@ import { Phone, Send } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../contexts/AuthContext'
 import type { PosVendaCliente, PosVendaInteracao } from '../types'
 import PosVendaInteracaoModal from './PosVendaInteracaoModal'
 
 export default function PosVendaWidget() {
-  const { user } = useAuth()
   const [clientes, setClientes] = useState<PosVendaCliente[]>([])
   const [recomprasHoje, setRecomprasHoje] = useState<PosVendaInteracao[]>([])
   const [loading, setLoading]   = useState(true)
@@ -144,7 +142,7 @@ export default function PosVendaWidget() {
                       {format(new Date(r.created_at), 'HH:mm')}
                     </span>
                     <span className="text-[8px] text-slate-400 truncate flex-1 text-right">
-                      {user?.email?.split('@')[0] || 'atendente'}
+                      {r.usuario_nome || 'atendente'}
                     </span>
                   </div>
                 </div>
