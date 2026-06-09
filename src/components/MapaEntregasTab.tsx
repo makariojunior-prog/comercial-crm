@@ -69,9 +69,10 @@ export default function MapaEntregasTab() {
       const { data, error } = await supabase
         .from('varejo_pedidos')
         .select(
-          'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete'
+          'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete, order_type'
         )
         .eq('empresa', 'CANTINA')
+        .eq('order_type', 'delivery') // Apenas pedidos de ENTREGA
         .gte('data_entrega', start)
         .lte('data_entrega', end)
         .neq('status_icon', '❌')
@@ -88,7 +89,7 @@ export default function MapaEntregasTab() {
         try {
           await geocodePendingPedidos(typed)
           // Reload after geocoding
-          setTimeout(() => loadPedidos(), 500)
+          setTimeout(() => loadPedidos(), 2000)
         } finally {
           setGeoencodingPending(false)
         }
@@ -150,16 +151,17 @@ export default function MapaEntregasTab() {
         <div className="bg-white p-3 border-b border-slate-200 rounded-lg space-y-2">
           <div className="flex gap-2 items-center justify-between">
             <span className="text-sm font-semibold text-slate-700">Turnos</span>
-            <div className="flex gap-1">
+            <div className="flex gap-1.5">
               {['MANHÃ', 'TARDE', 'NOITE'].map((turno) => (
                 <button
                   key={turno}
                   onClick={() => toggleTurno(turno)}
-                  className={`text-xs px-2 py-1 rounded transition ${
+                  className={`text-xs px-3 py-1.5 rounded font-medium transition ${
                     turnoFilter.includes(turno)
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-slate-100 text-slate-500'
+                      ? 'bg-orange-500 text-white shadow-md'
+                      : 'bg-slate-200 text-slate-600'
                   }`}
+                  title={turno}
                 >
                   {turno.slice(0, 3)}
                 </button>
@@ -169,23 +171,24 @@ export default function MapaEntregasTab() {
 
           <div className="flex gap-2 items-center justify-between">
             <span className="text-sm font-semibold text-slate-700">Status</span>
-            <div className="flex gap-1">
+            <div className="flex gap-1.5">
               {(['⚠️', '🛵'] as StatusFilter[]).map((status) => (
                 <button
                   key={status}
                   onClick={() => toggleStatus(status)}
-                  className={`text-xs px-2 py-1 rounded transition ${
+                  className={`text-xs px-3 py-1.5 rounded font-medium transition ${
                     statusFilter.includes(status)
-                      ? 'text-white'
-                      : 'bg-slate-100 text-slate-500 opacity-50'
+                      ? 'text-white shadow-md'
+                      : 'bg-slate-200 text-slate-600'
                   }`}
                   style={{
                     backgroundColor: statusFilter.includes(status)
                       ? STATUS_COLORS[status]
                       : undefined,
                   }}
+                  title={`${status} ${STATUS_LABELS[status]}`}
                 >
-                  {status} {STATUS_LABELS[status]}
+                  {STATUS_LABELS[status]}
                 </button>
               ))}
             </div>
@@ -216,6 +219,8 @@ export default function MapaEntregasTab() {
           {dateChips.map((date) => {
             const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
             const isSelected = format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
+            const dayOfWeekAbbr = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'][date.getDay()]
+            const dateStr = format(date, 'dd/MM')
             return (
               <button
                 key={format(date, 'yyyy-MM-dd')}
@@ -230,7 +235,7 @@ export default function MapaEntregasTab() {
               >
                 {isToday
                   ? 'HOJE'
-                  : format(date, 'ddd dd/MM', { locale: ptBR }).toUpperCase()}
+                  : `${dayOfWeekAbbr} ${dateStr}`}
               </button>
             )
           })}
