@@ -33,14 +33,35 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('crm_posvendas').select('*')
-    const rows = (data ?? []) as PosVendaCliente[]
-    setClientes(rows)
+    // Fetch all records without the default 1000 limit
+    const PAGE_SIZE = 5000
+    let all: PosVendaCliente[] = []
+    let page = 0
+    let hasMore = true
+
+    while (hasMore) {
+      const { data } = await supabase
+        .from('crm_posvendas')
+        .select('*')
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+
+      if (!data || data.length === 0) {
+        hasMore = false
+      } else {
+        all = [...all, ...(data as PosVendaCliente[])]
+        if (data.length < PAGE_SIZE) {
+          hasMore = false
+        }
+      }
+      page++
+    }
+
+    setClientes(all)
     setLoading(false)
     if (onCountsChange) {
       onCountsChange(
-        rows.filter(c => c.prioridade === 1).length,
-        rows.filter(c => c.prioridade === 2).length,
+        all.filter(c => c.prioridade === 1).length,
+        all.filter(c => c.prioridade === 2).length,
       )
     }
   }, [onCountsChange])
