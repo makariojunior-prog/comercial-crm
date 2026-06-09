@@ -99,12 +99,12 @@ export default function ConciliacaoTab({
       // 3. Carregar histórico (últimos 30 dias)
       const { data: hist } = await supabase
         .from('romaneio_conciliacao')
-        .select('*, tipo:tipos_ocorrencia(nome,emoji,cor)')
+        .select('*, tipo_ocorrencia:tipos_ocorrencia(nome,emoji,cor)')
         .eq('status', 'finalizado')
         .gte('data_entrega', new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0])
         .order('data_conciliacao', { ascending: false })
 
-      setHistorico((hist || []) as any)
+      setHistorico((hist || []) as RomaneioConciliacao[])
 
       // 4. Carregar tipos de ocorrência
       const { data: tiposData } = await supabase
@@ -360,7 +360,7 @@ export default function ConciliacaoTab({
           ) : (
             <div className="space-y-2">
               {historicoFiltrado.map(conc => {
-                const tipo = conc.tipo as any
+                const tipo = conc.tipo_ocorrencia as any
                 return (
                   <div
                     key={conc.id}
