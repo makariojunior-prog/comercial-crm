@@ -227,29 +227,11 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
       updated_at:  new Date().toISOString(),
     }
 
-    let custoId = custo?.id
     if (isEdit) {
       await supabase.from('frota_custos').update(payload).eq('id', custo!.id)
     } else {
-      const { data } = await supabase.from('frota_custos').insert(payload).select('id').single()
-      custoId = data?.id
-
-      // Se é recorrente, chamar edge function para gerar lançamentos futuros
-      if (form.recorrente && custoId) {
-        try {
-          const supabaseUrl = (window as any).SUPABASE_URL || 'https://taicaxtjtikdajmhtsxc.supabase.co'
-          await fetch(`${supabaseUrl}/functions/v1/generate-recurring-costs`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${(window as any).SUPABASE_ANON_KEY || localStorage.getItem('sb-anon-key') || ''}`,
-            },
-            body: JSON.stringify({ custo_id: custoId }),
-          })
-        } catch (err) {
-          console.error('Erro ao gerar lançamentos recorrentes:', err)
-        }
-      }
+      // Inserir o custo - o trigger do banco gera automaticamente os lançamentos recorrentes
+      await supabase.from('frota_custos').insert(payload)
     }
 
     // Auto-update vehicle km_atual if odometer provided
