@@ -792,6 +792,7 @@ export default function RomaneioTab() {
         <RomaneioEditModal
           uid={editingPedidoUid}
           pedidoData={editingPedidoData}
+          vehicles={vehicles}
           onClose={() => {
             setEditingPedidoUid(null)
             setEditingPedidoData(null)
@@ -809,9 +810,10 @@ export default function RomaneioTab() {
 
 // ─── Modal de edição do romaneio ────────────────────────────────────
 
-function RomaneioEditModal({ uid, pedidoData, onClose, onSaved }: {
+function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
   uid: string
   pedidoData: any
+  vehicles: { id: string; apelido: string; placa: string | null }[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -886,10 +888,15 @@ function RomaneioEditModal({ uid, pedidoData, onClose, onSaved }: {
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Veículo</label>
-            <input type="text" placeholder="Ex: Van Branca, Carro 01, ..."
-              value={veiculo} onChange={e => setVeiculo(e.target.value)}
-              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
-            />
+            <select value={veiculo} onChange={e => setVeiculo(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400">
+              <option value="">— sem veículo —</option>
+              {vehicles.map(v => (
+                <option key={v.id} value={v.apelido}>
+                  {v.apelido}{v.placa ? ` (${v.placa})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

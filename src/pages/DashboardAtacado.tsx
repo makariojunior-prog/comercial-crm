@@ -98,6 +98,7 @@ export default function DashboardAtacado() {
   const [searchQuery, setSearchQuery]   = useState('')
   const [cobrancaAberto, setCobrancaAberto] = useState<Map<string, number>>(new Map())
   const [drivers, setDrivers]           = useState<string[]>([])
+  const [vehicles, setVehicles]         = useState<{ id: string; apelido: string; placa: string | null }[]>([])
 
   const todayStr    = format(new Date(), 'yyyy-MM-dd')
   const rotasDateStr = format(rotasDate, 'yyyy-MM-dd')
@@ -229,6 +230,8 @@ export default function DashboardAtacado() {
       .then(({ data }) => {
         setDrivers((data ?? []).map((d: any) => firstName(d.nome)).filter(Boolean))
       })
+    supabase.from('crm_vehicles').select('id, apelido, placa').eq('ativo', true).order('apelido')
+      .then(({ data }) => setVehicles((data as any[]) ?? []))
   }, [])
 
   const [searchParams, setSearchParams] = useSearchParams()
@@ -763,6 +766,7 @@ export default function DashboardAtacado() {
           onClose={() => setEditPedidoId(null)}
           onSave={patch => savePedidoEdit(editPedidoId, patch)}
           drivers={drivers}
+          vehicles={vehicles}
         />
       )}
       {/* Direct-open modal from global search */}
@@ -772,6 +776,7 @@ export default function DashboardAtacado() {
           onClose={() => setDirectOpenPedido(null)}
           onSave={patch => savePedidoEdit(directOpenPedido.id, patch).then(() => setDirectOpenPedido(null))}
           drivers={drivers}
+          vehicles={vehicles}
         />
       )}
     </div>
@@ -1021,11 +1026,12 @@ function ContatoRow({ cliente: c, feito, onToggle, cobrancaAberto }: {
 const PGTO_OPTIONS = ['BOLETO', 'C. CRÉDITO', 'C. DÉBITO', 'DINHEIRO', 'LINK', 'PIX - CANTINA', 'PIX - LUCIANO', 'PRAZO 14 DIAS']
 
 // ─── Edit Pedido Modal ────────────────────────────────────────
-function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
+function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {
   pedido: AtacadoPedido
   onClose: () => void
   onSave: (patch: Partial<AtacadoPedido>) => void
   drivers: string[]
+  vehicles: { id: string; apelido: string; placa: string | null }[]
 }) {
   const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
   const turnoEfetivo = p.turno ?? p.crm_client?.turno ?? ''
@@ -1137,11 +1143,15 @@ function EditPedidoModal({ pedido: p, onClose, onSave, drivers }: {
           {/* Veículo */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Veículo de entrega</label>
-            <input
-              type="text" placeholder="Ex: Van Branca, Carro 01, Bicicleta..."
-              value={veiculo} onChange={e => setVeiculo(e.target.value)}
-              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
-            />
+            <select value={veiculo} onChange={e => setVeiculo(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400">
+              <option value="">— sem veículo —</option>
+              {vehicles.map(v => (
+                <option key={v.id} value={v.apelido}>
+                  {v.apelido}{v.placa ? ` (${v.placa})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Observações */}

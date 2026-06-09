@@ -40,10 +40,12 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
     let hasMore = true
 
     while (hasMore) {
+      const start = page * PAGE_SIZE
+      const end = start + PAGE_SIZE - 1
       const { data } = await supabase
         .from('crm_posvendas')
         .select('*')
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+        .range(start, end)
 
       if (!data || data.length === 0) {
         hasMore = false
@@ -52,8 +54,8 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
         if (data.length < PAGE_SIZE) {
           hasMore = false
         }
+        page++
       }
-      page++
     }
 
     setClientes(all)
