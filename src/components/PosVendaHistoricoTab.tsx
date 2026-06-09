@@ -129,7 +129,7 @@ export default function PosVendaHistoricoTab() {
             {filtered.length} interação{filtered.length !== 1 ? 's' : ''}
           </p>
           {filtered.map(item => {
-            const isRecompra = (item.observacao || '').toLowerCase().includes('recompra')
+            const isRecompra = item.tipo === 2
             return (
               <div
                 key={item.id}
