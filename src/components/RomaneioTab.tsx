@@ -697,6 +697,7 @@ export default function RomaneioTab() {
                                 <input
                                   type="number"
                                   min={1}
+                                  onClick={e => e.stopPropagation()}
                                   className="print-input w-9 text-center text-xs border border-slate-200 dark:border-slate-600 rounded px-1 py-0.5 bg-white dark:bg-slate-700 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
                                   value={seqMap[item.uid] ?? ''}
                                   onChange={e => setSeqMap(m => ({ ...m, [item.uid]: e.target.value }))}
@@ -727,6 +728,7 @@ export default function RomaneioTab() {
                               <td className={`px-1 py-1 border-b border-r border-slate-200 dark:border-slate-700 ${temOcorrencia ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}`}>
                                 <input
                                   type="text"
+                                  onClick={e => e.stopPropagation()}
                                   className="print-input w-full text-[10px] border border-transparent rounded px-1 py-0.5 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-300 focus:ring-1 focus:ring-orange-300"
                                   value={ocorrMap[item.uid] ?? item.ocorrencia_db}
                                   onChange={e => setOcorrMap(m => ({ ...m, [item.uid]: e.target.value }))}
