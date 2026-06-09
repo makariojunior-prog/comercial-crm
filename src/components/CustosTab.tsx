@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Plus, RefreshCw, Pencil, Trash2, AlertTriangle, CheckCircle2,
   ChevronDown, X, Fuel, Wrench, DollarSign, TrendingUp, BarChart3,
-  Calendar, Car, ChevronRight,
+  Calendar, Car, ChevronRight, ChevronLeft,
 } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
   startOfYear, endOfYear, subDays, parseISO, differenceInDays } from 'date-fns'
@@ -849,6 +849,14 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
 
   const PERIOD_LABELS: Record<Periodo, string> = { semana: 'Esta semana', mes: currentMonthLabel, trimestre: 'Trim.', ano: 'Este ano' }
 
+  function navegarPeriodo(direcao: 'prev' | 'next') {
+    if (periodo === 'mes') {
+      const novoMes = new Date(selectedMonth)
+      novoMes.setMonth(novoMes.getMonth() + (direcao === 'next' ? 1 : -1))
+      setSelectedMonth(novoMes)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* ── Month Picker Modal ── */}
@@ -904,17 +912,36 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
           {/* Period selector / Custom date toggle */}
           {!useCustomDate ? (
             <>
-              <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-medium">
-                {(['semana', 'mes', 'ano'] as Periodo[]).map(p => (
-                  <button key={p} onClick={() => {
-                    setPeriodo(p)
-                    if (p === 'mes') setShowMonthPicker(true)
-                  }}
-                    className={`px-3 py-1.5 transition-colors ${periodo === p ? 'bg-orange-500 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                    {PERIOD_LABELS[p]}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => navegarPeriodo('prev')}
+                  disabled={periodo !== 'mes'}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Período anterior">
+                  <ChevronLeft size={16} />
+                </button>
+
+                <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-medium">
+                  {(['semana', 'mes', 'ano'] as Periodo[]).map(p => (
+                    <button key={p} onClick={() => {
+                      setPeriodo(p)
+                      if (p === 'mes') setShowMonthPicker(true)
+                    }}
+                      className={`px-3 py-1.5 transition-colors ${periodo === p ? 'bg-orange-500 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                      {PERIOD_LABELS[p]}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => navegarPeriodo('next')}
+                  disabled={periodo !== 'mes'}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  title="Próximo período">
+                  <ChevronRight size={16} />
+                </button>
               </div>
+
               <button onClick={() => setUseCustomDate(true)} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 <Calendar size={13} className="inline mr-1" /> Período Personalizado
               </button>
