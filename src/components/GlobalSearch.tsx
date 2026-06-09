@@ -33,26 +33,26 @@ async function runSearch(q: string): Promise<Result[]> {
 
   const [clientes, varejo_clients, varejo, atacado, negocios, visitas, agenda] = await Promise.all([
     // Clientes atacado
-    supabase.from('crm_clients').select('id, nome, tipo, rota').ilike('nome', like).limit(5).head(false),
+    supabase.from('crm_clients').select('id, nome, tipo, rota').ilike('nome', like).limit(5),
     // Clientes varejo (tabela de cadastros com UUID)
-    supabase.from('varejo_clientes').select('id, nome, telefone').ilike('nome', like).limit(5).head(false),
+    supabase.from('varejo_clientes').select('id, nome, telefone').ilike('nome', like).limit(5),
     // Pedidos varejo - ordernar por created_at DESC para mostrar mais recentes
     supabase.from('varejo_pedidos').select('id, num_pedido, cliente, data_entrega, status_icon, created_at')
       .or(isNum ? `num_pedido.eq.${clean},cliente.ilike.${like}` : `cliente.ilike.${like},num_pedido.ilike.${like}`)
       .order('created_at', { ascending: false })
-      .limit(5).head(false),
+      .limit(5),
     // Pedidos atacado - ordernar por created_at DESC para mostrar mais recentes
     supabase.from('atacado_pedidos').select('id, numero_pedido, id_venda, cliente_nome, data_entrega, created_at')
       .or(isNum ? `numero_pedido.eq.${parseInt(clean)},id_venda.eq.${parseInt(clean)}` : `cliente_nome.ilike.${like}`)
       .order('created_at', { ascending: false })
-      .limit(5).head(false),
+      .limit(5),
     // Negócios
-    supabase.from('deals').select('id, client_name, status, deal_type').ilike('client_name', like).limit(4).head(false),
+    supabase.from('deals').select('id, client_name, status, deal_type').ilike('client_name', like).limit(4),
     // Visitas
-    supabase.from('visits').select('id, client_name, visit_date, visit_type').ilike('client_name', like).limit(4).head(false),
+    supabase.from('visits').select('id, client_name, visit_date, visit_type').ilike('client_name', like).limit(4),
     // Agenda
     supabase.from('agenda_compromissos').select('id, titulo, data, cliente_nome, tipo')
-      .or(`titulo.ilike.${like},cliente_nome.ilike.${like}`).limit(4).head(false),
+      .or(`titulo.ilike.${like},cliente_nome.ilike.${like}`).limit(4),
   ])
 
   const results: Result[] = []
