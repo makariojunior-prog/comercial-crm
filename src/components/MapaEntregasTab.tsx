@@ -1,5 +1,4 @@
 import 'leaflet/dist/leaflet.css'
-import 'react-leaflet-cluster/dist/styles.css'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { MapPin, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
@@ -9,7 +8,8 @@ import L from 'leaflet'
 import { supabase } from '../lib/supabase'
 import { geocodePendingPedidos } from '../lib/geocoding'
 import type { VarejoPedido } from '../types'
-import { format, addDays, startOfDay, endOfDay, ptBR } from 'date-fns'
+import { format, addDays, startOfDay, endOfDay } from 'date-fns'
+import { pt as ptBR } from 'date-fns/locale'
 
 // Fix Leaflet default icon (required for marker display)
 L.Icon.Default.mergeOptions({
