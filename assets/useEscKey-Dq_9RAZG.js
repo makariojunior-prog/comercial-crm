@@ -1,0 +1,1 @@
+import{r}from"./index-BTOjGajs.js";function s(e){r.useEffect(()=>{function t(n){n.key==="Escape"&&e()}return document.addEventListener("keydown",t),()=>document.removeEventListener("keydown",t)},[e])}export{s as u};
