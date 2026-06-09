@@ -33,24 +33,26 @@ async function runSearch(q: string): Promise<Result[]> {
 
   const [clientes, varejo_clients, varejo, atacado, negocios, visitas, agenda] = await Promise.all([
     // Clientes atacado
-    supabase.from('crm_clients').select('id, nome, tipo, rota').ilike('nome', like).limit(5),
+    supabase.from('crm_clients').select('id, nome, tipo, rota').ilike('nome', like).limit(5).head(false),
     // Clientes varejo (tabela de cadastros com UUID)
-    supabase.from('varejo_clientes').select('id, nome, telefone').ilike('nome', like).limit(5),
-    // Pedidos varejo
-    supabase.from('varejo_pedidos').select('id, num_pedido, cliente, data_entrega, status_icon')
+    supabase.from('varejo_clientes').select('id, nome, telefone').ilike('nome', like).limit(5).head(false),
+    // Pedidos varejo - ordernar por created_at DESC para mostrar mais recentes
+    supabase.from('varejo_pedidos').select('id, num_pedido, cliente, data_entrega, status_icon, created_at')
       .or(isNum ? `num_pedido.eq.${clean},cliente.ilike.${like}` : `cliente.ilike.${like},num_pedido.ilike.${like}`)
-      .limit(5),
-    // Pedidos atacado
-    supabase.from('atacado_pedidos').select('id, numero_pedido, id_venda, cliente_nome, data_entrega')
+      .order('created_at', { ascending: false })
+      .limit(5).head(false),
+    // Pedidos atacado - ordernar por created_at DESC para mostrar mais recentes
+    supabase.from('atacado_pedidos').select('id, numero_pedido, id_venda, cliente_nome, data_entrega, created_at')
       .or(isNum ? `numero_pedido.eq.${parseInt(clean)},id_venda.eq.${parseInt(clean)}` : `cliente_nome.ilike.${like}`)
-      .limit(5),
+      .order('created_at', { ascending: false })
+      .limit(5).head(false),
     // Negócios
-    supabase.from('deals').select('id, client_name, status, deal_type').ilike('client_name', like).limit(4),
+    supabase.from('deals').select('id, client_name, status, deal_type').ilike('client_name', like).limit(4).head(false),
     // Visitas
-    supabase.from('visits').select('id, client_name, visit_date, visit_type').ilike('client_name', like).limit(4),
+    supabase.from('visits').select('id, client_name, visit_date, visit_type').ilike('client_name', like).limit(4).head(false),
     // Agenda
     supabase.from('agenda_compromissos').select('id, titulo, data, cliente_nome, tipo')
-      .or(`titulo.ilike.${like},cliente_nome.ilike.${like}`).limit(4),
+      .or(`titulo.ilike.${like},cliente_nome.ilike.${like}`).limit(4).head(false),
   ])
 
   const results: Result[] = []
@@ -159,11 +161,17 @@ export default function GlobalSearch({ open, onClose }: Props) {
     if (q.trim().length < 2) { setResults([]); setLoading(false); return }
     setLoading(true)
     timerRef.current = setTimeout(async () => {
-      const r = await runSearch(q.trim())
-      setResults(r)
-      setSelected(0)
-      setLoading(false)
-    }, 300)
+      try {
+        const r = await runSearch(q.trim())
+        setResults(r)
+        setSelected(0)
+      } catch (err) {
+        console.error('Search error:', err)
+        setResults([])
+      } finally {
+        setLoading(false)
+      }
+    }, 400)
   }, [])
 
   useEffect(() => { search(query) }, [query, search])
