@@ -10,11 +10,12 @@ import RotasEntregaTab from '../components/RotasEntregaTab'
 import CustosTab from '../components/CustosTab'
 import ConciliacaoTab from '../components/ConciliacaoTab'
 import TiposOcorrenciaConfig from '../components/TiposOcorrenciaConfig'
+import MapaEntregasTab from '../components/MapaEntregasTab'
 import { fetchPositions, loadCredentials, saveCredentials, clearCredentials } from '../lib/velotrack'
 import type { VelotrackPosition } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 
-type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas' | 'custos' | 'conciliacao' | 'config_ocorrencias'
+type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas' | 'mapa' | 'custos' | 'conciliacao' | 'config_ocorrencias'
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -324,6 +325,7 @@ export default function LogisticaPage() {
     { id: 'romaneio'     as Tab, label: 'Romaneio',          icon: FileText,    count: null },
     { id: 'conciliacao'  as Tab, label: 'Conciliação',       icon: ClipboardCheck, count: null },
     { id: 'rotas'        as Tab, label: 'Rotas de Entrega',  icon: MapPin,      count: null },
+    { id: 'mapa'         as Tab, label: 'Mapa de Entregas',  icon: MapPin,      count: null },
     { id: 'rastreamento' as Tab, label: 'Rastreamento',      icon: Radio,       count: null },
     { id: 'veiculos'     as Tab, label: 'Veículos',          icon: Truck,       count: vehicles.filter(v => v.ativo).length },
     { id: 'motoristas'   as Tab, label: 'Motoristas',        icon: Users,       count: drivers.filter(d => d.ativo).length },
@@ -383,7 +385,7 @@ export default function LogisticaPage() {
       </div>
 
       {/* Search (veiculos/motoristas) */}
-      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && tab !== 'custos' && (
+      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && tab !== 'mapa' && tab !== 'custos' && (
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -407,6 +409,8 @@ export default function LogisticaPage() {
         <TiposOcorrenciaConfig />
       ) : tab === 'rotas' ? (
         <RotasEntregaTab />
+      ) : tab === 'mapa' ? (
+        <MapaEntregasTab />
       ) : tab === 'custos' ? (
         <CustosTab
           vehicles={vehicles}

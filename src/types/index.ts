@@ -311,6 +311,10 @@ export interface VarejoPedido {
   // Agendamento
   order_timing: string | null        // 'immediate' | 'scheduled'
   scheduled_start: string | null     // ISO datetime do agendamento
+  // Geolocalização
+  lat: number | null                 // latitude (Nominatim geocoding)
+  lng: number | null                 // longitude (Nominatim geocoding)
+  geocoded_at: string | null         // data do geocoding
   // Meta
   created_at: string
   updated_at: string
