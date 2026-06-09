@@ -818,6 +818,7 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
   onSaved: () => void
 }) {
   const isAtacado = uid.startsWith('L')
+  const [dataEntrega, setDataEntrega] = useState(pedidoData.data_entrega ?? '')
   const [turno, setTurno] = useState(pedidoData.turno ?? '')
   const [entregador, setEntregador] = useState(pedidoData.entregador ?? '')
   const [veiculo, setVeiculo] = useState(pedidoData.veiculo ?? '')
@@ -829,6 +830,7 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
     const id = parseInt(uid.slice(1))
     const table = isAtacado ? 'atacado_pedidos' : 'varejo_pedidos'
     const patch = {
+      data_entrega: dataEntrega || null,
       turno: turno || null,
       entregador: entregador || null,
       veiculo: veiculo || null,
@@ -865,6 +867,15 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
               Valor: {(pedidoData.valor || pedidoData.valor_liquido || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Data de Entrega</label>
+            <input
+              type="date"
+              value={dataEntrega} onChange={e => setDataEntrega(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
+            />
           </div>
 
           <div>
