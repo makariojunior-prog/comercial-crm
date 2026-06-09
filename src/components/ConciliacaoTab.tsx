@@ -231,29 +231,33 @@ export default function ConciliacaoTab({
   const pendentesCount = itensPendentes.length
   const historicoCount = historicoFiltrado.length
 
+  useEffect(() => {
+    console.log('[ConciliacaoTab] items:', items.length, 'conciliados:', conciliados.size, 'pendentes:', itensPendentes.length)
+  }, [items, conciliados, itensPendentes])
+
   return (
     <div className="space-y-4">
       {/* Filtros de Romaneio */}
-      <div className="space-y-3 bg-slate-50 p-3 rounded border border-slate-200">
+      <div className="space-y-3 bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Data */}
           <div>
-            <label className="text-xs font-semibold text-slate-700">Data</label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Data</label>
             <input
               type="date"
               value={filterDate}
               onChange={e => setFilterDate(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
 
           {/* Entregador */}
           <div>
-            <label className="text-xs font-semibold text-slate-700">Entregador</label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Entregador</label>
             <select
               value={filterEntregador}
               onChange={e => setFilterEntregador(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <option value="">Todos</option>
               <option value="RETIRADA">🏪 RETIRADA</option>
@@ -269,7 +273,7 @@ export default function ConciliacaoTab({
 
         {/* Turnos */}
         <div className="flex gap-2 items-center">
-          <span className="text-xs font-semibold text-slate-700">Turnos:</span>
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Turnos:</span>
           <label className="flex items-center gap-1 text-sm">
             <input
               type="checkbox"
@@ -301,7 +305,7 @@ export default function ConciliacaoTab({
 
         {/* Empresas */}
         <div className="flex gap-2 items-center">
-          <span className="text-xs font-semibold text-slate-700">Empresas:</span>
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Empresas:</span>
           <label className="flex items-center gap-1 text-sm">
             <input
               type="checkbox"

@@ -43,6 +43,8 @@ export function useRomaneioPedidos() {
       empresaCantina = true,
     } = params
 
+    console.log('[useRomaneioPedidos] Carregando com:', { date, entregador, turnoManha, turnoTarde, turnoNoite })
+
     const nenhum = !turnoManha && !turnoTarde && !turnoNoite
     const buildOr = () => {
       if (nenhum) return undefined
@@ -117,7 +119,9 @@ export function useRomaneioPedidos() {
       entregador: p.entregador,
     }))
 
-    setItems([...lumar, ...cant])
+    const totais = [...lumar, ...cant]
+    console.log('[useRomaneioPedidos] Retornou', totais.length, 'items:', totais.map(i => `${i.uid}(${i.entregador})`))
+    setItems(totais)
     setLoading(false)
   }, [])
 
