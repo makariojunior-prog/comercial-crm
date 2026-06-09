@@ -32,6 +32,10 @@ export interface FrotaCusto {
   recorrente: boolean
   tipo_recorrencia: 'mensal' | 'trimestral' | 'semestral' | 'anual' | null
   proxima_data_recorrencia: string | null
+  data_inicio_recorrencia: string | null
+  data_fim_recorrencia: string | null
+  recorrencia_indefinida: boolean
+  custo_recorrente_id: string | null
   ativo: boolean
   created_at: string
   updated_at: string
@@ -162,6 +166,8 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
     observacoes: custo?.observacoes ?? '',
     recorrente:  custo?.recorrente ?? false,
     tipo_recorrencia: (custo?.tipo_recorrencia ?? 'mensal') as 'mensal' | 'trimestral' | 'semestral' | 'anual',
+    recorrencia_indefinida: custo?.recorrencia_indefinida ?? true,
+    data_fim_recorrencia: custo?.data_fim_recorrencia ?? '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -201,15 +207,25 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
       observacoes: form.observacoes || null,
       recorrente:  form.recorrente,
       tipo_recorrencia: form.recorrente ? form.tipo_recorrencia : null,
+      data_inicio_recorrencia: form.recorrente ? form.data_gasto : null,
+      data_fim_recorrencia: form.recorrente && !form.recorrencia_indefinida ? form.data_fim_recorrencia : null,
+      recorrencia_indefinida: form.recorrente ? form.recorrencia_indefinida : false,
       proxima_data_recorrencia: form.recorrente ? calcProximaRecorrencia() : null,
       ativo:       true,
       updated_at:  new Date().toISOString(),
     }
 
+    let custoId = custo?.id
     if (isEdit) {
       await supabase.from('frota_custos').update(payload).eq('id', custo!.id)
     } else {
-      await supabase.from('frota_custos').insert(payload)
+      const { data } = await supabase.from('frota_custos').insert(payload).select('id').single()
+      custoId = data?.id
+
+      // Se é recorrente, gerar lançamentos futuros
+      if (form.recorrente && custoId) {
+        await gerarLancamentosRecorrentes(custoId, payload)
+      }
     }
 
     // Auto-update vehicle km_atual if odometer provided
@@ -225,6 +241,34 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
     setSaving(false)
     onSaved()
     onClose()
+  }
+
+  async function gerarLancamentosRecorrentes(custoOriginalId: string, custoData: any) {
+    const intervalos: Record<string, number> = {
+      mensal: 30, trimestral: 90, semestral: 180, anual: 365
+    }
+    const diasIntervalo = intervalos[form.tipo_recorrencia] || 30
+
+    let dataAtual = new Date(form.data_gasto)
+    const dataFim = form.recorrencia_indefinida ? new Date('2030-12-31') : new Date(form.data_fim_recorrencia)
+    const novosCustos = []
+
+    // Gerar lançamentos para os próximos 24 meses (ou até data_fim)
+    while (dataAtual <= dataFim && novosCustos.length < 24) {
+      dataAtual = new Date(dataAtual.getTime() + diasIntervalo * 86400000)
+      if (dataAtual <= dataFim) {
+        novosCustos.push({
+          ...custoData,
+          data_gasto: format(dataAtual, 'yyyy-MM-dd'),
+          custo_recorrente_id: custoOriginalId,
+          id: undefined
+        })
+      }
+    }
+
+    if (novosCustos.length > 0) {
+      await supabase.from('frota_custos').insert(novosCustos)
+    }
   }
 
   const isCombustivel = form.categoria === 'combustivel'
@@ -332,15 +376,45 @@ function CustoModal({ custo, vehicles, drivers, onClose, onSaved }: CustoModalPr
             </label>
 
             {form.recorrente && (
-              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
-                <label className="label">Frequência de Recorrência *</label>
-                <select className="input" value={form.tipo_recorrencia}
-                  onChange={e => set('tipo_recorrencia', e.target.value as any)}>
-                  <option value="mensal">📅 Mensal (30 dias)</option>
-                  <option value="trimestral">📅 Trimestral (90 dias)</option>
-                  <option value="semestral">📅 Semestral (180 dias)</option>
-                  <option value="anual">📅 Anual (365 dias)</option>
-                </select>
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 space-y-3">
+                <div>
+                  <label className="label">Frequência de Recorrência *</label>
+                  <select className="input" value={form.tipo_recorrencia}
+                    onChange={e => set('tipo_recorrencia', e.target.value as any)}>
+                    <option value="mensal">📅 Mensal (30 dias)</option>
+                    <option value="trimestral">📅 Trimestral (90 dias)</option>
+                    <option value="semestral">📅 Semestral (180 dias)</option>
+                    <option value="anual">📅 Anual (365 dias)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="duracao"
+                      checked={form.recorrencia_indefinida}
+                      onChange={() => set('recorrencia_indefinida', true)}
+                      className="w-4 h-4" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Indefinidamente</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer mt-2">
+                    <input type="radio" name="duracao"
+                      checked={!form.recorrencia_indefinida}
+                      onChange={() => set('recorrencia_indefinida', false)}
+                      className="w-4 h-4" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Até uma data específica</span>
+                  </label>
+                </div>
+
+                {!form.recorrencia_indefinida && (
+                  <div>
+                    <label className="label">Data de término *</label>
+                    <input type="date" className="input"
+                      value={form.data_fim_recorrencia}
+                      onChange={e => set('data_fim_recorrencia', e.target.value)}
+                      min={form.data_gasto} />
+                  </div>
+                )}
+
                 {calcProximaRecorrencia() && (
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                     Próximo lançamento previsto: <strong>{format(parseISO(calcProximaRecorrencia()!), 'dd/MM/yyyy')}</strong>
@@ -762,6 +836,23 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
     setCustos(p => p.filter(c => c.id !== id))
   }
 
+  async function cancelarRecorrencia(custoRecorrenteId: string, dataAPartir: string) {
+    await supabase
+      .from('frota_custos')
+      .delete()
+      .eq('custo_recorrente_id', custoRecorrenteId)
+      .gte('data_gasto', dataAPartir)
+
+    const { error } = await supabase
+      .from('frota_custos')
+      .update({ recorrencia_indefinida: false, data_fim_recorrencia: format(subDays(parseISO(dataAPartir), 1), 'yyyy-MM-dd') })
+      .eq('id', custoRecorrenteId)
+
+    if (!error) {
+      await loadData()
+    }
+  }
+
   async function deleteMan(id: string) {
     if (!confirm('Excluir esta manutenção programada?')) return
     await supabase.from('frota_manutencoes').delete().eq('id', id)
@@ -1025,6 +1116,18 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
                             <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 shrink-0">{brl(c.valor)}</span>
                             <div className="flex gap-1 shrink-0">
                               <button onClick={() => setEditCusto(c)} className="btn-ghost p-1.5 text-slate-400"><Pencil size={12} /></button>
+                              {c.recorrente && c.custo_recorrente_id && (
+                                <button
+                                  onClick={() => {
+                                    if (confirm('Cancelar a recorrência a partir deste mês?\nIsso vai excluir todos os lançamentos futuros.')) {
+                                      cancelarRecorrencia(c.custo_recorrente_id!, c.data_gasto)
+                                    }
+                                  }}
+                                  className="btn-ghost p-1.5 text-orange-400"
+                                  title="Cancelar recorrência a partir deste mês">
+                                  <X size={12} />
+                                </button>
+                              )}
                               <button onClick={() => deleteCusto(c.id)} className="btn-ghost p-1.5 text-red-400"><Trash2 size={12} /></button>
                             </div>
                           </div>
