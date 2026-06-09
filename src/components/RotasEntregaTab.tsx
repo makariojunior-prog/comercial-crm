@@ -226,11 +226,11 @@ export default function RotasEntregaTab() {
 
           const data = {
             setor,
-            cidade: String(row[cidade_col] || '').trim() || null,
-            regiao: String(row[regiao_col] || '').trim() || null,
+            cidade: cidade_col ? (String(row[cidade_col] || '').trim() || null) : null,
+            regiao: regiao_col ? (String(row[regiao_col] || '').trim() || null) : null,
             distancia_km: dist_col && row[dist_col] ? Number(String(row[dist_col]).replace(',', '.')) : null,
-            rota: rota_col ? String(row[rota_col] || '').trim() || null : null,
-            route_id: route_id_col ? String(row[route_id_col] || '').trim() || null : null,
+            rota: rota_col ? (String(row[rota_col] || '').trim() || null) : null,
+            route_id: route_id_col ? (String(row[route_id_col] || '').trim() || null) : null,
           }
 
           // Try to update existing or insert new
