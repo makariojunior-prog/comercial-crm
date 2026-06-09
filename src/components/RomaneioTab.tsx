@@ -3,7 +3,7 @@ import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, Calendar, Printer,
-  RefreshCw, Share2, AlertCircle, Truck, Check, AlertTriangle,
+  RefreshCw, Share2, AlertCircle, Truck, Check, AlertTriangle, X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -70,6 +70,10 @@ export default function RomaneioTab() {
 
   // Filtro "apenas com ocorrência"
   const [filtroOcorrencia, setFiltroOcorrencia] = useState(false)
+
+  // Edição de pedido
+  const [editingPedidoUid, setEditingPedidoUid] = useState<string | null>(null)
+  const [editingPedidoData, setEditingPedidoData] = useState<any>(null)
 
   useEffect(() => {
     supabase.from('crm_drivers').select('id, nome').eq('ativo', true).order('nome')
@@ -250,6 +254,33 @@ export default function RomaneioTab() {
       await supabase.from('varejo_pedidos').update({ ocorrencia: value || null }).eq('id', id)
     }
     setItems(prev => prev.map(i => i.uid === uid ? { ...i, ocorrencia_db: value } : i))
+  }
+
+  // ── Abrir modal de edição do pedido ──────────────────────────────
+
+  async function openEditarPedido(uid: string) {
+    const id = parseInt(uid.slice(1))
+    if (uid.startsWith('L')) {
+      const { data } = await supabase
+        .from('atacado_pedidos')
+        .select('*')
+        .eq('id', id)
+        .single()
+      if (data) {
+        setEditingPedidoUid(uid)
+        setEditingPedidoData(data)
+      }
+    } else {
+      const { data } = await supabase
+        .from('varejo_pedidos')
+        .select('*')
+        .eq('id', id)
+        .single()
+      if (data) {
+        setEditingPedidoUid(uid)
+        setEditingPedidoData(data)
+      }
+    }
   }
 
   // Carrega automaticamente sempre que os filtros mudarem
@@ -661,7 +692,7 @@ export default function RomaneioTab() {
                           const temOcorrencia = (ocorrMap[item.uid] ?? item.ocorrencia_db).trim()
 
                           return (
-                            <tr key={item.uid} className={`${rowPrint} ${rowBg} transition-colors`}>
+                            <tr key={item.uid} onClick={() => openEditarPedido(item.uid)} className={`${rowPrint} ${rowBg} transition-colors cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20`}>
                               <td className="px-1 py-1 border-b border-l border-slate-200 dark:border-slate-700 text-center">
                                 <input
                                   type="number"
@@ -755,7 +786,132 @@ export default function RomaneioTab() {
           </div>
         )}
       </div>
+
+      {/* Modal de edição de pedido */}
+      {editingPedidoUid && editingPedidoData && (
+        <RomaneioEditModal
+          uid={editingPedidoUid}
+          pedidoData={editingPedidoData}
+          onClose={() => {
+            setEditingPedidoUid(null)
+            setEditingPedidoData(null)
+          }}
+          onSaved={() => {
+            load()
+            setEditingPedidoUid(null)
+            setEditingPedidoData(null)
+          }}
+        />
+      )}
     </>
+  )
+}
+
+// ─── Modal de edição do romaneio ────────────────────────────────────
+
+function RomaneioEditModal({ uid, pedidoData, onClose, onSaved }: {
+  uid: string
+  pedidoData: any
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isAtacado = uid.startsWith('L')
+  const [turno, setTurno] = useState(pedidoData.turno ?? '')
+  const [entregador, setEntregador] = useState(pedidoData.entregador ?? '')
+  const [veiculo, setVeiculo] = useState(pedidoData.veiculo ?? '')
+  const [observacoes, setObservacoes] = useState(pedidoData.observacoes ?? '')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    const id = parseInt(uid.slice(1))
+    const table = isAtacado ? 'atacado_pedidos' : 'varejo_pedidos'
+    const patch = {
+      turno: turno || null,
+      entregador: entregador || null,
+      veiculo: veiculo || null,
+      observacoes: observacoes || null,
+    }
+    try {
+      await supabase.from(table).update(patch).eq('id', id)
+      onSaved()
+    } catch (err) {
+      console.error('Erro ao salvar:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40">
+      <div className="bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-sm max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
+          <div>
+            <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Editar Pedido</h2>
+            <p className="text-[11px] text-slate-400 mt-0.5">{isAtacado ? 'LUMAR' : 'CANTINA'} #{pedidoData.numero_pedido || pedidoData.num_pedido || uid.slice(1)}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2.5">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-100">
+              {pedidoData.cliente_nome || pedidoData.cliente || '—'}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Valor: {(pedidoData.valor || pedidoData.valor_liquido || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Turno</label>
+            <select value={turno} onChange={e => setTurno(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400">
+              <option value="">— sem turno —</option>
+              <option value="MANHÃ">MANHÃ</option>
+              <option value="TARDE">TARDE</option>
+              <option value="NOITE">NOITE</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Entregador</label>
+            <input type="text" placeholder="Ex: João, RETIRADA, ..."
+              value={entregador} onChange={e => setEntregador(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Veículo</label>
+            <input type="text" placeholder="Ex: Van Branca, Carro 01, ..."
+              value={veiculo} onChange={e => setVeiculo(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Observações</label>
+            <textarea placeholder="Notas específicas para este pedido..."
+              value={observacoes} onChange={e => setObservacoes(e.target.value)}
+              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-none min-h-[80px]"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 px-5 py-4 border-t border-slate-100 dark:border-slate-700 shrink-0">
+          <button onClick={onClose} className="flex-1 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+            Cancelar
+          </button>
+          <button onClick={save} disabled={saving}
+            className="flex-1 py-2 text-sm bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors">
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
