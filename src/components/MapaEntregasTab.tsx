@@ -61,7 +61,7 @@ export default function MapaEntregasTab() {
   const [turnoFilter, setTurnoFilter] = useState<string[]>(['MANHÃ', 'TARDE', 'NOITE'])
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>(['⚠️', '🛵'])
   const [showEntregues, setShowEntregues] = useState(false)
-  const [darkMode, setDarkMode] = useState(false)
+  const [mapDarkMode, setMapDarkMode] = useState(true)
   const [geocodeAttempted, setGeocodeAttempted] = useState(false)
 
   const loadPedidos = useCallback(async () => {
@@ -103,6 +103,8 @@ export default function MapaEntregasTab() {
       const filaTyped = (dataFila || []) as VarejoPedido[]
 
       console.log(`📦 Carregados ${typed.length} pedidos para ${start} | 🚫 ${filaTyped.length} em fila`)
+      if (typed.length > 0) console.log('📋 Pedidos com data:', typed.map(p => ({ id: p.id, cliente: p.cliente, status: p.status_icon })))
+      if (filaTyped.length > 0) console.log('⏰ Pedidos em fila:', filaTyped.map(p => ({ id: p.id, cliente: p.cliente, status: p.status_icon })))
 
       setPedidos(typed)
       setFilaPedidos(filaTyped)
@@ -136,12 +138,14 @@ export default function MapaEntregasTab() {
 
   const filteredPedidos = useMemo(() => {
     const source = viewMode === 'fila' ? filaPedidos : pedidos
-    return source.filter((p) => {
+    const filtered = source.filter((p) => {
       if (turnoFilter.length > 0 && !turnoFilter.includes(p.turno || '')) return false
       if (!showEntregues && p.status_icon === '✅') return false
       if (statusFilter.length > 0 && !statusFilter.includes(p.status_icon as StatusFilter)) return false
       return true
     })
+    console.log(`🔍 Filtrados: ${filtered.length}/${source.length} | Turnos: ${turnoFilter} | Status: ${statusFilter} | Mostrar entregues: ${showEntregues}`)
+    return filtered
   }, [pedidos, filaPedidos, viewMode, turnoFilter, statusFilter, showEntregues])
 
   const mapCenter: [number, number] = useMemo(() => {
@@ -171,34 +175,11 @@ export default function MapaEntregasTab() {
   }
 
   return (
-    <div className={`flex h-[calc(100vh-200px)] gap-4 w-full transition-colors ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
+    <div className="flex h-[calc(100vh-200px)] gap-4 w-full">
       {/* Left Panel: Filters + List */}
-      <div className={`w-1/2 flex flex-col gap-3 overflow-hidden border-r ${darkMode ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}>
-        {/* Theme Toggle + View Mode */}
-        <div className={`flex items-center justify-between px-3 pt-2 pb-1 rounded-lg border ${
-          darkMode
-            ? 'bg-slate-800 border-slate-700'
-            : 'bg-gradient-to-r from-blue-50 to-slate-50 border-blue-100'
-        }`}>
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className={`px-2 py-1 rounded text-sm font-medium transition ${
-              darkMode
-                ? 'bg-slate-700 text-yellow-300'
-                : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-            }`}
-            title="Toggle tema"
-          >
-            {darkMode ? '☀️' : '🌙'}
-          </button>
-        </div>
-
+      <div className="w-1/2 flex flex-col gap-3 overflow-hidden border-r border-slate-200">
         {/* View Mode Selector */}
-        <div className={`px-3 pb-2 rounded-lg border ${
-          darkMode
-            ? 'bg-slate-800 border-slate-700'
-            : 'bg-gradient-to-r from-blue-50 to-slate-50 border-blue-100'
-        }`}>
+        <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-3 pt-3 pb-2 rounded-lg border border-blue-100">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-700">Visualizar:</span>
             <div className="flex gap-1.5">
@@ -229,13 +210,9 @@ export default function MapaEntregasTab() {
         </div>
 
         {/* Filter Bar */}
-        <div className={`p-3 border-b rounded-lg space-y-2 ${
-          darkMode
-            ? 'bg-slate-800 border-slate-700'
-            : 'bg-white border-slate-200'
-        }`}>
+        <div className="bg-white p-3 border-b border-slate-200 rounded-lg space-y-2">
           <div className="flex gap-2 items-center justify-between">
-            <span className={`text-sm font-semibold ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Turnos</span>
+            <span className="text-sm font-semibold text-slate-700">Turnos</span>
             <div className="flex gap-1.5">
               {['MANHÃ', 'TARDE', 'NOITE'].map((turno) => (
                 <button
@@ -255,7 +232,7 @@ export default function MapaEntregasTab() {
           </div>
 
           <div className="flex gap-2 items-center justify-between">
-            <span className={`text-sm font-semibold ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Status</span>
+            <span className="text-sm font-semibold text-slate-700">Status</span>
             <div className="flex gap-1.5">
               {(['⚠️', '🛵'] as StatusFilter[]).map((status) => (
                 <button
@@ -412,9 +389,18 @@ export default function MapaEntregasTab() {
       </div>
 
       {/* Right Panel: Map */}
-      <div className="w-1/2 rounded-lg overflow-hidden border border-slate-200">
+      <div className="w-1/2 rounded-lg overflow-hidden border border-slate-200 flex flex-col relative">
+        {/* Map Theme Toggle */}
+        <button
+          onClick={() => setMapDarkMode(!mapDarkMode)}
+          className="absolute top-3 right-3 z-[1000] bg-white hover:bg-slate-100 text-slate-700 px-3 py-2 rounded shadow-lg transition text-sm font-medium"
+          title="Alternar tema do mapa"
+        >
+          {mapDarkMode ? '☀️' : '🌙'}
+        </button>
+
         {filteredPedidos.filter((p) => p.lat && p.lng).length === 0 ? (
-          <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-500">
+          <div className="flex-1 flex items-center justify-center bg-slate-50 text-slate-500">
             <div className="text-center">
               <MapPin size={48} className="mx-auto mb-2 opacity-30" />
               <p>Nenhum pedido com localização</p>
@@ -424,11 +410,11 @@ export default function MapaEntregasTab() {
           <MapContainer
             center={mapCenter}
             zoom={14}
-            className="w-full h-full"
-            key={`${format(selectedDate, 'yyyy-MM-dd')}-${viewMode}-${darkMode}`}
+            className="flex-1"
+            key={`${format(selectedDate, 'yyyy-MM-dd')}-${viewMode}-${mapDarkMode}`}
           >
             <TileLayer
-              url={darkMode
+              url={mapDarkMode
                 ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 : "https://{s}.basemaps.cartocdn.com/positron/{z}/{x}/{y}{r}.png"
               }
