@@ -146,7 +146,6 @@ export default function MapaEntregasTab() {
     const source = viewMode === 'fila' ? filaPedidos : pedidos
     const filtered = source.filter((p) => {
       if (turnoFilter.length > 0 && !turnoFilter.includes(p.turno || '')) return false
-      if (!showEntregues && p.status_icon === '✅') return false
       if (statusFilter.length > 0 && !statusFilter.includes(p.status_icon as StatusFilter)) return false
       return true
     })
