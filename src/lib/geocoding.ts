@@ -56,15 +56,26 @@ async function geocodeViaNominatim(
       },
     })
 
-    if (!response.ok) return null
+    if (!response.ok) {
+      console.warn(`CORS Proxy response not OK for "${address}": ${response.status} ${response.statusText}`)
+      return null
+    }
 
-    const results = (await response.json()) as any[]
+    const data = await response.json()
+    console.log(`📍 CORS Proxy response for "${address}":`, data)
+
+    // Check if corsproxy wrapped the response
+    const results = Array.isArray(data) ? data : data.contents ? JSON.parse(data.contents) : null
+
     if (Array.isArray(results) && results.length > 0) {
       const { lat, lon } = results[0]
+      console.log(`✅ Geocoded successfully: ${address} → ${lat}, ${lon}`)
       return { lat: parseFloat(lat), lng: parseFloat(lon) }
     }
+
+    console.warn(`❌ No results from proxy for "${address}":`, results)
   } catch (error) {
-    console.warn(`Geocoding failed for "${address}"`, error)
+    console.warn(`Geocoding exception for "${address}":`, error)
   }
 
   return null
