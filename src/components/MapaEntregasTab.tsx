@@ -354,8 +354,8 @@ export default function MapaEntregasTab() {
             key={`${format(selectedDate, 'yyyy-MM-dd')}`}
           >
             <TileLayer
-              url="https://tile.openfreemap.org/standard/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               maxZoom={19}
             />
             <MarkerClusterGroup chunkedLoading>

@@ -1,84 +1,52 @@
 import { supabase } from './supabase'
 import type { VarejoPedido } from '../types'
 
-const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search'
-const RATE_LIMIT_MS = 1100 // 1 req/sec (rate limit: nominatim allows 1 req/sec)
+const RATE_LIMIT_MS = 1100
 
 interface GeocodingResult {
   lat: number
   lng: number
 }
 
-/**
- * Geocodifica um endereço via Nominatim com CORS proxy.
- * Evita bloqueio de CORS no GitHub Pages.
- * Rate limit: 1 request/segundo (respeitado pelo chamador).
- */
 export async function geocodeAddress(
   address: string,
   bairro: string | null,
   cidade?: string
 ): Promise<GeocodingResult | null> {
   if (!address || !address.trim()) return null
-  return geocodeViaNominatim(address, bairro, cidade)
+  return geocodeViaEdgeFunction(address, bairro, cidade)
 }
 
 /**
- * Chamada ao Nominatim via CORS proxy público.
- * Evita bloqueio CORS no GitHub Pages.
- * Rate limit: 1 request/segundo respeitado pelo chamador.
+ * Chamada à Edge Function do Supabase para geocodificação.
+ * Evita CORS issues e rate limits via servidor confiável.
  */
-async function geocodeViaNominatim(
+async function geocodeViaEdgeFunction(
   address: string,
   bairro: string | null,
   cidade?: string
 ): Promise<GeocodingResult | null> {
   try {
-    // Build query: address + bairro (cidade is often already in endereco_completo)
-    const parts = [address, bairro]
-    if (cidade) parts.push(cidade)
-    const query = parts.filter(Boolean).join(', ').trim()
-
-    const nominatimUrl = `${NOMINATIM_BASE}?${new URLSearchParams({
-      q: query,
-      format: 'json',
-      countrycodes: 'br',
-      limit: '1',
-    }).toString()}`
-
-    // Use public CORS proxy to avoid GitHub Pages CORS blocking
-    // Note: corsproxy.io works for browser requests (blocked for Node.js/server requests)
-    const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(nominatimUrl)}`
-
-    const response = await fetch(corsProxyUrl, {
-      headers: {
-        'User-Agent': 'comercial-crm-logistica',
-      },
+    const { data, error } = await supabase.functions.invoke('geocode', {
+      body: { address, bairro, cidade },
     })
 
-    if (!response.ok) {
-      console.warn(`CORS Proxy response not OK for "${address}": ${response.status} ${response.statusText}`)
+    if (error) {
+      console.warn(`⚠️ Edge Function error for "${address}":`, error)
       return null
     }
 
-    const data = await response.json()
-    console.log(`📍 CORS Proxy response for "${address}":`, data)
-
-    // Check if corsproxy wrapped the response
-    const results = Array.isArray(data) ? data : data.contents ? JSON.parse(data.contents) : null
-
-    if (Array.isArray(results) && results.length > 0) {
-      const { lat, lon } = results[0]
-      console.log(`✅ Geocoded successfully: ${address} → ${lat}, ${lon}`)
-      return { lat: parseFloat(lat), lng: parseFloat(lon) }
+    if (data?.lat && data?.lng) {
+      console.log(`✅ Geocoded: ${address} → ${data.lat}, ${data.lng}`)
+      return { lat: data.lat, lng: data.lng }
     }
 
-    console.warn(`❌ No results from proxy for "${address}":`, results)
+    console.warn(`❌ No results for "${address}"`)
+    return null
   } catch (error) {
-    console.warn(`Geocoding exception for "${address}":`, error)
+    console.warn(`Geocoding error for "${address}":`, error instanceof Error ? error.message : error)
+    return null
   }
-
-  return null
 }
 
 /**
