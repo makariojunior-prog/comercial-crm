@@ -141,8 +141,14 @@ export default function MapaEntregasTab() {
       setFilaPedidos(filaTyped)
 
       if (!geocodeAttempted) {
-        const toGeocode = [...typed, ...filaTyped]
-          .filter((p) => (!p.lat || !p.lng) && !p.geocode_failed_at)
+        // Retry de falhas: tenta novamente pedidos que falharam há mais de 6h
+        // (falhas antigas eram causadas pelo bug da cidade padrão "São Paulo")
+        const RETRY_FAILED_AFTER_MS = 6 * 60 * 60 * 1000
+        const toGeocode = [...typed, ...filaTyped].filter((p) => {
+          if (p.lat && p.lng) return false
+          if (!p.geocode_failed_at) return true
+          return Date.now() - new Date(p.geocode_failed_at).getTime() > RETRY_FAILED_AFTER_MS
+        })
 
         if (toGeocode.length > 0) {
           console.log(`🌍 Geocodificando ${toGeocode.length} pedidos sem falha anterior...`)

@@ -37,7 +37,11 @@ async function geocodeViaEdgeFunction(
     }
 
     if (data?.lat && data?.lng) {
-      console.log(`✅ Geocoded: ${address} → ${data.lat}, ${data.lng}`)
+      // precision: 'endereco' | 'rua' | 'bairro' (bairro = centróide aproximado)
+      console.log(
+        `✅ Geocoded: ${address} → ${data.lat}, ${data.lng}` +
+          (data.precision ? ` [${data.precision}: "${data.query}"]` : '')
+      )
       return { lat: data.lat, lng: data.lng }
     }
 
