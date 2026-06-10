@@ -57,18 +57,22 @@ function createCantinasIcon() {
     className: 'cantina-marker',
     html: `<div style="
       background: #8b5cf6;
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       border: 3px solid white;
       box-shadow: 0 2px 8px rgba(0,0,0,0.4);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
-    ">🏠</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+    ">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 13h2v8H3zm4-8h2v16H7zm4-2h2v18h-2zm4 4h2v14h-2zm4-4h2v18h-2z"/>
+        <path d="M12 2L2 8v3h1v10h4v-5h6v5h4V11h1V8l-10-6z"/>
+      </svg>
+    </div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
   })
 }
 
@@ -97,7 +101,7 @@ export default function MapaEntregasTab() {
       let queryData = supabase
         .from('varejo_pedidos')
         .select(campos)
-        .eq('empresa', 'CANTINA')
+        .or(`empresa.eq.CANTINA,empresa.is.null`)
         .gte('data_entrega', start)
         .lte('data_entrega', end)
         .neq('status_icon', '❌')
@@ -107,7 +111,7 @@ export default function MapaEntregasTab() {
       let queryFila = supabase
         .from('varejo_pedidos')
         .select(campos)
-        .eq('empresa', 'CANTINA')
+        .or(`empresa.eq.CANTINA,empresa.is.null`)
         .is('data_entrega', null)
         .neq('status_icon', '❌')
         .not('endereco_completo', 'is', null)
