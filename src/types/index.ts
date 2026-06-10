@@ -691,7 +691,7 @@ export interface TipoOcorrencia {
 }
 
 export interface ConciliacaoMetodoPagamento {
-  tipo: 'Pix' | 'Dinheiro' | 'Cartão' | 'Boleto'
+  tipo: 'Pix' | 'Dinheiro' | 'Cartão' | 'Boleto' | 'Bonificação'
   valor: number
 }
 

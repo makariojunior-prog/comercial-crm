@@ -1030,7 +1030,7 @@ function ContatoRow({ cliente: c, feito, onToggle, cobrancaAberto }: {
   )
 }
 
-const PGTO_OPTIONS = ['BOLETO', 'C. CRÉDITO', 'C. DÉBITO', 'DINHEIRO', 'LINK', 'PIX - CANTINA', 'PIX - LUCIANO', 'PRAZO 14 DIAS']
+const PGTO_OPTIONS = ['BOLETO', 'BONIFICAÇÃO', 'C. CRÉDITO', 'C. DÉBITO', 'DINHEIRO', 'LINK', 'PIX - CANTINA', 'PIX - LUCIANO', 'PRAZO 14 DIAS']
 
 // ─── Edit Pedido Modal ────────────────────────────────────────
 export function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {

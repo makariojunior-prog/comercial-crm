@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import type { RomaneioItem } from '../hooks/useRomaneioPedidos'
 import type { RomaneioConciliacao, TipoOcorrencia, ConciliacaoMetodoPagamento } from '../types'
 
-const METODOS = ['Pix', 'Dinheiro', 'Cartão', 'Boleto'] as const
+const METODOS = ['Pix', 'Dinheiro', 'Cartão', 'Boleto', 'Bonificação'] as const
 type MetodoTipo = typeof METODOS[number]
 
 interface Props {
@@ -28,6 +28,7 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
     Dinheiro: { checked: false, valor: 0 },
     Cartão: { checked: false, valor: 0 },
     Boleto: { checked: false, valor: 0 },
+    Bonificação: { checked: false, valor: 0 },
   })
   const [tipoOcorrenciaId, setTipoOcorrenciaId] = useState<string>('')
   const [observacoes, setObservacoes] = useState('')
@@ -80,7 +81,12 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
   const handleMetodoChange = (tipo: MetodoTipo, checked: boolean) => {
     setMetodos(prev => ({
       ...prev,
-      [tipo]: { ...prev[tipo], checked },
+      [tipo]: {
+        ...prev[tipo],
+        checked,
+        // Bonificação não exige pagamento: preenche com o valor do pedido para zerar a divergência
+        valor: tipo === 'Bonificação' && checked && prev[tipo].valor === 0 ? item.valor : prev[tipo].valor,
+      },
     }))
   }
 
