@@ -103,8 +103,14 @@ export default function MapaEntregasTab() {
       const filaTyped = (dataFila || []) as VarejoPedido[]
 
       console.log(`📦 Carregados ${typed.length} pedidos para ${start} | 🚫 ${filaTyped.length} em fila`)
-      if (typed.length > 0) console.log('📋 Pedidos com data:', typed.map(p => ({ id: p.id, cliente: p.cliente, status: p.status_icon })))
-      if (filaTyped.length > 0) console.log('⏰ Pedidos em fila:', filaTyped.map(p => ({ id: p.id, cliente: p.cliente, status: p.status_icon })))
+      if (typed.length > 0) console.log('📋 Pedidos com data:', typed.map(p => ({ num_pedido: p.num_pedido, cliente: p.cliente, status: p.status_icon, data_entrega: p.data_entrega })))
+      if (filaTyped.length > 0) console.log('⏰ Pedidos em fila:', filaTyped.map(p => ({ num_pedido: p.num_pedido, cliente: p.cliente, status: p.status_icon, data_entrega: p.data_entrega })))
+
+      const pedido10880Data = typed.find(p => p.num_pedido === '10880')
+      const pedido10880Fila = filaTyped.find(p => p.num_pedido === '10880')
+      if (pedido10880Data) console.log('🔍 #10880 encontrado em DATA:', pedido10880Data)
+      if (pedido10880Fila) console.log('🔍 #10880 encontrado em FILA:', pedido10880Fila)
+      if (!pedido10880Data && !pedido10880Fila) console.warn('❌ #10880 NÃO ENCONTRADO em nenhuma query!')
 
       setPedidos(typed)
       setFilaPedidos(filaTyped)
