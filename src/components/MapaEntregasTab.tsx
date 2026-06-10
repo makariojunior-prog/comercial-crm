@@ -1,17 +1,18 @@
 import 'leaflet/dist/leaflet.css'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { MapPin, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Calendar, Clock, Home } from 'lucide-react'
+import { ExternalLink, AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Calendar, Clock } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 
-const GOIANIA_CENTER: [number, number] = [-15.7939, -48.0865]
-const CANTINA_LOCATION: [number, number] = [-15.8214, -48.0623]
+// Cantina — Rua 11, 91, Jardim Santo Antônio (centróide do bairro via OSM; pedidos clusterizam em ~-16.72/-49.27)
+// As coordenadas antigas (-15.82/-48.06) apontavam para a região do Gama-DF, ~170 km dos pedidos — por isso o ícone nunca aparecia
+const CANTINA_LOCATION: [number, number] = [-16.7323, -49.2535]
 const CANTINA_ADDRESS = 'Rua 11, 91 - Jardim Santo Antonio, Goiânia - GO, 74853-240'
 import { supabase } from '../lib/supabase'
 import { geocodePendingPedidos } from '../lib/geocoding'
 import type { VarejoPedido } from '../types'
-import { format, addDays, startOfDay, endOfDay } from 'date-fns'
+import { format, addDays } from 'date-fns'
 import { pt as ptBR } from 'date-fns/locale'
 
 L.Icon.Default.mergeOptions({
@@ -93,63 +94,48 @@ export default function MapaEntregasTab() {
   const loadPedidos = useCallback(async () => {
     setLoading(true)
     try {
-      const start = startOfDay(selectedDate).toISOString().split('T')[0]
-      const end = endOfDay(selectedDate).toISOString().split('T')[0]
+      // data_entrega é coluna DATE — formatar no fuso local.
+      // (toISOString() converte para UTC: endOfDay local virava o dia SEGUINTE, dobrando o período da query)
+      const dia = format(selectedDate, 'yyyy-MM-dd')
 
-      const campos = 'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete, order_type, geocode_failed_at'
+      const campos = 'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, origem, data_entrega, telefone, frete, order_type, geocode_failed_at'
 
-      // Query separadas: uma com empresa = CANTINA, outra com empresa = NULL
-      let queryCantina = supabase
+      // Regra: entregas = origem CARDAPIO WEB + order_type delivery
+      // DATA: data_entrega = dia selecionado | FILA: data_entrega ainda não definida
+      const queryData = supabase
         .from('varejo_pedidos')
         .select(campos)
-        .eq('empresa', 'CANTINA')
-        .gte('data_entrega', start)
-        .lte('data_entrega', end)
+        .eq('origem', 'CARDAPIO WEB')
+        .eq('order_type', 'delivery')
+        .eq('data_entrega', dia)
         .neq('status_icon', '❌')
         .not('endereco_completo', 'is', null)
         .order('data_entrega', { ascending: true })
 
-      let queryNull = supabase
+      const queryFila = supabase
         .from('varejo_pedidos')
         .select(campos)
-        .is('empresa', null)
-        .gte('data_entrega', start)
-        .lte('data_entrega', end)
-        .neq('status_icon', '❌')
-        .not('endereco_completo', 'is', null)
-        .order('data_entrega', { ascending: true })
-
-      let queryFila = supabase
-        .from('varejo_pedidos')
-        .select(campos)
-        .or(`empresa.eq.CANTINA,empresa.is.null`)
+        .eq('origem', 'CARDAPIO WEB')
+        .eq('order_type', 'delivery')
         .is('data_entrega', null)
         .neq('status_icon', '❌')
         .not('endereco_completo', 'is', null)
         .order('created_at', { ascending: false })
 
-      const [{ data: dataCantina, error: err1 }, { data: dataNull, error: err1b }, { data: dataFila, error: err2 }] = await Promise.all([
-        queryCantina,
-        queryNull,
+      const [{ data: dataDia, error: err1 }, { data: dataFila, error: err2 }] = await Promise.all([
+        queryData,
         queryFila,
       ])
 
-      if (err1) console.error('Cantina query error:', err1)
-      if (err1b) console.error('Null empresa query error:', err1b)
+      if (err1) console.error('Data query error:', err1)
       if (err2) console.error('Fila query error:', err2)
 
-      const typed = [...((dataCantina || []) as VarejoPedido[]), ...((dataNull || []) as VarejoPedido[])]
+      const typed = (dataDia || []) as VarejoPedido[]
       const filaTyped = (dataFila || []) as VarejoPedido[]
 
-      console.log(`📦 Carregados ${typed.length} pedidos para ${start} | 🚫 ${filaTyped.length} em fila`)
+      console.log(`📦 Carregados ${typed.length} pedidos para ${dia} | 🚫 ${filaTyped.length} em fila`)
       if (typed.length > 0) console.log('📋 Pedidos com data:', typed.map(p => ({ num_pedido: p.num_pedido, cliente: p.cliente, status: p.status_icon, data_entrega: p.data_entrega })))
       if (filaTyped.length > 0) console.log('⏰ Pedidos em fila:', filaTyped.map(p => ({ num_pedido: p.num_pedido, cliente: p.cliente, status: p.status_icon, data_entrega: p.data_entrega })))
-
-      const pedido10880Data = typed.find(p => p.num_pedido === '10880')
-      const pedido10880Fila = filaTyped.find(p => p.num_pedido === '10880')
-      if (pedido10880Data) console.log('🔍 #10880 encontrado em DATA:', pedido10880Data)
-      if (pedido10880Fila) console.log('🔍 #10880 encontrado em FILA:', pedido10880Fila)
-      if (!pedido10880Data && !pedido10880Fila) console.warn('❌ #10880 NÃO ENCONTRADO em nenhuma query!')
 
       setPedidos(typed)
       setFilaPedidos(filaTyped)
@@ -194,7 +180,7 @@ export default function MapaEntregasTab() {
 
   const mapCenter: [number, number] = useMemo(() => {
     const withCoords = filteredPedidos.filter((p) => p.lat && p.lng)
-    if (withCoords.length === 0) return GOIANIA_CENTER
+    if (withCoords.length === 0) return CANTINA_LOCATION
     const avgLat = withCoords.reduce((sum, p) => sum + (p.lat || 0), 0) / withCoords.length
     const avgLng = withCoords.reduce((sum, p) => sum + (p.lng || 0), 0) / withCoords.length
     return [avgLat, avgLng]
@@ -430,15 +416,8 @@ export default function MapaEntregasTab() {
           {mapDarkMode ? '☀️' : '🌙'}
         </button>
 
-        {filteredPedidos.filter((p) => p.lat && p.lng).length === 0 ? (
-          <div className="flex-1 flex items-center justify-center bg-slate-50 text-slate-500">
-            <div className="text-center">
-              <MapPin size={48} className="mx-auto mb-2 opacity-30" />
-              <p>Nenhum pedido com localização</p>
-            </div>
-          </div>
-        ) : (
-          <MapContainer
+        {/* Mapa sempre renderiza — pelo menos a Cantina aparece como referência */}
+        <MapContainer
             center={mapCenter}
             zoom={14}
             className="flex-1"
@@ -518,8 +497,7 @@ export default function MapaEntregasTab() {
                   </Marker>
                 )
             )}
-          </MapContainer>
-        )}
+        </MapContainer>
       </div>
     </div>
   )
