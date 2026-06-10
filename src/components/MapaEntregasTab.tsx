@@ -56,23 +56,23 @@ function createCantinasIcon() {
   return L.divIcon({
     className: 'cantina-marker',
     html: `<div style="
-      background: #8b5cf6;
-      width: 32px;
-      height: 32px;
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       border: 3px solid white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5), 0 0 0 2px #8b5cf6;
       display: flex;
       align-items: center;
       justify-content: center;
-    ">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3 13h2v8H3zm4-8h2v16H7zm4-2h2v18h-2zm4 4h2v14h-2zm4-4h2v18h-2z"/>
-        <path d="M12 2L2 8v3h1v10h4v-5h6v5h4V11h1V8l-10-6z"/>
-      </svg>
-    </div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
+      font-weight: bold;
+      color: white;
+      font-size: 20px;
+      line-height: 1;
+    ">🏠</div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -18],
   })
 }
 
@@ -98,10 +98,21 @@ export default function MapaEntregasTab() {
 
       const campos = 'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete, order_type, geocode_failed_at'
 
-      let queryData = supabase
+      // Query separadas: uma com empresa = CANTINA, outra com empresa = NULL
+      let queryCantina = supabase
         .from('varejo_pedidos')
         .select(campos)
-        .or(`empresa.eq.CANTINA,empresa.is.null`)
+        .eq('empresa', 'CANTINA')
+        .gte('data_entrega', start)
+        .lte('data_entrega', end)
+        .neq('status_icon', '❌')
+        .not('endereco_completo', 'is', null)
+        .order('data_entrega', { ascending: true })
+
+      let queryNull = supabase
+        .from('varejo_pedidos')
+        .select(campos)
+        .is('empresa', null)
         .gte('data_entrega', start)
         .lte('data_entrega', end)
         .neq('status_icon', '❌')
@@ -117,15 +128,17 @@ export default function MapaEntregasTab() {
         .not('endereco_completo', 'is', null)
         .order('created_at', { ascending: false })
 
-      const [{ data: dataWithDate, error: err1 }, { data: dataFila, error: err2 }] = await Promise.all([
-        queryData,
+      const [{ data: dataCantina, error: err1 }, { data: dataNull, error: err1b }, { data: dataFila, error: err2 }] = await Promise.all([
+        queryCantina,
+        queryNull,
         queryFila,
       ])
 
-      if (err1) console.error('Data query error:', err1)
+      if (err1) console.error('Cantina query error:', err1)
+      if (err1b) console.error('Null empresa query error:', err1b)
       if (err2) console.error('Fila query error:', err2)
 
-      const typed = (dataWithDate || []) as VarejoPedido[]
+      const typed = [...((dataCantina || []) as VarejoPedido[]), ...((dataNull || []) as VarejoPedido[])]
       const filaTyped = (dataFila || []) as VarejoPedido[]
 
       console.log(`📦 Carregados ${typed.length} pedidos para ${start} | 🚫 ${filaTyped.length} em fila`)
