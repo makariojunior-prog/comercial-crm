@@ -10,10 +10,9 @@ interface GeocodingResult {
 }
 
 /**
- * Geocodifica um endereço via Edge Function `geocode` (proxy do Nominatim).
- * Evita bloqueio de CORS no GitHub Pages. Se a função não existir/falhar,
- * faz fallback para chamada direta ao Nominatim.
- * Rate limit: 1 request/segundo (respeitado pelo chamador e pela Edge Function).
+ * Geocodifica um endereço via Nominatim com CORS proxy.
+ * Evita bloqueio de CORS no GitHub Pages.
+ * Rate limit: 1 request/segundo (respeitado pelo chamador).
  */
 export async function geocodeAddress(
   address: string,
@@ -21,55 +20,13 @@ export async function geocodeAddress(
   cidade: string = 'São Paulo'
 ): Promise<GeocodingResult | null> {
   if (!address || !address.trim()) return null
-
-  // 1) Tenta via Edge Function (server-side, sem CORS)
-  const viaProxy = await geocodeViaEdgeFunction(address, bairro, cidade)
-  if (viaProxy) return viaProxy
-
-  // 2) Fallback: Nominatim direto (funciona em dev local; pode falhar por CORS em produção)
   return geocodeViaNominatim(address, bairro, cidade)
 }
 
 /**
- * Chama a Edge Function `geocode` do Supabase (proxy server-side do Nominatim).
- */
-async function geocodeViaEdgeFunction(
-  address: string,
-  bairro: string | null,
-  cidade: string
-): Promise<GeocodingResult | null> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-  if (!supabaseUrl || !anonKey) return null
-
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/geocode`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${anonKey}`,
-        apikey: anonKey,
-      },
-      body: JSON.stringify({ address, bairro, cidade }),
-    })
-
-    // Função não deployada (404) ou erro: cai para o fallback
-    if (!response.ok) return null
-
-    const data = await response.json()
-    if (typeof data?.lat === 'number' && typeof data?.lng === 'number') {
-      return { lat: data.lat, lng: data.lng }
-    }
-  } catch (error) {
-    console.warn(`Geocoding via Edge Function falhou para "${address}"`, error)
-  }
-
-  return null
-}
-
-/**
- * Chamada direta ao Nominatim (fallback).
- * Rate limit: 1 request/segundo. O Nominatim aguenta esse throughput.
+ * Chamada ao Nominatim via CORS proxy público.
+ * Evita bloqueio CORS no GitHub Pages.
+ * Rate limit: 1 request/segundo respeitado pelo chamador.
  */
 async function geocodeViaNominatim(
   address: string,
@@ -82,19 +39,21 @@ async function geocodeViaNominatim(
       .join(', ')
       .trim()
 
-    const response = await fetch(
-      `${NOMINATIM_BASE}?${new URLSearchParams({
-        q: query,
-        format: 'json',
-        countrycodes: 'br',
-        limit: '1',
-      })}`,
-      {
-        headers: {
-          'User-Agent': 'comercial-crm-logistica', // Required by Nominatim
-        },
-      }
-    )
+    const nominatimUrl = `${NOMINATIM_BASE}?${new URLSearchParams({
+      q: query,
+      format: 'json',
+      countrycodes: 'br',
+      limit: '1',
+    }).toString()}`
+
+    // Use public CORS proxy to avoid GitHub Pages CORS blocking
+    const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(nominatimUrl)}`
+
+    const response = await fetch(corsProxyUrl, {
+      headers: {
+        'User-Agent': 'comercial-crm-logistica',
+      },
+    })
 
     if (!response.ok) return null
 
