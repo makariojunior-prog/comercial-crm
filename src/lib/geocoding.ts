@@ -47,6 +47,7 @@ async function geocodeViaNominatim(
     }).toString()}`
 
     // Use public CORS proxy to avoid GitHub Pages CORS blocking
+    // Note: corsproxy.io works for browser requests (blocked for Node.js/server requests)
     const corsProxyUrl = `https://corsproxy.io/?${encodeURIComponent(nominatimUrl)}`
 
     const response = await fetch(corsProxyUrl, {
