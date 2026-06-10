@@ -1,11 +1,13 @@
 import 'leaflet/dist/leaflet.css'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { MapPin, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Calendar, Clock } from 'lucide-react'
+import { MapPin, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Calendar, Clock, Home } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 
 const GOIANIA_CENTER: [number, number] = [-15.7939, -48.0865]
+const CANTINA_LOCATION: [number, number] = [-15.8214, -48.0623]
+const CANTINA_ADDRESS = 'Rua 11, 91 - Jardim Santo Antonio, Goiânia - GO, 74853-240'
 import { supabase } from '../lib/supabase'
 import { geocodePendingPedidos } from '../lib/geocoding'
 import type { VarejoPedido } from '../types'
@@ -47,6 +49,26 @@ function createStatusIcon(status: string) {
     "></div>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10],
+  })
+}
+
+function createCantinasIcon() {
+  return L.divIcon({
+    className: 'cantina-marker',
+    html: `<div style="
+      background: #8b5cf6;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    ">🏠</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
   })
 }
 
@@ -413,6 +435,19 @@ export default function MapaEntregasTab() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | &copy; <a href="https://carto.com/attributions">CARTO</a>'
               maxZoom={20}
             />
+            {/* Marcador fixo da Cantina como referência */}
+            <Marker
+              position={CANTINA_LOCATION}
+              icon={createCantinasIcon()}
+              zIndexOffset={1000}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <p className="font-bold text-purple-700">🏠 Cantina (Referência)</p>
+                  <p className="text-slate-600 mt-1">{CANTINA_ADDRESS}</p>
+                </div>
+              </Popup>
+            </Marker>
             {filteredPedidos.map(
               (pedido) =>
                 pedido.lat &&
