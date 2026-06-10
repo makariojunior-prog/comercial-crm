@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText, Search } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText, Search, ThumbsUp, ThumbsDown, CalendarClock } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -37,6 +37,8 @@ export default function AgendaPage() {
   const [filterResp, setFilterResp]     = useState('')
   const [editModal, setEditModal]       = useState<{ item?: AgendaCompromisso | null; defaultDate?: string } | null>(null)
   const [dupItem, setDupItem]           = useState<AgendaCompromisso | null>(null)
+  const [pendingApprovals, setPendingApprovals] = useState<AgendaCompromisso[]>([])
+  const [aprovacaoItem, setAprovacaoItem]       = useState<AgendaCompromisso | null>(null)
 
   const weekEnd  = endOfWeek(weekStart, { weekStartsOn: 1 })
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
@@ -73,7 +75,18 @@ export default function AgendaPage() {
     setLoading(false)
   }, [weekStart])
 
+  const loadPendingApprovals = useCallback(async () => {
+    if (!profile) return
+    const { data } = await supabase
+      .from('agenda_compromissos')
+      .select('*')
+      .eq('aprovacao_status', 'PENDENTE')
+      .contains('responsaveis', [profile.nome])
+    setPendingApprovals((data ?? []).filter(i => i.criado_por !== profile.nome))
+  }, [profile])
+
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadPendingApprovals() }, [loadPendingApprovals])
 
   const visible = useMemo(() => {
     if (!filterResp) return items
@@ -140,6 +153,38 @@ export default function AgendaPage() {
         </div>
       </div>
 
+      {/* Pending approvals */}
+      {pendingApprovals.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 overflow-hidden">
+          <div className="px-4 py-2.5 flex items-center gap-2 border-b border-amber-200 dark:border-amber-700">
+            <CalendarClock size={14} className="text-amber-600 dark:text-amber-400" />
+            <p className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wide">
+              Aguardando sua aprovação ({pendingApprovals.length})
+            </p>
+          </div>
+          <div className="p-3 space-y-2">
+            {pendingApprovals.map(item => (
+              <div key={item.id} className="flex items-center justify-between gap-3 bg-white dark:bg-slate-800 rounded-xl px-3 py-2 border border-amber-100 dark:border-amber-800">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{item.titulo}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {format(new Date(item.data + 'T12:00'), "dd 'de' MMM", { locale: ptBR })}
+                    {item.hora_inicio ? ` às ${item.hora_inicio.substring(0, 5)}` : ''}
+                    {item.criado_por ? ` · por ${item.criado_por}` : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAprovacaoItem(item)}
+                  className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold transition-colors"
+                >
+                  Responder
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Weekly grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
         {weekDays.map(day => {
@@ -202,8 +247,19 @@ export default function AgendaPage() {
           defaultDate={editModal.defaultDate}
           staffOptions={staffOptions}
           currentUser={profile?.nome ?? ''}
+          currentUserId={profile?.id ?? ''}
           onClose={() => setEditModal(null)}
           onSaved={() => { setEditModal(null); load() }}
+        />
+      )}
+
+      {/* Approval Modal */}
+      {aprovacaoItem && (
+        <AprovacaoModal
+          item={aprovacaoItem}
+          approver={{ id: profile?.id ?? '', nome: profile?.nome ?? '' }}
+          onClose={() => setAprovacaoItem(null)}
+          onSaved={() => { setAprovacaoItem(null); load(); loadPendingApprovals() }}
         />
       )}
 
@@ -253,9 +309,15 @@ function AppointmentCard({ item, onEdit, onDelete, onDuplicate }: {
           )}
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0 ml-1">
-          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[item.status] ?? ''}`}>
-            {item.status === 'AGENDADO' ? 'AGEND.' : item.status === 'REALIZADO' ? 'OK' : 'CANC.'}
-          </span>
+          {item.aprovacao_status === 'PENDENTE' ? (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 flex items-center gap-0.5">
+              <Clock size={8} /> PEND.
+            </span>
+          ) : (
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[item.status] ?? ''}`}>
+              {item.status === 'AGENDADO' ? 'AGEND.' : item.status === 'REALIZADO' ? 'OK' : 'CANC.'}
+            </span>
+          )}
           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
             <button
               onClick={onDuplicate}
@@ -279,11 +341,12 @@ function AppointmentCard({ item, onEdit, onDelete, onDuplicate }: {
 }
 
 // ─── AppointmentModal ─────────────────────────────────────────────
-function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClose, onSaved }: {
+function AppointmentModal({ item, defaultDate, staffOptions, currentUser, currentUserId, onClose, onSaved }: {
   item: AgendaCompromisso | null
   defaultDate?: string
   staffOptions: string[]
   currentUser: string
+  currentUserId: string
   onClose: () => void
   onSaved: () => void
 }) {
@@ -358,21 +421,26 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
     // Titulo auto-gerado: Tipo — Cliente
     const titulo = [form.tipo, form.cliente_nome].filter(Boolean).join(' — ')
 
+    // Novo compromisso para outros usuários requer aprovação
+    const needsApproval = !item && responsaveis.some(r => r !== currentUser) && responsaveis.length > 0
+
     // 1. Save the appointment (auto-mark REALIZADO when converting to visit)
     const finalStatus = convertVisit ? 'REALIZADO' : form.status
     const payload = {
       ...form,
       titulo,
-      status:       finalStatus,
-      hora_inicio:  form.hora_inicio  || null,
-      hora_fim:     form.hora_fim     || null,
-      descricao:    form.descricao    || null,
-      local:        form.local        || null,
-      cliente_nome: form.cliente_nome || null,
-      responsavel:  responsaveis[0]   ?? null,
+      status:           finalStatus,
+      hora_inicio:      form.hora_inicio  || null,
+      hora_fim:         form.hora_fim     || null,
+      descricao:        form.descricao    || null,
+      local:            form.local        || null,
+      cliente_nome:     form.cliente_nome || null,
+      responsavel:      responsaveis[0]   ?? null,
       responsaveis,
-      criado_por:   item ? item.criado_por : currentUser,
-      updated_at:   new Date().toISOString(),
+      criado_por:       item ? item.criado_por : currentUser,
+      criado_por_id:    item ? item.criado_por_id : (needsApproval ? currentUserId : null),
+      aprovacao_status: item ? item.aprovacao_status : (needsApproval ? 'PENDENTE' : null),
+      updated_at:       new Date().toISOString(),
     }
 
     let apptId = item?.id
@@ -667,6 +735,179 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, onClos
             {saving ? 'Salvando…' : item ? 'Salvar' : 'Criar'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── AprovacaoModal ────────────────────────────────────────────────
+function AprovacaoModal({ item, approver, onClose, onSaved }: {
+  item: AgendaCompromisso
+  approver: { id: string; nome: string }
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [action, setAction] = useState<'APROVADO' | 'REJEITADO' | 'SUGERIDO' | null>(null)
+  const [nota, setNota] = useState('')
+  const [sugData, setSugData] = useState(item.data)
+  const [sugHora, setSugHora] = useState(item.hora_inicio?.substring(0, 5) ?? '')
+  const [saving, setSaving] = useState(false)
+
+  async function confirm() {
+    if (!action) return
+    setSaving(true)
+    try {
+      await supabase.from('agenda_compromissos').update({
+        aprovacao_status:        action,
+        aprovado_por:            approver.nome,
+        aprovacao_nota:          nota.trim() || null,
+        aprovacao_sugestao_data: action === 'SUGERIDO' ? sugData : null,
+        aprovacao_sugestao_hora: action === 'SUGERIDO' && sugHora ? sugHora : null,
+        status:                  action === 'APROVADO' ? 'AGENDADO' : item.status,
+        updated_at:              new Date().toISOString(),
+      }).eq('id', item.id)
+
+      if (item.criado_por_id) {
+        const dateStr = format(new Date(item.data + 'T12:00'), "dd/MM/yyyy", { locale: ptBR })
+        const horaStr = item.hora_inicio ? ` às ${item.hora_inicio.substring(0, 5)}` : ''
+        const emoji   = action === 'APROVADO' ? '✅' : action === 'REJEITADO' ? '❌' : '📅'
+        const label   = action === 'APROVADO' ? 'aprovou' : action === 'REJEITADO' ? 'rejeitou' : 'sugeriu novo horário para'
+
+        let desc = `${approver.nome} ${label} o compromisso "${item.titulo}" (${dateStr}${horaStr}).`
+        if (action === 'SUGERIDO' && sugData) {
+          const nd = format(new Date(sugData + 'T12:00'), 'dd/MM/yyyy', { locale: ptBR })
+          desc += ` Sugestão: ${nd}${sugHora ? ` às ${sugHora}` : ''}.`
+        }
+        if (nota.trim()) desc += ` Mensagem: "${nota.trim()}"`
+
+        const { data: task } = await supabase.from('crm_tasks').insert({
+          title:       `${emoji} ${approver.nome} ${label}: ${item.titulo}`,
+          description: desc,
+          priority:    'IMPORTANTE_NAO_URGENTE',
+          status:      'PENDENTE',
+          creator_id:  approver.id,
+          categoria:   'agenda',
+        }).select('id').single()
+
+        if (task?.id) {
+          await supabase.from('crm_task_assignees').insert({ task_id: task.id, user_id: item.criado_por_id })
+        }
+      }
+
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const dateStr = format(new Date(item.data + 'T12:00'), "dd 'de' MMMM", { locale: ptBR })
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-800 w-full max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+          <h2 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <CalendarClock size={16} className="text-amber-500" /> Responder convite
+          </h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Detalhes do compromisso */}
+          <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 space-y-1">
+            <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.titulo}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {dateStr}{item.hora_inicio ? ` · ${item.hora_inicio.substring(0, 5)}` : ''}
+              {item.hora_fim ? `–${item.hora_fim.substring(0, 5)}` : ''}
+            </p>
+            {item.cliente_nome && <p className="text-xs text-slate-500 dark:text-slate-400">{item.cliente_nome}</p>}
+            {item.criado_por && (
+              <p className="text-[10px] text-orange-500 font-medium">Agendado por {item.criado_por}</p>
+            )}
+            {item.descricao && <p className="text-xs text-slate-500 dark:text-slate-400 italic">"{item.descricao}"</p>}
+          </div>
+
+          {/* Ações */}
+          {!action ? (
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => setAction('APROVADO')}
+                className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-green-200 hover:border-green-400 bg-green-50 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 transition-all"
+              >
+                <ThumbsUp size={18} className="text-green-600 dark:text-green-400" />
+                <span className="text-[11px] font-bold text-green-700 dark:text-green-300">Aprovar</span>
+              </button>
+              <button
+                onClick={() => setAction('SUGERIDO')}
+                className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-blue-200 hover:border-blue-400 bg-blue-50 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/20 transition-all"
+              >
+                <CalendarClock size={18} className="text-blue-600 dark:text-blue-400" />
+                <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300">Sugerir</span>
+              </button>
+              <button
+                onClick={() => setAction('REJEITADO')}
+                className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 transition-all"
+              >
+                <ThumbsDown size={18} className="text-red-500 dark:text-red-400" />
+                <span className="text-[11px] font-bold text-red-600 dark:text-red-300">Rejeitar</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAction(null)}
+                  className="text-xs text-slate-400 hover:text-slate-600 underline"
+                >
+                  ← Voltar
+                </button>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                  action === 'APROVADO' ? 'bg-green-100 text-green-700' :
+                  action === 'SUGERIDO' ? 'bg-blue-100 text-blue-700' :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {action === 'APROVADO' ? '✅ Aprovar' : action === 'SUGERIDO' ? '📅 Sugerir novo horário' : '❌ Rejeitar'}
+                </span>
+              </div>
+
+              {action === 'SUGERIDO' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="label">Nova data</label>
+                    <input type="date" className="input" value={sugData} onChange={e => setSugData(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label">Novo horário</label>
+                    <input type="time" className="input" value={sugHora} onChange={e => setSugHora(e.target.value)} />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="label">Mensagem (opcional)</label>
+                <textarea
+                  className="input resize-none"
+                  rows={2}
+                  value={nota}
+                  onChange={e => setNota(e.target.value)}
+                  placeholder="Explique sua decisão..."
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {action && (
+          <div className="px-5 pb-4 flex gap-3">
+            <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
+            <button onClick={confirm} disabled={saving} className="btn-primary flex-1 justify-center">
+              {saving ? 'Enviando…' : 'Confirmar'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -130,8 +130,8 @@ export default function MapaEntregasTab() {
       if (err1) console.error('Data query error:', err1)
       if (err2) console.error('Fila query error:', err2)
 
-      const typed = (dataDia || []) as VarejoPedido[]
-      const filaTyped = (dataFila || []) as VarejoPedido[]
+      const typed = (dataDia || []) as unknown as VarejoPedido[]
+      const filaTyped = (dataFila || []) as unknown as VarejoPedido[]
 
       console.log(`📦 Carregados ${typed.length} pedidos para ${dia} | 🚫 ${filaTyped.length} em fila`)
       if (typed.length > 0) console.log('📋 Pedidos com data:', typed.map(p => ({ num_pedido: p.num_pedido, cliente: p.cliente, status: p.status_icon, data_entrega: p.data_entrega })))

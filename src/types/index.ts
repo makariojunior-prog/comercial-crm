@@ -315,6 +315,7 @@ export interface VarejoPedido {
   lat: number | null                 // latitude (Nominatim geocoding)
   lng: number | null                 // longitude (Nominatim geocoding)
   geocoded_at: string | null         // data do geocoding
+  geocode_failed_at: string | null   // data da última falha de geocoding
   // Meta
   created_at: string
   updated_at: string
@@ -646,6 +647,12 @@ export interface AgendaCompromisso {
   responsaveis: string[]
   visit_id: string | null
   criado_por: string | null
+  criado_por_id: string | null
+  aprovacao_status: 'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'SUGERIDO' | null
+  aprovacao_nota: string | null
+  aprovacao_sugestao_data: string | null
+  aprovacao_sugestao_hora: string | null
+  aprovado_por: string | null
   created_at: string
   updated_at: string
 }
