@@ -1,17 +1,17 @@
 import 'leaflet/dist/leaflet.css'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { MapPin, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
+import { MapPin, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, RotateCcw, Calendar, Clock } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
-import MarkerClusterGroup from 'react-leaflet-cluster'
 import L from 'leaflet'
+
+const GOIANIA_CENTER: [number, number] = [-15.7939, -48.0865]
 import { supabase } from '../lib/supabase'
 import { geocodePendingPedidos } from '../lib/geocoding'
 import type { VarejoPedido } from '../types'
 import { format, addDays, startOfDay, endOfDay } from 'date-fns'
 import { pt as ptBR } from 'date-fns/locale'
 
-// Fix Leaflet default icon (required for marker display)
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
@@ -19,6 +19,7 @@ L.Icon.Default.mergeOptions({
 })
 
 type StatusFilter = '⚠️' | '🛵' | '✅'
+type ViewMode = 'data' | 'fila'
 
 const STATUS_COLORS: Record<StatusFilter, string> = {
   '⚠️': '#f59e0b', // âmbar - pendente
@@ -51,61 +52,67 @@ function createStatusIcon(status: string) {
 
 export default function MapaEntregasTab() {
   const [pedidos, setPedidos] = useState<VarejoPedido[]>([])
+  const [filaPedidos, setFilaPedidos] = useState<VarejoPedido[]>([])
   const [loading, setLoading] = useState(false)
   const [geocodingPending, setGeoencodingPending] = useState(false)
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('data')
   const [turnoFilter, setTurnoFilter] = useState<string[]>(['MANHÃ', 'TARDE', 'NOITE'])
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>(['⚠️', '🛵'])
   const [showEntregues, setShowEntregues] = useState(false)
 
-  // Load pedidos for selected date
   const loadPedidos = useCallback(async () => {
     setLoading(true)
     try {
       const start = startOfDay(selectedDate).toISOString().split('T')[0]
       const end = endOfDay(selectedDate).toISOString().split('T')[0]
 
-      let query = supabase
+      const campos = 'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete, order_type'
+
+      // Load pedidos com data definida
+      let queryData = supabase
         .from('varejo_pedidos')
-        .select(
-          'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete, order_type'
-        )
+        .select(campos)
         .eq('empresa', 'CANTINA')
+        .gte('data_entrega', start)
+        .lte('data_entrega', end)
+        .neq('status_icon', '❌')
+        .not('endereco_completo', 'is', null)
+        .order('data_entrega', { ascending: true })
 
-      // Filtrar por range de data
-      query = query.gte('data_entrega', start)
-      query = query.lte('data_entrega', end)
-      query = query.neq('status_icon', '❌')
+      // Load pedidos em fila (sem data)
+      let queryFila = supabase
+        .from('varejo_pedidos')
+        .select(campos)
+        .eq('empresa', 'CANTINA')
+        .is('data_entrega', null)
+        .neq('status_icon', '❌')
+        .not('endereco_completo', 'is', null)
+        .order('created_at', { ascending: false })
 
-      // Filtrar por order_type se existir (pode ser 'delivery', 'takeout', etc)
-      // Por enquanto incluir todos com endereco_completo preenchido
-      query = query.not('endereco_completo', 'is', null)
+      const [{ data: dataWithDate, error: err1 }, { data: dataFila, error: err2 }] = await Promise.all([
+        queryData,
+        queryFila,
+      ])
 
-      query = query.order('data_entrega', { ascending: true })
+      if (err1) console.error('Data query error:', err1)
+      if (err2) console.error('Fila query error:', err2)
 
-      const { data, error } = await query
+      const typed = (dataWithDate || []) as VarejoPedido[]
+      const filaTyped = (dataFila || []) as VarejoPedido[]
 
-      if (error) {
-        console.error('Query error:', error)
-        throw error
-      }
+      console.log(`📦 Carregados ${typed.length} pedidos para ${start} | 🚫 ${filaTyped.length} em fila`)
 
-      const typed = (data || []) as VarejoPedido[]
-      console.log(`📦 Carregados ${typed.length} pedidos para ${start}`)
-      if (typed.length > 0) {
-        console.log('Primeiros pedidos:', typed.slice(0, 2))
-      }
       setPedidos(typed)
+      setFilaPedidos(filaTyped)
 
-      // Auto-geocode pending orders
-      const pending = typed.filter((p) => !p.lat || !p.lng)
-      if (pending.length > 0) {
-        console.log(`🌍 Geocodificando ${pending.length} pedidos...`)
+      const toGeocode = [...typed, ...filaTyped].filter((p) => !p.lat || !p.lng)
+      if (toGeocode.length > 0) {
+        console.log(`🌍 Geocodificando ${toGeocode.length} pedidos...`)
         setGeoencodingPending(true)
         try {
-          await geocodePendingPedidos(typed)
-          // Reload after geocoding
+          await geocodePendingPedidos(toGeocode)
           setTimeout(() => loadPedidos(), 2000)
         } finally {
           setGeoencodingPending(false)
@@ -122,21 +129,19 @@ export default function MapaEntregasTab() {
     loadPedidos()
   }, [loadPedidos])
 
-  // Filter pedidos
   const filteredPedidos = useMemo(() => {
-    return pedidos.filter((p) => {
+    const source = viewMode === 'fila' ? filaPedidos : pedidos
+    return source.filter((p) => {
       if (turnoFilter.length > 0 && !turnoFilter.includes(p.turno || '')) return false
       if (!showEntregues && p.status_icon === '✅') return false
-      if (statusFilter.length > 0 && !statusFilter.includes(p.status_icon as StatusFilter))
-        return false
+      if (statusFilter.length > 0 && !statusFilter.includes(p.status_icon as StatusFilter)) return false
       return true
     })
-  }, [pedidos, turnoFilter, statusFilter, showEntregues])
+  }, [pedidos, filaPedidos, viewMode, turnoFilter, statusFilter, showEntregues])
 
-  // Mapa center (average of coords)
   const mapCenter: [number, number] = useMemo(() => {
     const withCoords = filteredPedidos.filter((p) => p.lat && p.lng)
-    if (withCoords.length === 0) return [-23.5505, -46.6333] // São Paulo default
+    if (withCoords.length === 0) return GOIANIA_CENTER
     const avgLat = withCoords.reduce((sum, p) => sum + (p.lat || 0), 0) / withCoords.length
     const avgLng = withCoords.reduce((sum, p) => sum + (p.lng || 0), 0) / withCoords.length
     return [avgLat, avgLng]
@@ -164,6 +169,37 @@ export default function MapaEntregasTab() {
     <div className="flex h-[calc(100vh-200px)] gap-4 w-full">
       {/* Left Panel: Filters + List */}
       <div className="w-1/2 flex flex-col gap-3 overflow-hidden border-r border-slate-200">
+        {/* View Mode Selector */}
+        <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-3 pt-3 pb-2 rounded-lg border border-blue-100">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-700">Visualizar:</span>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setViewMode('data')}
+                className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded font-medium transition ${
+                  viewMode === 'data'
+                    ? 'bg-blue-500 text-white shadow-md'
+                    : 'bg-white text-slate-600 border border-slate-200'
+                }`}
+              >
+                <Calendar size={14} />
+                Data: {pedidos.length}
+              </button>
+              <button
+                onClick={() => setViewMode('fila')}
+                className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded font-medium transition ${
+                  viewMode === 'fila'
+                    ? 'bg-amber-500 text-white shadow-md'
+                    : 'bg-white text-slate-600 border border-slate-200'
+                }`}
+              >
+                <Clock size={14} />
+                Fila: {filaPedidos.length}
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Filter Bar */}
         <div className="bg-white p-3 border-b border-slate-200 rounded-lg space-y-2">
           <div className="flex gap-2 items-center justify-between">
@@ -224,7 +260,8 @@ export default function MapaEntregasTab() {
           </label>
         </div>
 
-        {/* Date Chips */}
+        {/* Date Chips - only show if not viewing queue */}
+        {viewMode === 'data' && (
         <div className="flex items-center gap-2 px-3 overflow-x-auto scroll-smooth whitespace-nowrap pb-2">
           <button
             onClick={() => setSelectedDate(addDays(selectedDate, -1))}
@@ -264,6 +301,7 @@ export default function MapaEntregasTab() {
             <ChevronRight size={16} />
           </button>
         </div>
+        )}
 
         {/* Refresh Button */}
         <div className="px-3">
@@ -288,9 +326,13 @@ export default function MapaEntregasTab() {
               <AlertCircle size={32} className="mx-auto mb-2 opacity-50" />
               <p className="text-sm font-medium">Nenhum pedido encontrado</p>
               <p className="text-xs text-slate-400 mt-1">
-                {pedidos.length === 0
-                  ? 'Nenhum pedido de entrega para esta data'
-                  : 'Verifique os filtros selecionados'}
+                {viewMode === 'fila'
+                  ? filaPedidos.length === 0
+                    ? 'Nenhum pedido em fila'
+                    : 'Verifique os filtros selecionados'
+                  : pedidos.length === 0
+                    ? 'Nenhum pedido de entrega para esta data'
+                    : 'Verifique os filtros selecionados'}
               </p>
             </div>
           ) : (
@@ -351,71 +393,66 @@ export default function MapaEntregasTab() {
             center={mapCenter}
             zoom={12}
             className="w-full h-full"
-            key={`${format(selectedDate, 'yyyy-MM-dd')}`}
+            key={`${format(selectedDate, 'yyyy-MM-dd')}-${viewMode}`}
           >
             <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | &copy; <a href="https://carto.com/attributions">CARTO</a>'
               maxZoom={19}
             />
-            <MarkerClusterGroup chunkedLoading>
-              {filteredPedidos.map(
-                (pedido) =>
-                  pedido.lat &&
-                  pedido.lng && (
-                    <Marker
-                      key={pedido.id}
-                      position={[pedido.lat, pedido.lng]}
-                      icon={createStatusIcon(pedido.status_icon)}
-                      eventHandlers={{
-                        click: () => setSelectedPedidoId(pedido.id),
-                      }}
-                    >
-                      <Popup>
-                        <div className="w-56 text-sm">
-                          <p className="font-bold text-slate-900 mb-1">{pedido.cliente}</p>
-                          <p className="text-slate-700 mb-2">{pedido.endereco_completo}</p>
+            {filteredPedidos.map(
+              (pedido) =>
+                pedido.lat &&
+                pedido.lng && (
+                  <Marker
+                    key={pedido.id}
+                    position={[pedido.lat, pedido.lng]}
+                    icon={createStatusIcon(pedido.status_icon)}
+                    eventHandlers={{
+                      click: () => setSelectedPedidoId(pedido.id),
+                    }}
+                  >
+                    <Popup>
+                      <div className="w-56 text-sm">
+                        <p className="font-bold text-slate-900 mb-1">{pedido.cliente}</p>
+                        <p className="text-slate-700 mb-2">{pedido.endereco_completo}</p>
 
-                          {pedido.complemento && (
-                            <p className="text-xs text-slate-600 mb-2">
-                              Compl: {pedido.complemento}
-                            </p>
-                          )}
+                        {pedido.complemento && (
+                          <p className="text-xs text-slate-600 mb-2">Compl: {pedido.complemento}</p>
+                        )}
 
-                          <div className="space-y-1 text-xs text-slate-600 mb-3 border-t border-b py-2">
-                            <div>
-                              <span className="font-semibold">Bairro:</span> {pedido.bairro || '-'}
-                            </div>
-                            <div>
-                              <span className="font-semibold">Turno:</span> {pedido.turno || '-'}
-                            </div>
-                            <div>
-                              <span className="font-semibold">Status:</span>{' '}
-                              {STATUS_LABELS[pedido.status_icon as StatusFilter]}
-                            </div>
-                            {pedido.entregador && (
-                              <div>
-                                <span className="font-semibold">Entregador:</span>{' '}
-                                {pedido.entregador}
-                              </div>
-                            )}
+                        <div className="space-y-1 text-xs text-slate-600 mb-3 border-t border-b py-2">
+                          <div>
+                            <span className="font-semibold">Bairro:</span> {pedido.bairro || '-'}
                           </div>
-
-                          <a
-                            href={`https://www.google.com/maps?q=${pedido.lat},${pedido.lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-xs btn-outline w-full gap-1"
-                          >
-                            <ExternalLink size={12} />
-                            Google Maps
-                          </a>
+                          <div>
+                            <span className="font-semibold">Turno:</span> {pedido.turno || '-'}
+                          </div>
+                          <div>
+                            <span className="font-semibold">Status:</span>{' '}
+                            {STATUS_LABELS[pedido.status_icon as StatusFilter]}
+                          </div>
+                          {pedido.entregador && (
+                            <div>
+                              <span className="font-semibold">Entregador:</span> {pedido.entregador}
+                            </div>
+                          )}
                         </div>
-                      </Popup>
-                    </Marker>
-                  )
-              )}
-            </MarkerClusterGroup>
+
+                        <a
+                          href={`https://www.google.com/maps?q=${pedido.lat},${pedido.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-xs btn-outline w-full gap-1"
+                        >
+                          <ExternalLink size={12} />
+                          Google Maps
+                        </a>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )
+            )}
           </MapContainer>
         )}
       </div>
