@@ -324,7 +324,7 @@ export default function LogisticaPage() {
   const TABS = [
     { id: 'romaneio'     as Tab, label: 'Romaneio',          icon: FileText,    count: null },
     { id: 'conciliacao'  as Tab, label: 'Conciliação',       icon: ClipboardCheck, count: null },
-    { id: 'rotas'        as Tab, label: 'Rotas de Entrega',  icon: MapPin,      count: null },
+    { id: 'rotas'        as Tab, label: 'Rotas de Entrega',  icon: Navigation,  count: null },
     { id: 'mapa'         as Tab, label: 'Mapa de Entregas',  icon: MapPin,      count: null },
     { id: 'rastreamento' as Tab, label: 'Rastreamento',      icon: Radio,       count: null },
     { id: 'veiculos'     as Tab, label: 'Veículos',          icon: Truck,       count: vehicles.filter(v => v.ativo).length },

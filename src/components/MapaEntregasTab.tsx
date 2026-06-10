@@ -174,7 +174,6 @@ export default function MapaEntregasTab() {
   }
 
   const toggleStatus = (status: StatusFilter) => {
-    if (showEntregues && status === '✅') return
     setStatusFilter((prev) =>
       prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
     )
@@ -184,20 +183,21 @@ export default function MapaEntregasTab() {
     <div className="flex h-[calc(100vh-200px)] gap-4 w-full">
       {/* Left Panel: Filters + List */}
       <div className="w-1/2 flex flex-col gap-3 overflow-hidden border-r border-slate-200">
-        {/* View Mode Selector */}
-        <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-3 pt-3 pb-2 rounded-lg border border-blue-100">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-slate-700">Visualizar:</span>
+        {/* Filter Bar - Consolidated */}
+        <div className="bg-white p-3 border-b border-slate-200 rounded-lg space-y-2">
+          {/* Visualizar (Data/Fila) */}
+          <div className="flex gap-2 items-center justify-between">
+            <span className="text-sm font-semibold text-slate-700 w-16">Visualizar</span>
             <div className="flex gap-1.5">
               <button
                 onClick={() => setViewMode('data')}
                 className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded font-medium transition ${
                   viewMode === 'data'
                     ? 'bg-blue-500 text-white shadow-md'
-                    : 'bg-white text-slate-600 border border-slate-200'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
-                <Calendar size={14} />
+                <Calendar size={13} />
                 Data: {pedidos.length}
               </button>
               <button
@@ -205,20 +205,18 @@ export default function MapaEntregasTab() {
                 className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded font-medium transition ${
                   viewMode === 'fila'
                     ? 'bg-amber-500 text-white shadow-md'
-                    : 'bg-white text-slate-600 border border-slate-200'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
-                <Clock size={14} />
+                <Clock size={13} />
                 Fila: {filaPedidos.length}
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Filter Bar */}
-        <div className="bg-white p-3 border-b border-slate-200 rounded-lg space-y-2">
+          {/* Turnos */}
           <div className="flex gap-2 items-center justify-between">
-            <span className="text-sm font-semibold text-slate-700">Turnos</span>
+            <span className="text-sm font-semibold text-slate-700 w-16">Turnos</span>
             <div className="flex gap-1.5">
               {['MANHÃ', 'TARDE', 'NOITE'].map((turno) => (
                 <button
@@ -237,10 +235,11 @@ export default function MapaEntregasTab() {
             </div>
           </div>
 
+          {/* Status (incluindo Entregues) */}
           <div className="flex gap-2 items-center justify-between">
-            <span className="text-sm font-semibold text-slate-700">Status</span>
+            <span className="text-sm font-semibold text-slate-700 w-16">Status</span>
             <div className="flex gap-1.5">
-              {(['⚠️', '🛵'] as StatusFilter[]).map((status) => (
+              {(['⚠️', '🛵', '✅'] as StatusFilter[]).map((status) => (
                 <button
                   key={status}
                   onClick={() => toggleStatus(status)}
@@ -261,18 +260,6 @@ export default function MapaEntregasTab() {
               ))}
             </div>
           </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={showEntregues}
-              onChange={(e) => setShowEntregues(e.target.checked)}
-              className="checkbox checkbox-sm"
-            />
-            <span className="text-slate-700">
-              Mostrar <span className="text-green-600">✅ Entregues</span>
-            </span>
-          </label>
         </div>
 
         {/* Date Chips - only show if not viewing queue */}
@@ -370,17 +357,17 @@ export default function MapaEntregasTab() {
                       {pedido.status_icon}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-slate-900 truncate">
+                      <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate">
                         {pedido.cliente || 'Cliente desconhecido'}
                       </p>
-                      <p className="text-xs text-slate-600 line-clamp-2">
+                      <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
                         {!pedido.lat || !pedido.lng ? (
-                          <span className="text-orange-600">📍 Sem localização</span>
+                          <span className="text-orange-600 dark:text-orange-400">📍 Sem localização</span>
                         ) : (
                           pedido.endereco_completo
                         )}
                       </p>
-                      <div className="flex gap-2 text-xs text-slate-500 mt-1">
+                      <div className="flex gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
                         <span>{pedido.turno}</span>
                         {pedido.entregador && <span>•</span>}
                         {pedido.entregador && <span>{pedido.entregador}</span>}
