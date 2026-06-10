@@ -17,7 +17,7 @@ interface GeocodingResult {
 export async function geocodeAddress(
   address: string,
   bairro: string | null,
-  cidade: string = 'São Paulo'
+  cidade?: string
 ): Promise<GeocodingResult | null> {
   if (!address || !address.trim()) return null
   return geocodeViaNominatim(address, bairro, cidade)
@@ -31,13 +31,13 @@ export async function geocodeAddress(
 async function geocodeViaNominatim(
   address: string,
   bairro: string | null,
-  cidade: string
+  cidade?: string
 ): Promise<GeocodingResult | null> {
   try {
-    const query = [address, bairro, cidade]
-      .filter(Boolean)
-      .join(', ')
-      .trim()
+    // Build query: address + bairro (cidade is often already in endereco_completo)
+    const parts = [address, bairro]
+    if (cidade) parts.push(cidade)
+    const query = parts.filter(Boolean).join(', ').trim()
 
     const nominatimUrl = `${NOMINATIM_BASE}?${new URLSearchParams({
       q: query,
