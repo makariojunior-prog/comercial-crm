@@ -1,1 +1,0 @@
-import{r}from"./index-CQD1P_Ob.js";function s(e){r.useEffect(()=>{function t(n){n.key==="Escape"&&e()}return document.addEventListener("keydown",t),()=>document.removeEventListener("keydown",t)},[e])}export{s as u};
