@@ -61,6 +61,8 @@ export default function MapaEntregasTab() {
   const [turnoFilter, setTurnoFilter] = useState<string[]>(['MANHÃ', 'TARDE', 'NOITE'])
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>(['⚠️', '🛵'])
   const [showEntregues, setShowEntregues] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
+  const [geocodeAttempted, setGeocodeAttempted] = useState(false)
 
   const loadPedidos = useCallback(async () => {
     setLoading(true)
@@ -68,9 +70,8 @@ export default function MapaEntregasTab() {
       const start = startOfDay(selectedDate).toISOString().split('T')[0]
       const end = endOfDay(selectedDate).toISOString().split('T')[0]
 
-      const campos = 'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete, order_type'
+      const campos = 'id, num_pedido, cliente, bairro, endereco_completo, complemento, turno, status_icon, entregador, lat, lng, geocoded_at, empresa, data_entrega, telefone, frete, order_type, geocode_failed_at'
 
-      // Load pedidos com data definida
       let queryData = supabase
         .from('varejo_pedidos')
         .select(campos)
@@ -81,7 +82,6 @@ export default function MapaEntregasTab() {
         .not('endereco_completo', 'is', null)
         .order('data_entrega', { ascending: true })
 
-      // Load pedidos em fila (sem data)
       let queryFila = supabase
         .from('varejo_pedidos')
         .select(campos)
@@ -107,15 +107,20 @@ export default function MapaEntregasTab() {
       setPedidos(typed)
       setFilaPedidos(filaTyped)
 
-      const toGeocode = [...typed, ...filaTyped].filter((p) => !p.lat || !p.lng)
-      if (toGeocode.length > 0) {
-        console.log(`🌍 Geocodificando ${toGeocode.length} pedidos...`)
-        setGeoencodingPending(true)
-        try {
-          await geocodePendingPedidos(toGeocode)
-          setTimeout(() => loadPedidos(), 2000)
-        } finally {
-          setGeoencodingPending(false)
+      if (!geocodeAttempted) {
+        const toGeocode = [...typed, ...filaTyped]
+          .filter((p) => (!p.lat || !p.lng) && !p.geocode_failed_at)
+
+        if (toGeocode.length > 0) {
+          console.log(`🌍 Geocodificando ${toGeocode.length} pedidos sem falha anterior...`)
+          setGeoencodingPending(true)
+          setGeocodeAttempted(true)
+          try {
+            await geocodePendingPedidos(toGeocode)
+            setTimeout(() => setGeocodeAttempted(false), 3000)
+          } finally {
+            setGeoencodingPending(false)
+          }
         }
       }
     } catch (error) {
@@ -123,7 +128,7 @@ export default function MapaEntregasTab() {
     } finally {
       setLoading(false)
     }
-  }, [selectedDate])
+  }, [selectedDate, geocodeAttempted])
 
   useEffect(() => {
     loadPedidos()
@@ -166,11 +171,34 @@ export default function MapaEntregasTab() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-200px)] gap-4 w-full">
+    <div className={`flex h-[calc(100vh-200px)] gap-4 w-full transition-colors ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
       {/* Left Panel: Filters + List */}
-      <div className="w-1/2 flex flex-col gap-3 overflow-hidden border-r border-slate-200">
+      <div className={`w-1/2 flex flex-col gap-3 overflow-hidden border-r ${darkMode ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}>
+        {/* Theme Toggle + View Mode */}
+        <div className={`flex items-center justify-between px-3 pt-2 pb-1 rounded-lg border ${
+          darkMode
+            ? 'bg-slate-800 border-slate-700'
+            : 'bg-gradient-to-r from-blue-50 to-slate-50 border-blue-100'
+        }`}>
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className={`px-2 py-1 rounded text-sm font-medium transition ${
+              darkMode
+                ? 'bg-slate-700 text-yellow-300'
+                : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+            }`}
+            title="Toggle tema"
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+        </div>
+
         {/* View Mode Selector */}
-        <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-3 pt-3 pb-2 rounded-lg border border-blue-100">
+        <div className={`px-3 pb-2 rounded-lg border ${
+          darkMode
+            ? 'bg-slate-800 border-slate-700'
+            : 'bg-gradient-to-r from-blue-50 to-slate-50 border-blue-100'
+        }`}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-700">Visualizar:</span>
             <div className="flex gap-1.5">
@@ -201,9 +229,13 @@ export default function MapaEntregasTab() {
         </div>
 
         {/* Filter Bar */}
-        <div className="bg-white p-3 border-b border-slate-200 rounded-lg space-y-2">
+        <div className={`p-3 border-b rounded-lg space-y-2 ${
+          darkMode
+            ? 'bg-slate-800 border-slate-700'
+            : 'bg-white border-slate-200'
+        }`}>
           <div className="flex gap-2 items-center justify-between">
-            <span className="text-sm font-semibold text-slate-700">Turnos</span>
+            <span className={`text-sm font-semibold ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Turnos</span>
             <div className="flex gap-1.5">
               {['MANHÃ', 'TARDE', 'NOITE'].map((turno) => (
                 <button
@@ -223,7 +255,7 @@ export default function MapaEntregasTab() {
           </div>
 
           <div className="flex gap-2 items-center justify-between">
-            <span className="text-sm font-semibold text-slate-700">Status</span>
+            <span className={`text-sm font-semibold ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>Status</span>
             <div className="flex gap-1.5">
               {(['⚠️', '🛵'] as StatusFilter[]).map((status) => (
                 <button
@@ -391,14 +423,17 @@ export default function MapaEntregasTab() {
         ) : (
           <MapContainer
             center={mapCenter}
-            zoom={12}
+            zoom={14}
             className="w-full h-full"
-            key={`${format(selectedDate, 'yyyy-MM-dd')}-${viewMode}`}
+            key={`${format(selectedDate, 'yyyy-MM-dd')}-${viewMode}-${darkMode}`}
           >
             <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              url={darkMode
+                ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                : "https://{s}.basemaps.cartocdn.com/positron/{z}/{x}/{y}{r}.png"
+              }
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              maxZoom={19}
+              maxZoom={20}
             />
             {filteredPedidos.map(
               (pedido) =>
