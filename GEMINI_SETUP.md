@@ -36,7 +36,7 @@ As variáveis de ambiente em `supabase/.env.local` serão sincronizadas automati
 
 Verifique no Painel do Supabase:
 1. Vá para **Project Settings** → **Functions** → **Secrets**
-2. Certifique-se de que `GOOGLE_API_KEY` está configurada com o valor: `AIzaSyB-5rg-pfJ-sFAFRFjdqo9jBdLRn6NEYrA`
+2. Certifique-se de que `GOOGLE_API_KEY` está configurada (valor apenas no painel do Supabase — nunca commitar chaves neste repositório, que é público)
 
 ### 4. Testar a Integração
 
