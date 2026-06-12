@@ -1,260 +1,310 @@
+// reprocess-conversations — reprocessador automático de mensagens com Erro IA ou não analisadas.
+// Chamado a cada 5 min via pg_cron e manualmente pelo botão "Reprocessar" no módulo Conversas.
+// Usa o MESMO prompt, provider e validador de keywords do digisac-webhook para classificação consistente.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const CATEGORIAS = ['QUALIDADE', 'LOGÍSTICA', 'RECLAMAÇÃO', 'ELOGIO', 'PEDIDO', 'DÚVIDA', 'OUTROS', 'EQUIPE']
+const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const ANTHROPIC_KEY        = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+// GOOGLE_API_KEY é a secret que existe no projeto (legado); GEMINI_API_KEY tem precedência se criada
+const GEMINI_KEY           = Deno.env.get('GEMINI_API_KEY') ?? Deno.env.get('GOOGLE_API_KEY') ?? ''
+const GEMINI_MODEL         = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash-lite'
+// Sem ANTHROPIC_API_KEY configurada, cai para Gemini em vez de falhar com 401
+const AI_PROVIDER          = (Deno.env.get('AI_PROVIDER') ?? (ANTHROPIC_KEY ? 'ANTHROPIC' : 'GEMINI')) as 'ANTHROPIC' | 'GEMINI'
 
-async function getStopWords(): Promise<Set<string>> {
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  )
+const BATCH_LIMIT     = 40
+const TIME_BUDGET_MS  = 100_000   // edge functions têm wall-clock de 150s; deixa folga
+const ALERT_WINDOW_MS = 2 * 60 * 60 * 1000 // só alerta mensagens recebidas nas últimas 2h (evita spam do backlog)
 
-  const { data, error } = await supabase
-    .from('ia_stop_words')
-    .select('word')
+interface ConnConfig { conexao: string; api_url: string; token: string; service_id: string }
 
-  if (error) {
-    console.error('Error fetching stop words:', error)
-    return new Set()
-  }
-
-  return new Set((data || []).map((row: { word: string }) => row.word.toLowerCase()))
+const CONNECTIONS: Record<string, ConnConfig> = {
+  CANTINA: {
+    conexao: 'CANTINA', service_id: '27a84876-386b-41ed-b5f9-8aba351a30c0',
+    api_url: 'https://cantinaemcasa.digisac.co/api/v1',
+    token:   '9e3e2846bbd1c2837b406df2320718ad2dbb78a0',
+  },
+  LUMAR: {
+    conexao: 'LUMAR', service_id: 'f96b8e7f-636e-4bc2-b487-28de012b2236',
+    api_url: 'https://lumar.digisac.io/api/v1',
+    token:   'c337988607b38b88d3b0831a07c6ac2bb79453e4',
+  },
+  LUMAR_NOVOS: {
+    conexao: 'LUMAR_NOVOS', service_id: '70ca7140-c4d1-40b4-98b1-3fa918634181',
+    api_url: 'https://lumar.digisac.io/api/v1',
+    token:   'c337988607b38b88d3b0831a07c6ac2bb79453e4',
+  },
 }
 
-function cleanText(text: string, stopWords: Set<string>): string {
-  return text
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(word => !stopWords.has(word))
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+const ENTREGADORES = new Set([
+  '556281092106','556292159860','556294391877',
+  '556282229852','556282424071','556294617681','556281147564',
+])
+
+const ALERTAS = {
+  SUPERVISOR:    ['5562981624768'],
+  LOGISTICA:     ['5562993902654'],
+  NUTRICIONISTA: ['5562983381996'],
 }
 
-async function analyzeWithGemini(text: string, stopWords: Set<string>): Promise<{ categoria: string; resumo: string }> {
-  const apiKey = Deno.env.get('GOOGLE_API_KEY')
-  if (!apiKey) throw new Error('GOOGLE_API_KEY not configured')
+const KW_QUALIDADE = [
+  'cabelo','fio','pelo','plástico','plastico','metal','grampo','prego','parafuso',
+  'inseto','bicho','barata','formiga','mosca','asa','larva','mosquito',
+  'mofo','bolor','fungo','ponto preto','mancha','podre','estragado',
+  'cheiro','fedendo','fedorento','cheiro ruim','cheiro estranho','cheiro diferente',
+  'gosto estranho','gosto diferente','gosto ruim','gosto forte',
+  'gosto de defumado','gosto de queimado','gosto de mofo','gosto de azedo',
+  'sabor diferente','sabor estranho','sabor ruim','sabor forte',
+  'sabor de defumado','sabor de queimado',
+  'defumado','queimado','rançoso','ranço',
+  'não estamos conseguindo comer','nao estamos conseguindo comer',
+  'não conseguindo comer','nao conseguindo comer',
+  'não consigo comer','nao consigo comer',
+  'não dá pra comer','nao da pra comer',
+  'impróprio para consumo','improprio para consumo',
+  'azedo','vencido','validade','impróprio','improprio',
+  'sujeira','sujo','osso','casca','pedra','areia','terra','corpo estranho',
+  'fora do padrão','fora do padrao','produto estragado','produto impróprio',
+  'nunca comi nenhum','nunca comemos assim','nunca tinha visto isso',
+]
 
-  const cleanedText = cleanText(text, stopWords)
+const KW_RECLAMACAO = [
+  'grosseiro','mal educado','mal-educado','rude','absurdo',
+  'reembolso','estorno','devolução','devolucao','cobrar','cobrança','cobranca',
+  'errado','faltou','faltando','não veio','nao veio',
+  'cancelar','cancelamento','quero cancelar','reclamar','reclame aqui','procon',
+  'nunca mais','última vez','ultima vez','não volto','nao volto',
+  'péssimo','pessimo','horrível','horrivel','decepcionada','decepcionado',
+]
 
-  // Truncate text if too long to avoid token limits
-  const maxTextLength = 500
-  const truncatedText = cleanedText.length > maxTextLength ? cleanedText.substring(0, maxTextLength) + '...' : cleanedText
+const SYSTEM_PROMPT = `Classifique mensagens de WhatsApp de clientes de empresa brasileira de panificados congelados.
 
-  const prompt = `Analyze this customer message and respond with ONLY a JSON object (no markdown, no code blocks):
-{
-  "categoria": "one of: ${CATEGORIAS.join(', ')}",
-  "resumo": "2-3 word summary in Portuguese - be concise and extract only key information"
-}
+CATEGORIAS:
+QUALIDADE: qualquer problema com o produto em si — contaminação/corpo estranho (cabelo, plástico, inseto, mofo), sabor ou gosto estranho/diferente do esperado (defumado, queimado, azedo, rançoso), cheiro diferente, textura estranha, produto que não pode ser consumido, produto fora do padrão sensorial esperado
+LOGÍSTICA: problema exclusivamente na entrega (não chegou, atrasou, endereço errado, item faltando na caixa) — NÃO classifique como logística se houver reclamação sobre sabor/qualidade do produto
+RECLAMAÇÃO: insatisfação explícita com atendimento/cobrança (reembolso, grosseria, cobrança errada, "nunca mais")
+PEDIDO: compra, consulta de preço, cardápio, fazer pedido, quantidade de itens
+DÚVIDA: preparo, horário, pagamento, localização
+ELOGIO: satisfação, agradecimento, feedback positivo CLARO — não confunda elogio com ironia ou relato de sabor estranho
+OUTROS: saudação, confirmação, endereço, número, CEP, mensagem sem contexto suficiente
 
-Message: "${truncatedText}"
+ATENÇÃO ESPECIAL:
+- Mensagens sobre gosto diferente, sabor estranho ou inaptidão para comer o produto são SEMPRE QUALIDADE, mesmo que o cliente não use palavras técnicas
+- "Gosto de defumado", "sabor diferente", "não conseguimos comer" = QUALIDADE
+- "Nunca comi um biscoito de queijo com esse sabor" = QUALIDADE (não é elogio)
+- ELOGIO só se a mensagem for claramente positiva e sem ressalvas
+- Expressões de quantidade ou variedade ("um de cada", "dois de cada", "um de cada tipo") = PEDIDO
+- Endereço, CEP, complemento, número de apartamento = OUTROS
+- Confirmações simples ("sim", "ok", "certo", "tá bom", "tudo ótimo") = OUTROS
 
-Respond with only the JSON object, nothing else.`
+EXEMPLOS:
+"Veio um cabelo no produto" → QUALIDADE
+"O produto tem gosto de defumado, não estamos conseguindo comer" → QUALIDADE
+"Nunca comi biscoito de queijo com esse sabor, muito estranho" → QUALIDADE
+"O biscoito chegou com cheiro esquisito" → QUALIDADE
+"Meu pedido não chegou" → LOGÍSTICA
+"Péssimo atendimento, nunca mais compro" → RECLAMAÇÃO
+"Quero fazer um pedido" → PEDIDO
+"Um de cada" → PEDIDO
+"Quero 2 de cada tipo" → PEDIDO
+"Desses q eu circulei" → PEDIDO
+"Como asso o pão de queijo?" → DÚVIDA
+"Adorei, muito gostoso!" → ELOGIO
+"Ok, obrigada" → OUTROS
+"Td ótimo" → OUTROS
+"Rua 1064, n 30, ap 2101" → OUTROS
 
-  const maxRetries = 5
-  let lastError: Error | null = null
+Responda SOMENTE JSON: {"categoria":"...","resumo":"até 5 palavras","confianca":"ALTA|MEDIA|BAIXA"}`
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      // Add delay between retries to avoid rate limiting (exponential backoff starting at 1s)
-      if (attempt > 0) {
-        const delayMs = Math.pow(2, attempt - 1) * 1000 + Math.random() * 1000
-        console.log(`Attempt ${attempt + 1}/${maxRetries + 1}: Waiting ${Math.round(delayMs)}ms before retry...`)
-        await new Promise(resolve => setTimeout(resolve, delayMs))
-      }
+const EMOJI_ONLY = /^[\p{Emoji}\s\p{P}]+$/u
 
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 90000) // 90 second timeout for this specific request
-
-      const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=' + apiKey, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 256,
-          },
-        }),
-      })
-
-      clearTimeout(timeout)
-
-      // Retry on rate limit (429) and server errors (5xx)
-      if (!response.ok) {
-        if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
-          const backoffMs = Math.pow(2, attempt) * 500
-          console.warn(`Attempt ${attempt + 1}: Status ${response.status}, retrying in ${backoffMs}ms...`)
-          await new Promise(resolve => setTimeout(resolve, backoffMs))
-          continue
-        }
-
-        const error = await response.text()
-        console.error('Gemini API error:', error)
-        throw new Error(`Gemini API error: ${response.status}`)
-      }
-
-      const data = await response.json() as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{
-              text?: string
-            }>
-          }
-        }>
-      }
-
-      const text_content = data.candidates?.[0]?.content?.parts?.[0]?.text
-      if (!text_content) {
-        console.error('Gemini response:', JSON.stringify(data))
-        throw new Error('No response from Gemini')
-      }
-
-      // Extract and validate JSON from response (robust parsing)
-      let jsonStr = text_content.trim()
-
-      // Remove markdown code blocks (flexible: handle \r\n, \n, spaces)
-      if (jsonStr.startsWith('```')) {
-        // Remove opening ``` and optional "json" language marker
-        jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, '')
-        // Remove closing ```
-        jsonStr = jsonStr.replace(/\s*```\s*$/, '')
-      }
-
-      jsonStr = jsonStr.trim()
-      console.log(`Extracted JSON string (first 200 chars): ${jsonStr.substring(0, 200)}`)
-
-      let result: any
+function parseAIResponse(raw: string): { categoria: string; resumo: string; confianca: string } {
+  try {
+    const p = JSON.parse(raw)
+    return { categoria: p.categoria || 'OUTROS', resumo: p.resumo || 'Sem resumo', confianca: p.confianca || 'MEDIA' }
+  } catch {
+    const match = raw.match(/\{[^{}]+\}/)
+    if (match) {
       try {
-        result = JSON.parse(jsonStr)
-      } catch (parseError) {
-        // If JSON.parse fails, try to extract JSON object manually
-        console.warn('JSON.parse failed, attempting regex extraction...')
-        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) {
-          throw new Error(`Invalid JSON format. Raw response: ${text_content.substring(0, 500)}`)
-        }
-        try {
-          result = JSON.parse(jsonMatch[0])
-        } catch (e) {
-          throw new Error(`Failed to parse extracted JSON: ${e}. Content: ${jsonMatch[0].substring(0, 200)}`)
-        }
-      }
+        const p = JSON.parse(match[0])
+        return { categoria: p.categoria || 'OUTROS', resumo: p.resumo || 'Sem resumo', confianca: p.confianca || 'MEDIA' }
+      } catch { /* fall through */ }
+    }
+    return { categoria: 'OUTROS', resumo: 'Erro ao interpretar IA', confianca: 'BAIXA' }
+  }
+}
 
-      // Validate required fields
-      if (!result.categoria || !result.resumo) {
-        throw new Error(`Missing required fields. Got: categoria="${result.categoria}", resumo="${result.resumo}"`)
-      }
+async function classificarAnthropic(texto: string) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 60,
+      temperature: 0,
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      messages: [
+        { role: 'user',      content: texto },
+        { role: 'assistant', content: '{' },
+      ],
+    }),
+  })
+  if (!res.ok) throw new Error(`Claude HTTP ${res.status}: ${await res.text()}`)
+  const json = await res.json()
+  const rawText = '{' + (json.content?.[0]?.text?.trim() || '"categoria":"OUTROS","resumo":"Sem resumo","confianca":"BAIXA"}')
+  return parseAIResponse(rawText)
+}
 
-      // Validate categoria is in allowed list
-      if (!CATEGORIAS.includes(result.categoria)) {
-        console.warn(`Invalid categoria "${result.categoria}", defaulting to OUTROS`)
-        result.categoria = 'OUTROS'
-      }
+async function classificarGemini(texto: string) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts: [{ text: texto }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 80, responseMimeType: 'application/json' },
+    }),
+  })
+  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${await res.text()}`)
+  const json = await res.json()
+  const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}'
+  return parseAIResponse(rawText)
+}
 
-      return {
-        categoria: result.categoria,
-        resumo: String(result.resumo).trim(),
-      }
+// Classifica com até 3 tentativas (backoff 800ms/1600ms) — falhas de IA quase sempre são transitórias
+async function classificarComRetry(texto: string) {
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 800 * Math.pow(2, attempt - 1)))
+    try {
+      return AI_PROVIDER === 'GEMINI' ? await classificarGemini(texto) : await classificarAnthropic(texto)
     } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err))
-      if (attempt < maxRetries) {
-        const backoffMs = Math.pow(2, attempt) * 500
-        console.warn(`Attempt ${attempt + 1} failed, retrying in ${backoffMs}ms...`)
-        await new Promise(resolve => setTimeout(resolve, backoffMs))
-      }
+      lastErr = err
+      console.warn(`Tentativa ${attempt + 1}/3 falhou:`, err instanceof Error ? err.message : err)
     }
   }
+  throw lastErr
+}
 
-  throw lastError || new Error('Failed after all retry attempts')
+async function enviarAlertas(dest: string[], nome: string, tel: string, resumo: string, msgOrig: string, titulo: string, cfg: ConnConfig) {
+  const link  = tel.match(/^\d+$/) ? `https://wa.me/${tel}` : tel
+  const corpo = `*${titulo}*\n\n👤 *Cliente:* ${nome}\n📝 *Resumo:* ${resumo}\n🔗 *Contato:* ${link}\n\n💬 *Mensagem:* ${msgOrig}`
+  await Promise.allSettled(dest.map(num =>
+    fetch(`${cfg.api_url}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.token}` },
+      body: JSON.stringify({ number: num, text: corpo, type: 'chat', serviceId: cfg.service_id }),
+    })
+  ))
 }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
+  const start = Date.now()
+
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    )
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    // Fetch stop words once
-    const stopWords = await getStopWords()
-
-    // Fetch conversations with errors
-    const { data: conversas, error: fetchError } = await supabase
+    // Mensagens com erro de IA ou nunca analisadas ('' é o default da coluna; 'pending' é legado)
+    const { data: conversas, error: fetchError } = await sb
       .from('crm_conversations')
-      .select('*')
-      .eq('status_ia', 'error')
-      .limit(50)
+      .select('id, texto, telefone, nome, conexao, received_at, alerta_enviado, status_ia')
+      .in('status_ia', ['error', 'pending', ''])
+      .order('received_at', { ascending: false })
+      .limit(BATCH_LIMIT)
 
     if (fetchError) throw new Error(`Fetch error: ${fetchError.message}`)
 
     let ok = 0
     let failed = 0
+    let skipped = 0
 
-    for (const conversa of conversas || []) {
+    for (const c of conversas || []) {
+      if (Date.now() - start > TIME_BUDGET_MS) { skipped++; continue }
+
+      const texto = (c.texto || '').trim()
+
       try {
-        const { categoria, resumo } = await analyzeWithGemini(conversa.texto, stopWords)
-
-        const { error: updateError } = await supabase
-          .from('crm_conversations')
-          .update({
-            categoria,
-            resumo,
-            status_ia: 'OK',
-          })
-          .eq('id', conversa.id)
-
-        if (updateError) {
-          console.error(`Update error for ${conversa.id}:`, updateError)
-          failed++
-        } else {
+        if (ENTREGADORES.has((c.telefone || '').replace(/\D/g, ''))) {
+          await sb.from('crm_conversations').update({ status_ia: 'EQUIPE', categoria: 'EQUIPE' }).eq('id', c.id)
           ok++
+          continue
         }
+
+        if (texto.length < 5 || EMOJI_ONLY.test(texto)) {
+          await sb.from('crm_conversations').update({ status_ia: 'OK', categoria: 'OUTROS', resumo: 'Msg muito curta', confianca: 'BAIXA' }).eq('id', c.id)
+          ok++
+          continue
+        }
+
+        let { categoria, resumo, confianca } = await classificarComRetry(texto)
+
+        const tl = texto.toLowerCase()
+        if (categoria === 'QUALIDADE' && !KW_QUALIDADE.some(k => tl.includes(k))) {
+          categoria = 'OUTROS'; resumo = '[kw-miss] ' + resumo; confianca = 'BAIXA'
+        }
+        if (categoria === 'RECLAMAÇÃO' && !KW_RECLAMACAO.some(k => tl.includes(k))) {
+          categoria = 'OUTROS'; resumo = '[kw-miss] ' + resumo; confianca = 'BAIXA'
+        }
+
+        const { error: updErr } = await sb
+          .from('crm_conversations')
+          .update({ status_ia: 'OK', categoria, resumo, confianca })
+          .eq('id', c.id)
+        if (updErr) throw new Error(`Update: ${updErr.message}`)
+
+        // Alerta apenas para mensagens recentes (evita disparar para backlog antigo) e não alertadas
+        const recente = c.received_at && (Date.now() - new Date(c.received_at).getTime()) < ALERT_WINDOW_MS
+        const criticas = ['QUALIDADE', 'LOGÍSTICA', 'RECLAMAÇÃO']
+        const cfg = CONNECTIONS[c.conexao] ?? CONNECTIONS.CANTINA
+        if (recente && !c.alerta_enviado && confianca !== 'BAIXA') {
+          const label = cfg.conexao === 'CANTINA' ? 'Cantina em Casa' : 'Lumar Alimentos'
+          if (criticas.includes(categoria)) {
+            const pref = confianca === 'ALTA' ? '🚨' : '⚠️'
+            const suf  = confianca === 'ALTA' ? '' : ' (verificar)'
+            const dest = categoria === 'QUALIDADE' ? ALERTAS.NUTRICIONISTA : categoria === 'LOGÍSTICA' ? ALERTAS.LOGISTICA : ALERTAS.SUPERVISOR
+            await enviarAlertas(dest, c.nome, c.telefone, resumo, texto, `${pref} ${label}: ${categoria}${suf}`, cfg)
+            await sb.from('crm_conversations').update({ alerta_enviado: true }).eq('id', c.id)
+          } else if (categoria === 'ELOGIO') {
+            await enviarAlertas(ALERTAS.SUPERVISOR, c.nome, c.telefone, resumo, texto, `🌟 ${label}: ELOGIO recebido!`, cfg)
+            await sb.from('crm_conversations').update({ alerta_enviado: true }).eq('id', c.id)
+          }
+        }
+
+        ok++
       } catch (err) {
         failed++
-        const errMsg = err instanceof Error ? err.message : String(err)
-        console.error(`Processing error for ${conversa.id}:`, errMsg)
+        console.error(`Erro reprocessando ${c.id}:`, err instanceof Error ? err.message : err)
+        await sb.from('crm_conversations').update({ status_ia: 'error' }).eq('id', c.id)
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        total: conversas?.length || 0,
-        ok,
-        failed,
-      }),
-      {
-        status: 200,
-        headers: { ...CORS, 'Content-Type': 'application/json' },
-      },
-    )
+    const result = { total: conversas?.length || 0, ok, failed, skipped, elapsed_ms: Date.now() - start }
+    console.log('reprocess-conversations:', JSON.stringify(result))
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { ...CORS, 'Content-Type': 'application/json' },
+    })
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error('Function error:', errMsg)
-    return new Response(
-      JSON.stringify({ error: errMsg }),
-      {
-        status: 500,
-        headers: { ...CORS, 'Content-Type': 'application/json' },
-      },
-    )
+    return new Response(JSON.stringify({ error: errMsg }), {
+      status: 500,
+      headers: { ...CORS, 'Content-Type': 'application/json' },
+    })
   }
 })

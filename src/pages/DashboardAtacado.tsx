@@ -1030,7 +1030,12 @@ function ContatoRow({ cliente: c, feito, onToggle, cobrancaAberto }: {
   )
 }
 
-const PGTO_OPTIONS = ['BOLETO', 'BONIFICAÇÃO', 'C. CRÉDITO', 'C. DÉBITO', 'DINHEIRO', 'LINK', 'PIX - CANTINA', 'PIX - LUCIANO', 'PRAZO 14 DIAS']
+const PGTO_OPTIONS = ['BOLETO', 'BONIFICAÇÃO', 'C. CRÉDITO', 'C. DÉBITO', 'DINHEIRO', 'LINK', 'PIX', 'PRAZO 14 DIAS']
+
+// Converte valores legados ('PIX - CANTINA' / 'PIX - LUCIANO') para 'PIX' sem duplicar
+function normalizePgto(list: string[]): string[] {
+  return [...new Set(list.map(v => v.toUpperCase().startsWith('PIX') ? 'PIX' : v))]
+}
 
 // ─── Edit Pedido Modal ────────────────────────────────────────
 export function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles }: {
@@ -1050,7 +1055,7 @@ export function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles 
   const [veiculo, setVeiculo]       = useState(p.veiculo ?? '')
   const [observacoes, setObservacoes] = useState(p.observacoes ?? '')
   const [valor, setValor]           = useState(p.valor > 0 ? String(p.valor) : '')
-  const [pgtoList, setPgtoList]     = useState<string[]>(p.pgto ?? (pgtoCliente ? [pgtoCliente] : []))
+  const [pgtoList, setPgtoList]     = useState<string[]>(normalizePgto(p.pgto ?? (pgtoCliente ? [pgtoCliente] : [])))
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState<string | null>(null)
 

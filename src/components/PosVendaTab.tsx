@@ -33,8 +33,10 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
 
   const load = useCallback(async () => {
     setLoading(true)
-    // Fetch all records without the default 1000 limit
-    const PAGE_SIZE = 5000
+    // PostgREST limita cada resposta a 1000 linhas no servidor, mesmo pedindo range maior.
+    // Por isso a página DEVE ser exatamente 1000: páginas maiores voltam truncadas em 1000
+    // e o loop encerrava cedo achando que era a última página (contador travado em 1000).
+    const PAGE_SIZE = 1000
     let all: PosVendaCliente[] = []
     let page = 0
     let hasMore = true
@@ -45,6 +47,7 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
       const { data } = await supabase
         .from('crm_posvendas')
         .select('*')
+        .order('telefone') // ordem estável para a paginação não pular/duplicar registros
         .range(start, end)
 
       if (!data || data.length === 0) {

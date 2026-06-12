@@ -225,8 +225,9 @@ export default function RomaneioTab() {
     setSavingVeiculo(true)
     setVeiculoSalvo(false)
 
-    const lumarIds  = items.filter(i => i.empresa === 'LUMAR')  .map(i => parseInt(i.uid.slice(1)))
-    const cantinaIds = items.filter(i => i.empresa === 'CANTINA').map(i => parseInt(i.uid.slice(1)))
+    // uid.slice(1) preserva o id original: numérico no atacado, UUID no varejo (parseInt corromperia o UUID)
+    const lumarIds  = items.filter(i => i.empresa === 'LUMAR')  .map(i => i.uid.slice(1))
+    const cantinaIds = items.filter(i => i.empresa === 'CANTINA').map(i => i.uid.slice(1))
 
     await Promise.all([
       lumarIds.length
@@ -249,7 +250,7 @@ export default function RomaneioTab() {
     const item = items.find(i => i.uid === uid)
     if (!item) return
     if (value === (item.ocorrencia_db ?? '').trim()) return
-    const id = parseInt(uid.slice(1))
+    const id = uid.slice(1) // numérico (atacado) ou UUID (varejo)
     if (uid.startsWith('L')) {
       await supabase.from('atacado_pedidos').update({ ocorrencia: value || null }).eq('id', id)
     } else {
@@ -261,7 +262,7 @@ export default function RomaneioTab() {
   // ── Abrir modal de edição do pedido ──────────────────────────────
 
   async function openEditarPedido(uid: string) {
-    const id = parseInt(uid.slice(1))
+    const id = uid.slice(1) // numérico (atacado) ou UUID (varejo) — parseInt quebrava o UUID e o modal não abria
     if (uid.startsWith('L')) {
       const { data } = await supabase
         .from('atacado_pedidos')
@@ -859,7 +860,7 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
   async function save() {
     setSaving(true)
     setSaveError(null)
-    const id = parseInt(uid.slice(1))
+    const id = uid.slice(1) // numérico (atacado) ou UUID (varejo)
     const table = isAtacado ? 'atacado_pedidos' : 'varejo_pedidos'
     const patch = {
       data_entrega: dataEntrega || null,

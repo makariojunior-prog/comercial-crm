@@ -75,7 +75,8 @@ export default function ConversacoesPage() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const errosCount = useMemo(() => conversas.filter(c => c.status_ia === 'error').length, [conversas])
+  // Inclui não analisadas ('' / 'pending') além de erros — todas são reprocessadas automaticamente a cada 5 min via cron
+  const errosCount = useMemo(() => conversas.filter(c => ['error', 'pending', ''].includes(c.status_ia ?? '')).length, [conversas])
 
   async function reprocessarErros() {
     setReprocessing(true)
