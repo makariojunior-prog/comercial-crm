@@ -35,7 +35,7 @@ export default function PosVendaHistoricoTab() {
         .gte('data_interacao', from)
         .lte('data_interacao', to)
         .order('created_at', { ascending: false })
-        .limit(500)
+        .limit(2000)
 
       if (debouncedSearch) {
         const s = debouncedSearch.replace(/[%]/g, '')

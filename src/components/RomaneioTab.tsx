@@ -3,7 +3,7 @@ import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, Calendar, Printer,
-  RefreshCw, Share2, AlertCircle, Truck, Check, AlertTriangle, X,
+  RefreshCw, Share2, AlertCircle, Truck, Check, X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { EditPedidoModal } from '../pages/DashboardAtacado'
@@ -22,6 +22,8 @@ interface RomaneioItem {
   valor: number
   obs: string
   ocorrencia_db: string
+  entregador: string
+  veiculo_item: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -67,11 +69,7 @@ export default function RomaneioTab() {
   const [veiculoSalvo,  setVeiculoSalvo]  = useState(false)
 
   // Estado mutável por item
-  const [seqMap,   setSeqMap]   = useState<Record<string, string>>({})
-  const [ocorrMap, setOcorrMap] = useState<Record<string, string>>({})
-
-  // Filtro "apenas com ocorrência"
-  const [filtroOcorrencia, setFiltroOcorrencia] = useState(false)
+  const [seqMap, setSeqMap] = useState<Record<string, string>>({})
 
   // Edição de pedido
   const [editingPedidoUid, setEditingPedidoUid] = useState<string | null>(null)
@@ -103,8 +101,7 @@ export default function RomaneioTab() {
   const cantinaItems = useMemo(() => items.filter(i => i.empresa === 'CANTINA'), [items])
   const totalLumar   = lumarItems.reduce((s, i) => s + i.valor, 0)
   const totalCantina = cantinaItems.reduce((s, i) => s + i.valor, 0)
-  const totalGeral   = totalLumar + totalCantina
-  const qtdComOcorrencia = items.filter(i => (ocorrMap[i.uid] ?? i.ocorrencia_db).trim()).length
+  const totalGeral = totalLumar + totalCantina
 
   // Ordenação: automática por seqMap quando qualquer número for inserido
   const displayItems = useMemo(() => {
@@ -113,12 +110,9 @@ export default function RomaneioTab() {
       return isNaN(n) ? 9999 : n
     }
     const hasAnySeq = Object.values(seqMap).some(v => /^\d+$/.test(v.trim()))
-    const filtered = filtroOcorrencia
-      ? items.filter(i => (ocorrMap[i.uid] ?? i.ocorrencia_db).trim())
-      : items
     const base = [
-      ...(empresaLumar   ? filtered.filter(i => i.empresa === 'LUMAR')  .sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)) : []),
-      ...(empresaCantina ? filtered.filter(i => i.empresa === 'CANTINA').sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)) : []),
+      ...(empresaLumar   ? items.filter(i => i.empresa === 'LUMAR')  .sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)) : []),
+      ...(empresaCantina ? items.filter(i => i.empresa === 'CANTINA').sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)) : []),
     ]
     if (!hasAnySeq) return base
     return [...base].sort((a, b) => {
@@ -127,13 +121,13 @@ export default function RomaneioTab() {
       if (a.empresa !== b.empresa) return a.empresa === 'LUMAR' ? -1 : 1
       return turnoOrd(a.turno) - turnoOrd(b.turno)
     })
-  }, [items, seqMap, ocorrMap, filtroOcorrencia, empresaLumar, empresaCantina])
+  }, [items, seqMap, empresaLumar, empresaCantina])
 
   // ── Carregar dados (automático ao mudar filtros) ─────────────────
 
   const load = useCallback(async () => {
     setLoading(true)
-    setSeqMap({}); setOcorrMap({})
+    setSeqMap({})
     setVeiculoSalvo(false)
 
     const nenhum = !turnoManha && !turnoTarde && !turnoNoite
@@ -193,6 +187,8 @@ export default function RomaneioTab() {
       valor:         Number(p.valor) || 0,
       obs:           '',
       ocorrencia_db: p.ocorrencia ?? '',
+      entregador:    p.entregador ?? '',
+      veiculo_item:  p.veiculo ?? '',
     }))
 
     const cant: RomaneioItem[] = ((cantina ?? []) as any[]).map(p => ({
@@ -206,6 +202,8 @@ export default function RomaneioTab() {
       valor:         Number(p.valor_liquido) || 0,
       obs:           p.restricao ?? '',
       ocorrencia_db: p.ocorrencia ?? '',
+      entregador:    p.entregador ?? '',
+      veiculo_item:  p.veiculo ?? '',
     }))
 
     // Detecta veículo já salvo nos pedidos (usa o primeiro valor encontrado)
@@ -241,22 +239,6 @@ export default function RomaneioTab() {
     setSavingVeiculo(false)
     setVeiculoSalvo(true)
     setTimeout(() => setVeiculoSalvo(false), 2500)
-  }
-
-  // ── Salvar ocorrência no pedido original ─────────────────────────
-
-  async function handleOcorrenciaBlur(uid: string) {
-    const value = (ocorrMap[uid] ?? '').trim()
-    const item = items.find(i => i.uid === uid)
-    if (!item) return
-    if (value === (item.ocorrencia_db ?? '').trim()) return
-    const id = uid.slice(1) // numérico (atacado) ou UUID (varejo)
-    if (uid.startsWith('L')) {
-      await supabase.from('atacado_pedidos').update({ ocorrencia: value || null }).eq('id', id)
-    } else {
-      await supabase.from('varejo_pedidos').update({ ocorrencia: value || null }).eq('id', id)
-    }
-    setItems(prev => prev.map(i => i.uid === uid ? { ...i, ocorrencia_db: value } : i))
   }
 
   // ── Abrir modal de edição do pedido ──────────────────────────────
@@ -595,20 +577,6 @@ export default function RomaneioTab() {
               <Share2 size={13} /> Compartilhar
             </button>
             <button
-              onClick={() => setFiltroOcorrencia(v => !v)}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
-                filtroOcorrencia
-                  ? 'bg-red-50 border-red-300 text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300'
-                  : 'border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
-              title="Mostrar apenas pedidos com ocorrência registrada"
-            >
-              <AlertTriangle size={13} />
-              {filtroOcorrencia
-                ? `Com ocorrência (${qtdComOcorrencia})`
-                : `Ocorrências${qtdComOcorrencia > 0 ? ` (${qtdComOcorrencia})` : ''}`}
-            </button>
-            <button
               onClick={() => window.print()}
               className="btn-primary text-xs py-1.5 gap-1 ml-auto"
             >
@@ -682,8 +650,8 @@ export default function RomaneioTab() {
                         </tr>
 
                         <tr className="rom-cols bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-bold text-[10px] text-center">
-                          {['Nº', 'PEDIDO', 'CLIENTE', 'TURNO', 'ROTA', 'PGTO', 'VALOR (R$)', 'OBS / RESTRIÇÃO', 'OCORRÊNCIA'].map(h => (
-                            <td key={h} className={`px-2 py-1.5 border border-slate-300 dark:border-slate-600 ${['CLIENTE', 'OBS / RESTRIÇÃO', 'OCORRÊNCIA'].includes(h) ? 'text-left' : ''}`}>
+                          {['Nº', 'PEDIDO', 'CLIENTE', 'TURNO', 'ROTA', 'PGTO', 'VALOR (R$)', 'ENTREGADOR', 'VEÍCULO'].map(h => (
+                            <td key={h} className={`px-2 py-1.5 border border-slate-300 dark:border-slate-600 ${['CLIENTE', 'ENTREGADOR', 'VEÍCULO'].includes(h) ? 'text-left' : ''}`}>
                               {h}
                             </td>
                           ))}
@@ -692,7 +660,6 @@ export default function RomaneioTab() {
                         {grupo.map((item, idx) => {
                           const rowBg = idx % 2 === 0 ? 'bg-white dark:bg-slate-800/10' : 'bg-slate-50 dark:bg-slate-800/30'
                           const rowPrint = idx % 2 === 0 ? 'rom-row' : 'rom-row-alt'
-                          const temOcorrencia = (ocorrMap[item.uid] ?? item.ocorrencia_db).trim()
 
                           return (
                             <tr key={item.uid} onClick={() => openEditarPedido(item.uid)} className={`${rowPrint} ${rowBg} transition-colors cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/20`}>
@@ -725,19 +692,11 @@ export default function RomaneioTab() {
                               <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-center font-semibold text-green-700 dark:text-green-400 whitespace-nowrap">
                                 {item.valor > 0 ? fmt(item.valor) : '—'}
                               </td>
-                              <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400 text-[10px] leading-tight">
-                                {item.obs || ''}
+                              <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-left text-slate-600 dark:text-slate-300 text-[10px] leading-tight font-medium">
+                                {item.entregador || '—'}
                               </td>
-                              <td className={`px-1 py-1 border-b border-r border-slate-200 dark:border-slate-700 ${temOcorrencia ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}`}>
-                                <input
-                                  type="text"
-                                  onClick={e => e.stopPropagation()}
-                                  className="print-input w-full text-[10px] border border-transparent rounded px-1 py-0.5 bg-transparent text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-300 focus:ring-1 focus:ring-orange-300"
-                                  value={ocorrMap[item.uid] ?? item.ocorrencia_db}
-                                  onChange={e => setOcorrMap(m => ({ ...m, [item.uid]: e.target.value }))}
-                                  onBlur={() => handleOcorrenciaBlur(item.uid)}
-                                  placeholder="—"
-                                />
+                              <td className="px-2 py-2 border-b border-r border-slate-200 dark:border-slate-700 text-left text-slate-500 dark:text-slate-400 text-[10px] leading-tight">
+                                {item.veiculo_item || '—'}
                               </td>
                             </tr>
                           )
@@ -848,12 +807,10 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
   onClose: () => void
   onSaved: () => void
 }) {
-  const isAtacado = uid.startsWith('L')
   const [dataEntrega, setDataEntrega] = useState(pedidoData.data_entrega ?? '')
   const [turno, setTurno] = useState(pedidoData.turno ?? '')
   const [entregador, setEntregador] = useState(pedidoData.entregador ?? '')
   const [veiculo, setVeiculo] = useState(pedidoData.veiculo ?? '')
-  const [observacoes, setObservacoes] = useState(pedidoData.observacoes ?? '')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -861,13 +818,12 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
     setSaving(true)
     setSaveError(null)
     const id = uid.slice(1) // numérico (atacado) ou UUID (varejo)
-    const table = isAtacado ? 'atacado_pedidos' : 'varejo_pedidos'
+    const table = uid.startsWith('L') ? 'atacado_pedidos' : 'varejo_pedidos'
     const patch = {
       data_entrega: dataEntrega || null,
-      turno: turno || null,
-      entregador: entregador || null,
-      veiculo: veiculo || null,
-      observacoes: observacoes || null,
+      turno:        turno       || null,
+      entregador:   entregador  || null,
+      veiculo:      veiculo     || null,
     }
     // PostgREST devolve o erro no objeto de retorno (não lança), então
     // precisamos checar `error` explicitamente em vez de usar try/catch.
@@ -945,13 +901,6 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Observações</label>
-            <textarea placeholder="Notas específicas para este pedido..."
-              value={observacoes} onChange={e => setObservacoes(e.target.value)}
-              className="w-full text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-none min-h-[80px]"
-            />
-          </div>
         </div>
 
         <div className="px-5 pt-3 border-t border-slate-100 dark:border-slate-700 shrink-0 space-y-2">

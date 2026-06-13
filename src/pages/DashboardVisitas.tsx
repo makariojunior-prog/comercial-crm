@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download, AlertCircle, Camera } from 'lucide-react'
+import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download, AlertCircle, Camera, Filter, X } from 'lucide-react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -30,6 +30,14 @@ export default function DashboardVisitas() {
   const [editVisit, setEditVisit] = useState<Visit | null | undefined>(undefined)
   const [search, setSearch] = useState('')
 
+  // Filtros avançados
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterResp, setFilterResp] = useState('')
+  const [staffOptions, setStaffOptions] = useState<string[]>([])
+  const [showFilters, setShowFilters] = useState(false)
+
   async function load() {
     setLoading(true)
     setLoadError(null)
@@ -41,6 +49,11 @@ export default function DashboardVisitas() {
     setVisits(data as Visit[] ?? [])
     setLoading(false)
   }
+
+  useEffect(() => {
+    supabase.from('crm_staff').select('name').eq('active', true).order('name')
+      .then(({ data }) => { if (data) setStaffOptions(data.map((s: any) => s.name)) })
+  }, [])
 
   useEffect(() => { load() }, [])
 
@@ -69,16 +82,27 @@ export default function DashboardVisitas() {
     return { thisMonth, realized: thisMonth.filter(v => v.status === 'Realizada') }
   }, [visits, monthStart, monthEnd])
 
+  const activeFilterCount = [filterStatus, filterDateFrom, filterDateTo, filterResp].filter(Boolean).length
+
   const filtered = useMemo(() => {
-    if (!search) return visits
-    const q = search.toLowerCase()
-    return visits.filter(v =>
-      v.client_name.toLowerCase().includes(q) ||
-      getResponsaveis(v).toLowerCase().includes(q) ||
-      (v.report ?? '').toLowerCase().includes(q) ||
-      (v.demand ?? '').toLowerCase().includes(q)
+    let list = visits
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter(v =>
+        v.client_name.toLowerCase().includes(q) ||
+        getResponsaveis(v).toLowerCase().includes(q) ||
+        (v.report ?? '').toLowerCase().includes(q) ||
+        (v.demand ?? '').toLowerCase().includes(q)
+      )
+    }
+    if (filterStatus) list = list.filter(v => v.status === filterStatus)
+    if (filterDateFrom) list = list.filter(v => v.visit_date && v.visit_date >= filterDateFrom)
+    if (filterDateTo)   list = list.filter(v => v.visit_date && v.visit_date <= filterDateTo)
+    if (filterResp) list = list.filter(v =>
+      v.responsible === filterResp || v.responsaveis?.includes(filterResp)
     )
-  }, [visits, search])
+    return list
+  }, [visits, search, filterStatus, filterDateFrom, filterDateTo, filterResp])
 
   return (
     <div className="space-y-5">
@@ -117,13 +141,84 @@ export default function DashboardVisitas() {
         </div>
       </div>
 
-      {/* Busca */}
-      <input
-        className="input"
-        placeholder="Buscar cliente, responsável..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
+      {/* Busca + filtros */}
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <input
+            className="input flex-1"
+            placeholder="Buscar cliente, responsável..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+              showFilters || activeFilterCount > 0
+                ? 'bg-orange-50 border-orange-300 text-orange-600 dark:bg-orange-900/20 dark:border-orange-700 dark:text-orange-400'
+                : 'border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Filter size={15} />
+            Filtros{activeFilterCount > 0 && <span className="text-[10px] font-bold bg-orange-500 text-white rounded-full px-1.5 py-0.5">{activeFilterCount}</span>}
+          </button>
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => { setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterResp('') }}
+              className="flex items-center gap-1 px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-400 hover:text-red-500 hover:border-red-300 transition-colors text-xs"
+              title="Limpar filtros"
+            >
+              <X size={13} /> Limpar
+            </button>
+          )}
+        </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Status</label>
+              <select
+                className="input text-sm py-1.5"
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="Realizada">Realizada</option>
+                <option value="Agendada">Agendada</option>
+                <option value="Cancelada">Cancelada</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">De</label>
+              <input
+                type="date"
+                className="input text-sm py-1.5"
+                value={filterDateFrom}
+                onChange={e => setFilterDateFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Até</label>
+              <input
+                type="date"
+                className="input text-sm py-1.5"
+                value={filterDateTo}
+                onChange={e => setFilterDateTo(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Responsável</label>
+              <select
+                className="input text-sm py-1.5"
+                value={filterResp}
+                onChange={e => setFilterResp(e.target.value)}
+              >
+                <option value="">Todos</option>
+                {staffOptions.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
 
       {loadError && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">

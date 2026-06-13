@@ -39,7 +39,7 @@ export default function PosVendaWidget() {
       .select('*')
       .eq('prioridade', 1)
       .order('dias_sem_contato', { ascending: false })
-      .limit(50)
+      .limit(200)
     setClientes((pendentes ?? []) as PosVendaCliente[])
 
     // Fetch today's recompra interactions (prioridade 2)
@@ -49,7 +49,7 @@ export default function PosVendaWidget() {
       .gte('data_interacao', todayStart)
       .lt('data_interacao', format(new Date(new Date().getTime() + 86400000), 'yyyy-MM-dd'))
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(200)
 
     setRecomprasHoje((recompras ?? []) as PosVendaInteracao[])
     setLoading(false)

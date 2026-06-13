@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText, Search, ThumbsUp, ThumbsDown, CalendarClock } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText, Search, ThumbsUp, ThumbsDown, CalendarClock, CheckCircle2, Lock } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -81,8 +81,11 @@ export default function AgendaPage() {
       .from('agenda_compromissos')
       .select('*')
       .eq('aprovacao_status', 'PENDENTE')
-      .contains('responsaveis', [profile.nome])
-    setPendingApprovals((data ?? []).filter(i => i.criado_por !== profile.nome))
+    // Filtra client-side para evitar problemas com operator @> em text[] vs jsonb
+    setPendingApprovals((data ?? []).filter(i =>
+      i.criado_por !== profile.nome &&
+      (i.responsaveis?.includes(profile.nome) || i.responsavel === profile.nome)
+    ))
   }, [profile])
 
   useEffect(() => { load() }, [load])
@@ -102,6 +105,13 @@ export default function AgendaPage() {
   async function deleteItem(id: string) {
     if (!confirm('Excluir este compromisso?')) return
     await supabase.from('agenda_compromissos').delete().eq('id', id)
+    load()
+  }
+
+  async function finalizeItem(id: string) {
+    await supabase.from('agenda_compromissos')
+      .update({ status: 'REALIZADO', updated_at: new Date().toISOString() })
+      .eq('id', id)
     load()
   }
 
@@ -232,6 +242,7 @@ export default function AgendaPage() {
                     onEdit={() => setEditModal({ item })}
                     onDelete={() => deleteItem(item.id)}
                     onDuplicate={() => setDupItem(item)}
+                    onFinalize={() => finalizeItem(item.id)}
                   />
                 ))}
               </div>
@@ -276,14 +287,16 @@ export default function AgendaPage() {
 }
 
 // ─── AppointmentCard ───────────────────────────────────────────────
-function AppointmentCard({ item, onEdit, onDelete, onDuplicate }: {
+function AppointmentCard({ item, onEdit, onDelete, onDuplicate, onFinalize }: {
   item: AgendaCompromisso
   onEdit: () => void
   onDelete: () => void
   onDuplicate: () => void
+  onFinalize: () => void
 }) {
   const borderColor = TIPO_BORDER[item.tipo] ?? 'border-l-slate-400'
   const canceled    = item.status === 'CANCELADO'
+  const canFinalize = item.status === 'AGENDADO' && item.aprovacao_status !== 'PENDENTE'
 
   return (
     <div
@@ -319,6 +332,15 @@ function AppointmentCard({ item, onEdit, onDelete, onDuplicate }: {
             </span>
           )}
           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+            {canFinalize && (
+              <button
+                onClick={onFinalize}
+                className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-slate-400 hover:text-green-600 transition-colors"
+                title="Finalizar visita"
+              >
+                <CheckCircle2 size={10} />
+              </button>
+            )}
             <button
               onClick={onDuplicate}
               className="p-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors"
@@ -351,6 +373,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
   onSaved: () => void
 }) {
   const today = format(new Date(), 'yyyy-MM-dd')
+  const hasVisitReport = !!(item?.visit_id)
   const [form, setForm] = useState({
     data:         item?.data                 ?? defaultDate ?? today,
     hora_inicio:  item?.hora_inicio?.substring(0, 5) ?? '',
@@ -511,31 +534,41 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {/* ── Bloqueio por relatório de visita ── */}
+          {hasVisitReport && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
+              <Lock size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+              <p className="text-xs text-green-700 dark:text-green-300 font-medium">
+                Relatório de visita já gerado. Este compromisso não pode mais ser editado.
+              </p>
+            </div>
+          )}
+
           {/* ── Campos principais ── */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Data</label>
-              <input type="date" className="input" value={form.data} onChange={e => set('data', e.target.value)} />
+              <input type="date" className="input" value={form.data} onChange={e => set('data', e.target.value)} disabled={hasVisitReport} />
             </div>
             <div>
               <label className="label">Tipo</label>
-              <select className="input" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+              <select className="input" value={form.tipo} onChange={e => set('tipo', e.target.value)} disabled={hasVisitReport}>
                 {TIPOS.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
             <div>
               <label className="label">Início</label>
-              <input type="time" className="input" value={form.hora_inicio} onChange={e => set('hora_inicio', e.target.value)} />
+              <input type="time" className="input" value={form.hora_inicio} onChange={e => set('hora_inicio', e.target.value)} disabled={hasVisitReport} />
             </div>
             <div>
               <label className="label">Fim</label>
-              <input type="time" className="input" value={form.hora_fim} onChange={e => set('hora_fim', e.target.value)} />
+              <input type="time" className="input" value={form.hora_fim} onChange={e => set('hora_fim', e.target.value)} disabled={hasVisitReport} />
             </div>
           </div>
 
           <div>
             <label className="label">Cliente</label>
-            <input className="input" value={form.cliente_nome} onChange={e => set('cliente_nome', e.target.value)} placeholder="Nome do cliente" />
+            <input className="input" value={form.cliente_nome} onChange={e => set('cliente_nome', e.target.value)} placeholder="Nome do cliente" disabled={hasVisitReport} />
           </div>
 
           <div className="relative">
@@ -548,6 +581,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
                 onBlur={() => setTimeout(() => setShowLocalDrop(false), 200)}
                 placeholder="Digite para buscar endereço..."
                 autoComplete="off"
+                disabled={hasVisitReport}
               />
               <Search size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
@@ -569,7 +603,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
 
           <div>
             <label className="label">Status</label>
-            <select className="input" value={form.status} onChange={e => set('status', e.target.value)}>
+            <select className="input" value={form.status} onChange={e => set('status', e.target.value)} disabled={hasVisitReport}>
               <option value="AGENDADO">Agendado</option>
               <option value="REALIZADO">Realizado</option>
               <option value="CANCELADO">Cancelado</option>
@@ -588,12 +622,13 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
                     <button
                       key={name}
                       type="button"
-                      onClick={() => toggleResp(name)}
+                      onClick={() => !hasVisitReport && toggleResp(name)}
+                      disabled={hasVisitReport}
                       className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
                         sel
                           ? 'bg-orange-500 border-orange-600 text-white shadow-sm'
                           : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-600'
-                      }`}
+                      } disabled:opacity-60 disabled:cursor-not-allowed`}
                     >
                       {sel ? '✓ ' : ''}{name}
                     </button>
@@ -614,11 +649,12 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
               value={form.descricao}
               onChange={e => set('descricao', e.target.value)}
               placeholder="Detalhes, pautas, objetivos..."
+              disabled={hasVisitReport}
             />
           </div>
 
-          {/* ── Converter em relatório de visita (só para edição) ── */}
-          {item && (
+          {/* ── Converter em relatório de visita (só para edição sem relatório) ── */}
+          {item && !hasVisitReport && (
             <div className={`rounded-xl border transition-all overflow-hidden ${convertVisit ? 'border-green-300 dark:border-green-700' : 'border-slate-200 dark:border-slate-600'}`}>
               <button
                 type="button"
@@ -730,10 +766,14 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
           </div>
         )}
         <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
-          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
-          <button onClick={save} disabled={saving} className="btn-primary flex-1 justify-center">
-            {saving ? 'Salvando…' : item ? 'Salvar' : 'Criar'}
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center">
+            {hasVisitReport ? 'Fechar' : 'Cancelar'}
           </button>
+          {!hasVisitReport && (
+            <button onClick={save} disabled={saving} className="btn-primary flex-1 justify-center">
+              {saving ? 'Salvando…' : item ? 'Salvar' : 'Criar'}
+            </button>
+          )}
         </div>
       </div>
     </div>
