@@ -843,7 +843,7 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
           <div>
             <h2 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Editar Pedido</h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">{isAtacado ? 'LUMAR' : 'CANTINA'} #{pedidoData.numero_pedido || pedidoData.num_pedido || uid.slice(1)}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{uid.startsWith('L') ? 'LUMAR' : 'CANTINA'} #{pedidoData.numero_pedido || pedidoData.num_pedido || uid.slice(1)}</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <X size={20} />
@@ -906,7 +906,7 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
         <div className="px-5 pt-3 border-t border-slate-100 dark:border-slate-700 shrink-0 space-y-2">
           {saveError && (
             <div className="flex items-start gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
-              <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+              <AlertCircle size={13} className="shrink-0 mt-0.5" />
               <span className="flex-1">Erro ao salvar: {saveError}</span>
             </div>
           )}
