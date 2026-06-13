@@ -294,13 +294,17 @@ function AppointmentCard({ item, onEdit, onDelete, onDuplicate, onFinalize }: {
   onDuplicate: () => void
   onFinalize: () => void
 }) {
-  const borderColor = TIPO_BORDER[item.tipo] ?? 'border-l-slate-400'
   const canceled    = item.status === 'CANCELADO'
+  const borderColor = canceled ? 'border-l-slate-300 dark:border-l-slate-600' : (TIPO_BORDER[item.tipo] ?? 'border-l-slate-400')
   const canFinalize = item.status === 'AGENDADO' && item.aprovacao_status !== 'PENDENTE'
 
   return (
     <div
-      className={`rounded-xl border-l-4 ${borderColor} bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 px-2 py-1.5 cursor-pointer group hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors`}
+      className={`rounded-xl border-l-4 ${borderColor} border px-2 py-1.5 cursor-pointer group transition-colors ${
+        canceled
+          ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-80'
+          : 'bg-slate-50 dark:bg-slate-700/50 border-slate-100 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-orange-900/10'
+      }`}
       onClick={onEdit}
     >
       <div className="flex items-start justify-between gap-1">
@@ -311,7 +315,7 @@ function AppointmentCard({ item, onEdit, onDelete, onDuplicate, onFinalize }: {
               {item.hora_inicio.substring(0, 5)}{item.hora_fim ? `–${item.hora_fim.substring(0, 5)}` : ''}
             </p>
           )}
-          <p className={`text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight truncate ${canceled ? 'line-through opacity-60' : ''}`}>
+          <p className={`text-xs font-semibold leading-tight truncate ${canceled ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
             {item.titulo}
           </p>
           {item.cliente_nome && (
