@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
-  ChevronLeft, ChevronRight, Calendar, Printer,
-  RefreshCw, Share2, AlertCircle, Truck, Check, X,
+  ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown,
+  Calendar, Printer, RefreshCw, Share2, AlertCircle, Truck, Check, X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { EditPedidoModal } from '../pages/DashboardAtacado'
@@ -43,6 +43,20 @@ function firstName(nome: string) {
 const fmt = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+type SortCol = 'pedido' | 'cliente' | 'turno' | 'rota' | 'pgto' | 'valor' | 'entregador' | 'veiculo_item'
+
+const ROMANEIO_COLS: { label: string; key: SortCol | null; left?: boolean }[] = [
+  { label: 'Nº',          key: null },
+  { label: 'PEDIDO',      key: 'pedido' },
+  { label: 'CLIENTE',     key: 'cliente',      left: true },
+  { label: 'TURNO',       key: 'turno' },
+  { label: 'ROTA',        key: 'rota' },
+  { label: 'PGTO',        key: 'pgto' },
+  { label: 'VALOR (R$)',  key: 'valor' },
+  { label: 'ENTREGADOR',  key: 'entregador',   left: true },
+  { label: 'VEÍCULO',     key: 'veiculo_item', left: true },
+]
+
 // ─── Main component ───────────────────────────────────────────────────
 
 export default function RomaneioTab() {
@@ -67,6 +81,10 @@ export default function RomaneioTab() {
   const [veiculo,       setVeiculo]       = useState('')
   const [savingVeiculo, setSavingVeiculo] = useState(false)
   const [veiculoSalvo,  setVeiculoSalvo]  = useState(false)
+
+  // Ordenação da tabela
+  const [sortCol, setSortCol] = useState<SortCol>('cliente')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   // Estado mutável por item
   const [seqMap, setSeqMap] = useState<Record<string, string>>({})
@@ -103,25 +121,37 @@ export default function RomaneioTab() {
   const totalCantina = cantinaItems.reduce((s, i) => s + i.valor, 0)
   const totalGeral = totalLumar + totalCantina
 
-  // Ordenação: automática por seqMap quando qualquer número for inserido
+  // Ordenação: seqMap tem prioridade; sem seq usa a coluna escolhida (padrão: cliente A→Z)
   const displayItems = useMemo(() => {
     const parseSeq = (uid: string) => {
       const n = parseInt(seqMap[uid] ?? '', 10)
       return isNaN(n) ? 9999 : n
     }
     const hasAnySeq = Object.values(seqMap).some(v => /^\d+$/.test(v.trim()))
-    const base = [
-      ...(empresaLumar   ? items.filter(i => i.empresa === 'LUMAR')  .sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)) : []),
-      ...(empresaCantina ? items.filter(i => i.empresa === 'CANTINA').sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno)) : []),
-    ]
-    if (!hasAnySeq) return base
-    return [...base].sort((a, b) => {
-      const sa = parseSeq(a.uid), sb = parseSeq(b.uid)
-      if (sa !== sb) return sa - sb
-      if (a.empresa !== b.empresa) return a.empresa === 'LUMAR' ? -1 : 1
-      return turnoOrd(a.turno) - turnoOrd(b.turno)
-    })
-  }, [items, seqMap, empresaLumar, empresaCantina])
+
+    const cmp = (a: RomaneioItem, b: RomaneioItem): number => {
+      let v = 0
+      if (sortCol === 'valor')  v = a.valor - b.valor
+      else if (sortCol === 'turno')  v = turnoOrd(a.turno) - turnoOrd(b.turno)
+      else if (sortCol === 'pedido') v = parseInt(a.pedido.replace(/\D/g, ''), 10) - parseInt(b.pedido.replace(/\D/g, ''), 10)
+      else v = (a[sortCol] ?? '').localeCompare(b[sortCol] ?? '', 'pt-BR', { sensitivity: 'base' })
+      return sortDir === 'asc' ? v : -v
+    }
+
+    const lumar   = empresaLumar   ? items.filter(i => i.empresa === 'LUMAR')   : []
+    const cantina = empresaCantina ? items.filter(i => i.empresa === 'CANTINA') : []
+
+    if (hasAnySeq) {
+      return [...lumar, ...cantina].sort((a, b) => {
+        const sa = parseSeq(a.uid), sb = parseSeq(b.uid)
+        if (sa !== sb) return sa - sb
+        if (a.empresa !== b.empresa) return a.empresa === 'LUMAR' ? -1 : 1
+        return cmp(a, b)
+      })
+    }
+
+    return [...[...lumar].sort(cmp), ...[...cantina].sort(cmp)]
+  }, [items, seqMap, empresaLumar, empresaCantina, sortCol, sortDir])
 
   // ── Carregar dados (automático ao mudar filtros) ─────────────────
 
@@ -650,9 +680,22 @@ export default function RomaneioTab() {
                         </tr>
 
                         <tr className="rom-cols bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-bold text-[10px] text-center">
-                          {['Nº', 'PEDIDO', 'CLIENTE', 'TURNO', 'ROTA', 'PGTO', 'VALOR (R$)', 'ENTREGADOR', 'VEÍCULO'].map(h => (
-                            <td key={h} className={`px-2 py-1.5 border border-slate-300 dark:border-slate-600 ${['CLIENTE', 'ENTREGADOR', 'VEÍCULO'].includes(h) ? 'text-left' : ''}`}>
-                              {h}
+                          {ROMANEIO_COLS.map(({ label, key, left }) => (
+                            <td
+                              key={label}
+                              onClick={key ? () => {
+                                if (sortCol === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                                else { setSortCol(key); setSortDir('asc') }
+                              } : undefined}
+                              className={`px-2 py-1.5 border border-slate-300 dark:border-slate-600 ${left ? 'text-left' : ''} ${key ? 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 select-none' : ''}`}
+                            >
+                              <span className={`inline-flex items-center gap-0.5 ${left ? '' : 'justify-center w-full'}`}>
+                                {label}
+                                {key && (sortCol === key
+                                  ? (sortDir === 'asc' ? <ChevronUp size={9} /> : <ChevronDown size={9} />)
+                                  : <ChevronsUpDown size={9} className="opacity-30" />
+                                )}
+                              </span>
                             </td>
                           ))}
                         </tr>

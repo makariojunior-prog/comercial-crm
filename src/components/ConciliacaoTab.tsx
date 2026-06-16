@@ -31,6 +31,7 @@ interface Props {
 }
 
 type SubTab = 'pendentes' | 'historico'
+type PendSortCol = 'cliente' | 'valor' | 'entregador'
 
 export default function ConciliacaoTab({
   drivers = [],
@@ -63,6 +64,10 @@ export default function ConciliacaoTab({
   const [editingItem, setEditingItem] = useState<RomaneioItem | null>(null)
   const [editingExisting, setEditingExisting] = useState<RomaneioConciliacao | null>(null)
   const [showModal, setShowModal] = useState(false)
+
+  // Ordenação dos pendentes
+  const [pendSortCol, setPendSortCol] = useState<PendSortCol>('cliente')
+  const [pendSortDir, setPendSortDir] = useState<'asc' | 'desc'>('asc')
 
   // Filtros de histórico
   const [filtroCliente, setFiltroCliente] = useState('')
@@ -132,10 +137,16 @@ export default function ConciliacaoTab({
     }
   }, [filterDate, filterEntregador, filterTurnoManha, filterTurnoTarde, filterTurnoNoite, filterEmpresaLumar, filterEmpresaCantina, load])
 
-  // Itens pendentes (sem conciliação)
+  // Itens pendentes (sem conciliação), ordenados
   const itensPendentes = useMemo(() => {
-    return items.filter(item => !conciliados.has(item.uid))
-  }, [items, conciliados])
+    const pending = items.filter(item => !conciliados.has(item.uid))
+    return [...pending].sort((a, b) => {
+      const v = pendSortCol === 'valor'
+        ? a.valor - b.valor
+        : (a[pendSortCol] ?? '').localeCompare(b[pendSortCol] ?? '', 'pt-BR', { sensitivity: 'base' })
+      return pendSortDir === 'asc' ? v : -v
+    })
+  }, [items, conciliados, pendSortCol, pendSortDir])
 
   // Histórico filtrado
   const historicoFiltrado = useMemo(() => {
@@ -385,6 +396,29 @@ export default function ConciliacaoTab({
                   {finalizandoLote ? 'Finalizando...' : 'Finalizar Selecionados'}
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Ordenação dos pendentes */}
+          {!loading && itensPendentes.length > 0 && (
+            <div className="flex items-center gap-1 text-xs text-slate-500">
+              <span className="mr-1">Ordenar:</span>
+              {([['cliente', 'Cliente'], ['valor', 'Valor'], ['entregador', 'Entregador']] as const).map(([col, lbl]) => (
+                <button
+                  key={col}
+                  onClick={() => {
+                    if (pendSortCol === col) setPendSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                    else { setPendSortCol(col); setPendSortDir('asc') }
+                  }}
+                  className={`px-2 py-0.5 rounded border text-[11px] font-medium transition-colors ${
+                    pendSortCol === col
+                      ? 'bg-orange-100 border-orange-300 text-orange-700'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {lbl} {pendSortCol === col ? (pendSortDir === 'asc' ? '↑' : '↓') : ''}
+                </button>
+              ))}
             </div>
           )}
 
