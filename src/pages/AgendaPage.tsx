@@ -326,13 +326,17 @@ function AppointmentCard({ item, onEdit, onDelete, onDuplicate, onFinalize }: {
           )}
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0 ml-1">
-          {item.aprovacao_status === 'PENDENTE' ? (
+          {item.status === 'REALIZADO' || item.status === 'CANCELADO' ? (
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[item.status] ?? ''}`}>
+              {item.status === 'REALIZADO' ? 'OK' : 'CANC.'}
+            </span>
+          ) : item.aprovacao_status === 'PENDENTE' ? (
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 flex items-center gap-0.5">
               <Clock size={8} /> PEND.
             </span>
           ) : (
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[item.status] ?? ''}`}>
-              {item.status === 'AGENDADO' ? 'AGEND.' : item.status === 'REALIZADO' ? 'OK' : 'CANC.'}
+              AGEND.
             </span>
           )}
           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
@@ -466,7 +470,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
       responsaveis,
       criado_por:       item ? item.criado_por : currentUser,
       criado_por_id:    item ? item.criado_por_id : (needsApproval ? currentUserId : null),
-      aprovacao_status: item ? item.aprovacao_status : (needsApproval ? 'PENDENTE' : null),
+      aprovacao_status: convertVisit ? 'APROVADO' : (item ? item.aprovacao_status : (needsApproval ? 'PENDENTE' : null)),
       updated_at:       new Date().toISOString(),
     }
 
