@@ -15,7 +15,7 @@ import type { Vehicle, Driver } from '../types'
 export type CustoCategoria =
   | 'combustivel' | 'troca_oleo' | 'pneu' | 'revisao' | 'filtro'
   | 'freios' | 'correia' | 'alinhamento' | 'seguro' | 'ipva'
-  | 'multa' | 'lavagem' | 'manutencao' | 'rastreamento' | 'outros'
+  | 'multa' | 'lavagem' | 'manutencao' | 'rastreamento' | 'prestacao' | 'outros'
 
 export interface FrotaCusto {
   id: string
@@ -78,7 +78,8 @@ const CATEGORIAS: Record<CustoCategoria, { label: string; emoji: string; isMaint
   lavagem:     { label: 'Lavagem',              emoji: '🚿', isMaint: false },
   manutencao:  { label: 'Manutenção Geral',     emoji: '🔩', isMaint: true  },
   rastreamento: { label: 'Rastreamento GPS',    emoji: '📡', isMaint: false },
-  outros:      { label: 'Outros',               emoji: '📦', isMaint: false },
+  prestacao:    { label: 'Prestações',          emoji: '💳', isMaint: false },
+  outros:       { label: 'Outros',              emoji: '📦', isMaint: false },
 }
 
 const MANUTENCAO_TIPOS = [
