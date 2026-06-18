@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Instagram, RefreshCw, Search, X, ExternalLink, MessageCircle, Check, EyeOff, Copy, ChevronDown, ChevronUp } from 'lucide-react'
+import { Instagram, RefreshCw, Search, X, ExternalLink, MessageCircle, Check, EyeOff, Copy, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
 import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -86,6 +86,11 @@ export default function SocialPage() {
   async function marcarIgnorado(id: string) {
     setComments(prev => prev.map(c => c.id === id ? { ...c, status: 'IGNORADO' } : c))
     await supabase.from('crm_social_comments').update({ status: 'IGNORADO' }).eq('id', id)
+  }
+
+  async function reverterIgnorado(id: string) {
+    setComments(prev => prev.map(c => c.id === id ? { ...c, status: 'NOVO' } : c))
+    await supabase.from('crm_social_comments').update({ status: 'NOVO' }).eq('id', id)
   }
 
   async function salvarResposta(id: string, resposta: string) {
@@ -192,6 +197,7 @@ export default function SocialPage() {
                 comment={c}
                 onResponder={() => setReplyModal(c)}
                 onIgnorar={() => marcarIgnorado(c.id)}
+                onReverter={() => reverterIgnorado(c.id)}
               />
             ))}
           </div>
@@ -211,10 +217,11 @@ export default function SocialPage() {
 }
 
 // ─── CommentCard ────────────────────────────────────────────────
-function CommentCard({ comment: c, onResponder, onIgnorar }: {
+function CommentCard({ comment: c, onResponder, onIgnorar, onReverter }: {
   comment: CrmSocialComment
   onResponder: () => void
   onIgnorar: () => void
+  onReverter: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -312,6 +319,14 @@ function CommentCard({ comment: c, onResponder, onIgnorar }: {
               className="ml-auto text-xs text-slate-400 hover:text-slate-600 transition-colors"
             >
               Editar resposta
+            </button>
+          )}
+          {c.status === 'IGNORADO' && (
+            <button
+              onClick={onReverter}
+              className="ml-auto flex items-center gap-1 text-xs text-slate-400 hover:text-pink-500 transition-colors"
+            >
+              <RotateCcw size={11} /> Reverter para pendente
             </button>
           )}
         </div>
