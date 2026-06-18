@@ -312,6 +312,19 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, cancelados: n })
   }
 
+  // ── reenviar-erros (reseta itens com erro para pendente) ────────────────────
+  if (type === 'reenviar-erros') {
+    const { data: resetados, error: resetErr } = await supabase
+      .from('automacao_fila')
+      .update({ status: 'pendente', erro: null, processed_at: null })
+      .eq('automacao', 'LUMAR').eq('data_exec', hoje).eq('status', 'erro')
+      .select('id')
+    if (resetErr) return json({ ok: false, error: resetErr.message }, 500)
+    const n = (resetados ?? []).length
+    await logar({ status: 'sistema', erro: `${n} itens com erro resetados para pendente` })
+    return json({ ok: true, resetados: n })
+  }
+
   // ── teste (envia mensagem real para número específico) ───────────────────────
   if (type === 'teste') {
     const tel = normalizaTelefone(body.numero ?? '')
@@ -322,5 +335,5 @@ Deno.serve(async (req: Request) => {
     return json({ ok: res.ok, erro: res.erro, numero_normalizado: tel, mensagem_enviada: texto })
   }
 
-  return json({ ok: false, error: 'type deve ser: executar | iniciar | processar | simular | status | cancelar | teste' }, 400)
+  return json({ ok: false, error: 'type deve ser: executar | iniciar | processar | simular | status | cancelar | reenviar-erros | teste' }, 400)
 })
