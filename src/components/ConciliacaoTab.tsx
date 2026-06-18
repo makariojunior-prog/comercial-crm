@@ -342,13 +342,13 @@ export default function ConciliacaoTab({
       </div>
 
       {/* Sub-abas */}
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
         <button
           onClick={() => setSubTab('pendentes')}
           className={`px-4 py-2 font-medium border-b-2 transition ${
             subTab === 'pendentes'
-              ? 'border-orange-500 text-orange-600'
-              : 'border-transparent text-slate-600 hover:text-slate-800'
+              ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           Pendentes ({pendentesCount})
@@ -357,8 +357,8 @@ export default function ConciliacaoTab({
           onClick={() => setSubTab('historico')}
           className={`px-4 py-2 font-medium border-b-2 transition ${
             subTab === 'historico'
-              ? 'border-orange-500 text-orange-600'
-              : 'border-transparent text-slate-600 hover:text-slate-800'
+              ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           Histórico ({historicoCount})
@@ -369,7 +369,7 @@ export default function ConciliacaoTab({
       {subTab === 'pendentes' && (
         <div className="space-y-4">
           {itensPendentes.length > 0 && (
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 p-3 rounded flex-wrap">
+            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 p-3 rounded flex-wrap">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -383,7 +383,7 @@ export default function ConciliacaoTab({
                   }}
                   className="w-4 h-4 accent-orange-500"
                 />
-                <span className="text-sm font-semibold text-blue-700">
+                <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
                   {selected.size > 0 ? `${selected.size}/${itensPendentes.length} pedidos` : 'Selecionar Todos'}
                 </span>
               </label>
@@ -412,8 +412,8 @@ export default function ConciliacaoTab({
                   }}
                   className={`px-2 py-0.5 rounded border text-[11px] font-medium transition-colors ${
                     pendSortCol === col
-                      ? 'bg-orange-100 border-orange-300 text-orange-700'
-                      : 'border-slate-200 hover:bg-slate-50'
+                      ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300'
+                      : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
                   }`}
                 >
                   {lbl} {pendSortCol === col ? (pendSortDir === 'asc' ? '↑' : '↓') : ''}
@@ -423,15 +423,15 @@ export default function ConciliacaoTab({
           )}
 
           {loading ? (
-            <div className="text-center py-8 text-slate-600">Carregando...</div>
+            <div className="text-center py-8 text-slate-600 dark:text-slate-400">Carregando...</div>
           ) : itensPendentes.length === 0 ? (
-            <div className="text-center py-8 text-slate-600">Nenhum pedido pendente de conciliação.</div>
+            <div className="text-center py-8 text-slate-600 dark:text-slate-400">Nenhum pedido pendente de conciliação.</div>
           ) : (
             <div className="space-y-2">
               {itensPendentes.map(item => (
                 <div
                   key={item.uid}
-                  className="flex items-center gap-3 bg-white border border-slate-200 p-3 rounded hover:shadow-sm transition"
+                  className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded hover:shadow-sm dark:hover:bg-slate-750 transition"
                 >
                   <input
                     type="checkbox"
@@ -445,13 +445,13 @@ export default function ConciliacaoTab({
                     className="w-4 h-4 accent-orange-500"
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm truncate">{item.cliente}</div>
-                    <div className="text-xs text-slate-600">
+                    <div className="font-semibold text-sm truncate text-slate-800 dark:text-slate-100">{item.cliente}</div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
                       Pedido {item.pedido} • {item.entregador || '—'} • {item.empresa}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold text-sm">{fmt(item.valor)}</div>
+                    <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">{fmt(item.valor)}</div>
                   </div>
                   <button
                     onClick={() => handleModalOpen(item)}
@@ -494,20 +494,18 @@ export default function ConciliacaoTab({
               type="date"
               value={filtroDataDe}
               onChange={e => setFiltroDataDe(e.target.value)}
-              className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="De"
+              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <input
               type="date"
               value={filtroDataAte}
               onChange={e => setFiltroDataAte(e.target.value)}
-              className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="Até"
+              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <select
               value={filtroEntregador}
               onChange={e => setFiltroEntregador(e.target.value)}
-              className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <option value="">Entregador</option>
               {drivers.map(d => (
@@ -519,7 +517,7 @@ export default function ConciliacaoTab({
             <select
               value={filtroTipo}
               onChange={e => setFiltroTipo(e.target.value)}
-              className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <option value="">Ocorrência</option>
               {tipos.map(t => (
@@ -533,13 +531,13 @@ export default function ConciliacaoTab({
               value={filtroCliente}
               onChange={e => setFiltroCliente(e.target.value)}
               placeholder="Cliente..."
-              className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
 
           {/* Cartões */}
           {historicoFiltrado.length === 0 ? (
-            <div className="text-center py-8 text-slate-600">Nenhum histórico encontrado.</div>
+            <div className="text-center py-8 text-slate-600 dark:text-slate-400">Nenhum histórico encontrado.</div>
           ) : (
             <div className="space-y-2">
               {historicoFiltrado.map(conc => {
@@ -547,20 +545,20 @@ export default function ConciliacaoTab({
                 return (
                   <div
                     key={conc.id}
-                    className="bg-white border-l-4 p-3 rounded shadow-sm hover:shadow-md transition"
-                    style={{ borderColor: tipo?.cor || '#64748b' }}
+                    className="bg-white dark:bg-slate-800 border-l-4 border border-slate-100 dark:border-slate-700 p-3 rounded shadow-sm hover:shadow-md dark:hover:bg-slate-750 transition"
+                    style={{ borderLeftColor: tipo?.cor || '#64748b' }}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex-1">
-                        <div className="font-semibold text-sm">{conc.cliente_nome}</div>
-                        <div className="text-xs text-slate-600">
+                        <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">{conc.cliente_nome}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-400">
                           Pedido {conc.numero_pedido} • {conc.entregador || '—'}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold text-sm">{fmt(conc.valor_pedido)}</div>
+                        <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">{fmt(conc.valor_pedido)}</div>
                         {conc.divergencia !== 0 && (
-                          <div className={`text-xs ${conc.divergencia > 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          <div className={`text-xs ${conc.divergencia > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                             {conc.divergencia > 0 ? '+' : ''}{fmt(conc.divergencia)}
                           </div>
                         )}
@@ -569,7 +567,7 @@ export default function ConciliacaoTab({
 
                     {/* Métodos de Pagamento */}
                     {conc.metodos_pagamento && conc.metodos_pagamento.length > 0 && (
-                      <div className="text-xs text-slate-600 mb-2">
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mb-2">
                         {conc.metodos_pagamento.map(m => (
                           <span key={m.tipo} className="inline-block mr-2">
                             {m.tipo}: {fmt(m.valor)}
@@ -585,20 +583,20 @@ export default function ConciliacaoTab({
                           {tipo.emoji} {tipo.nome}
                         </span>
                       )}
-                      <span className="text-slate-600">
+                      <span className="text-slate-500 dark:text-slate-400">
                         {conc.data_conciliacao ? format(parseISO(conc.data_conciliacao), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : '—'}
                       </span>
                       {isAdmin && (
                         <div className="flex gap-1">
                           <button
                             onClick={() => handleModalOpenHistorico(conc)}
-                            className="p-1 hover:bg-gray-100 rounded"
+                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded"
                           >
                             <Pencil size={14} />
                           </button>
                           <button
                             onClick={() => handleDeleteConciliacao(conc.id)}
-                            className="p-1 hover:bg-red-100 text-red-700 rounded"
+                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded"
                           >
                             <Trash2 size={14} />
                           </button>
