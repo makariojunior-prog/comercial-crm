@@ -104,6 +104,7 @@ export default function AutomacaoTab() {
   const [testeResult, setTesteResult] = useState<{ ok: boolean; erro?: string; numero_normalizado?: string; mensagem_enviada?: string } | null>(null)
 
   const [pausando, setPausando] = useState(false)
+  const [reenviando, setReenviando] = useState(false)
 
   const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automacao-lumar`
 
@@ -234,6 +235,20 @@ export default function AutomacaoTab() {
       })
       await load()
     } catch { /* ignore */ }
+  }
+
+  async function reenviarErros() {
+    if (!confirm('Resetar todos os itens com erro para "pendente" e tentar reenvio?')) return
+    setReenviando(true)
+    try {
+      await fetch(fnUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'reenviar-erros' }),
+      })
+      await load()
+    } catch { /* ignore */ }
+    setReenviando(false)
   }
 
   async function pausarEmergencia() {
@@ -729,11 +744,18 @@ export default function AutomacaoTab() {
             <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <Clock size={16} className="text-orange-500" /> Fila de hoje ({fila.length})
             </h3>
-            {isAdmin && fila.some(f => f.status === 'pendente') && (
-              <button onClick={cancelarFila} className="btn-danger text-xs flex items-center gap-1.5">
-                <MinusCircle size={13} /> Cancelar pendentes
-              </button>
-            )}
+            <div className="flex gap-2">
+              {isAdmin && fila.some(f => f.status === 'erro') && (
+                <button onClick={reenviarErros} disabled={reenviando} className="btn-secondary text-xs flex items-center gap-1.5">
+                  <RefreshCw size={13} className={reenviando ? 'animate-spin' : ''} /> {reenviando ? 'Resetando…' : 'Reenviar com erro'}
+                </button>
+              )}
+              {isAdmin && fila.some(f => f.status === 'pendente') && (
+                <button onClick={cancelarFila} className="btn-danger text-xs flex items-center gap-1.5">
+                  <MinusCircle size={13} /> Cancelar pendentes
+                </button>
+              )}
+            </div>
           </div>
           <div className="overflow-auto max-h-64">
             <table className="w-full text-xs">
