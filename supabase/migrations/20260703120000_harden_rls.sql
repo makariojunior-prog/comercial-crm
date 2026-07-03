@@ -20,71 +20,85 @@
 
 -- deals
 DROP POLICY IF EXISTS "Allow all actions for now" ON public.deals;
+DROP POLICY IF EXISTS "auth_all_deals" ON public.deals;
 CREATE POLICY "auth_all_deals" ON public.deals
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- visits
 DROP POLICY IF EXISTS "Allow all actions for now" ON public.visits;
+DROP POLICY IF EXISTS "auth_all_visits" ON public.visits;
 CREATE POLICY "auth_all_visits" ON public.visits
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_notes
 DROP POLICY IF EXISTS "Allow all crm_notes" ON public.crm_notes;
+DROP POLICY IF EXISTS "auth_all_crm_notes" ON public.crm_notes;
 CREATE POLICY "auth_all_crm_notes" ON public.crm_notes
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_note_mentions
 DROP POLICY IF EXISTS "Allow all crm_note_mentions" ON public.crm_note_mentions;
+DROP POLICY IF EXISTS "auth_all_crm_note_mentions" ON public.crm_note_mentions;
 CREATE POLICY "auth_all_crm_note_mentions" ON public.crm_note_mentions
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_price_items  (tabela de preços — não deve ser pública)
 DROP POLICY IF EXISTS "allow_all_crm_price_items" ON public.crm_price_items;
+DROP POLICY IF EXISTS "auth_all_crm_price_items" ON public.crm_price_items;
 CREATE POLICY "auth_all_crm_price_items" ON public.crm_price_items
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_deal_history
 DROP POLICY IF EXISTS "crm_deal_history_allow_all" ON public.crm_deal_history;
+DROP POLICY IF EXISTS "auth_all_crm_deal_history" ON public.crm_deal_history;
 CREATE POLICY "auth_all_crm_deal_history" ON public.crm_deal_history
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_briefings
 DROP POLICY IF EXISTS "crm_briefings_allow_all" ON public.crm_briefings;
+DROP POLICY IF EXISTS "auth_all_crm_briefings" ON public.crm_briefings;
 CREATE POLICY "auth_all_crm_briefings" ON public.crm_briefings
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_amostras
 DROP POLICY IF EXISTS "Allow all crm_amostras" ON public.crm_amostras;
+DROP POLICY IF EXISTS "auth_all_crm_amostras" ON public.crm_amostras;
 CREATE POLICY "auth_all_crm_amostras" ON public.crm_amostras
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_posvendas_interacoes
 DROP POLICY IF EXISTS "Allow all" ON public.crm_posvendas_interacoes;
+DROP POLICY IF EXISTS "auth_all_crm_posvendas_interacoes" ON public.crm_posvendas_interacoes;
 CREATE POLICY "auth_all_crm_posvendas_interacoes" ON public.crm_posvendas_interacoes
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_task_comments
 DROP POLICY IF EXISTS "Allow all" ON public.crm_task_comments;
+DROP POLICY IF EXISTS "auth_all_crm_task_comments" ON public.crm_task_comments;
 CREATE POLICY "auth_all_crm_task_comments" ON public.crm_task_comments
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_routes
 DROP POLICY IF EXISTS "Allow all crm_routes" ON public.crm_routes;
+DROP POLICY IF EXISTS "auth_all_crm_routes" ON public.crm_routes;
 CREATE POLICY "auth_all_crm_routes" ON public.crm_routes
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_route_clients
 DROP POLICY IF EXISTS "Allow all crm_route_clients" ON public.crm_route_clients;
+DROP POLICY IF EXISTS "auth_all_crm_route_clients" ON public.crm_route_clients;
 CREATE POLICY "auth_all_crm_route_clients" ON public.crm_route_clients
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_route_executions
 DROP POLICY IF EXISTS "Allow all crm_route_executions" ON public.crm_route_executions;
+DROP POLICY IF EXISTS "auth_all_crm_route_executions" ON public.crm_route_executions;
 CREATE POLICY "auth_all_crm_route_executions" ON public.crm_route_executions
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- crm_route_client_checks
 DROP POLICY IF EXISTS "Allow all crm_route_client_checks" ON public.crm_route_client_checks;
+DROP POLICY IF EXISTS "auth_all_crm_route_client_checks" ON public.crm_route_client_checks;
 CREATE POLICY "auth_all_crm_route_client_checks" ON public.crm_route_client_checks
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
