@@ -15,21 +15,26 @@ const AI_PROVIDER          = (Deno.env.get('AI_PROVIDER') ?? (ANTHROPIC_KEY ? 'A
 
 interface ConnConfig { conexao: string; api_url: string; token: string; service_id: string; }
 
+// Tokens do Digisac vêm de secrets (Deno.env), nunca hardcoded no repositório.
+// Configure via: supabase secrets set DIGISAC_TOKEN_CANTINA=... DIGISAC_TOKEN_LUMAR=...
+const DIGISAC_TOKEN_CANTINA = Deno.env.get('DIGISAC_TOKEN_CANTINA') ?? '';
+const DIGISAC_TOKEN_LUMAR   = Deno.env.get('DIGISAC_TOKEN_LUMAR')   ?? '';
+
 const CONNECTIONS: Record<string, ConnConfig> = {
   '27a84876-386b-41ed-b5f9-8aba351a30c0': {
     conexao: 'CANTINA', service_id: '27a84876-386b-41ed-b5f9-8aba351a30c0',
     api_url: 'https://cantinaemcasa.digisac.co/api/v1',
-    token:   '9e3e2846bbd1c2837b406df2320718ad2dbb78a0',
+    token:   DIGISAC_TOKEN_CANTINA,
   },
   'f96b8e7f-636e-4bc2-b487-28de012b2236': {
     conexao: 'LUMAR', service_id: 'f96b8e7f-636e-4bc2-b487-28de012b2236',
     api_url: 'https://lumar.digisac.io/api/v1',
-    token:   'c337988607b38b88d3b0831a07c6ac2bb79453e4',
+    token:   DIGISAC_TOKEN_LUMAR,
   },
   '70ca7140-c4d1-40b4-98b1-3fa918634181': {
     conexao: 'LUMAR_NOVOS', service_id: '70ca7140-c4d1-40b4-98b1-3fa918634181',
     api_url: 'https://lumar.digisac.io/api/v1',
-    token:   'c337988607b38b88d3b0831a07c6ac2bb79453e4',
+    token:   DIGISAC_TOKEN_LUMAR,
   },
 };
 
