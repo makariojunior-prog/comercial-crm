@@ -247,6 +247,27 @@ Deno.serve(async (req) => {
     })
   }
 
+  // Resync forçado de um pedido específico — usado quando valor é editado no Cardápio Web
+  // (edições de valor não disparam webhook; isso permite sincronização manual)
+  if (payload?.type === 'resync-order') {
+    const cardapioOrderId: string | null = payload.cardapio_order_id ?? null
+    if (!cardapioOrderId) {
+      return new Response(JSON.stringify({ ok: false, error: 'cardapio_order_id obrigatório' }), {
+        headers: { 'Content-Type': 'application/json' }, status: 400
+      })
+    }
+    const order = await fetchOrderFromAPI(cardapioOrderId)
+    if (!order) {
+      return new Response(JSON.stringify({ ok: false, error: 'Erro ao buscar pedido na API Cardápio Web' }), {
+        headers: { 'Content-Type': 'application/json' }, status: 502
+      })
+    }
+    await upsertOrder(cardapioOrderId, order)
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+
   // Webhook normal do Cardápio Web
   const task = processOrder(payload).catch(e => console.error('processOrder fatal:', e.message))
 

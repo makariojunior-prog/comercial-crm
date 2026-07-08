@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { X, AlertCircle, Phone, MapPin, User, Truck, CalendarClock, Clock, ShieldAlert } from 'lucide-react'
+import { X, AlertCircle, Phone, MapPin, User, Truck, CalendarClock, Clock, ShieldAlert, RefreshCw } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -62,6 +62,7 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
   })
 
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [error,  setError]  = useState<string | null>(null)
   const [drivers,  setDrivers]  = useState<{ id: string; nome: string }[]>([])
   const [users,    setUsers]    = useState<{ id: string; nome: string }[]>([])
@@ -113,6 +114,19 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
 
     if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
     setSaving(false)
+    onSaved()
+    onClose()
+  }
+
+  async function syncFromCardapio() {
+    if (!pedido.cardapio_order_id) return
+    setSyncing(true)
+    setError(null)
+    const { error: fnErr } = await supabase.functions.invoke('varejo-webhook', {
+      body: { type: 'resync-order', cardapio_order_id: pedido.cardapio_order_id }
+    })
+    setSyncing(false)
+    if (fnErr) { setError('Erro ao sincronizar: ' + fnErr.message); return }
     onSaved()
     onClose()
   }
@@ -376,7 +390,18 @@ export default function PedidoModal({ pedido, onClose, onSaved }: Props) {
                   </div>
                 </div>
               </div>
-            </div>
+            {pedido.cardapio_order_id && (
+              <button
+                type="button"
+                onClick={syncFromCardapio}
+                disabled={syncing}
+                className="w-full flex items-center justify-center gap-2 py-2 text-xs font-medium text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+                {syncing ? 'Buscando do Cardápio Web...' : 'Sincronizar valor do Cardápio Web'}
+              </button>
+            )}
+          </div>
           )}
 
         </div>
