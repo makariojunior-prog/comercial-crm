@@ -188,7 +188,7 @@ export default function RomaneioTab() {
 
     let qC = supabase
       .from('varejo_pedidos')
-      .select('id, num_pedido, cliente, turno, entregador, valor_liquido, restricao, rota_definida, sugestao_rota, veiculo, ocorrencia')
+      .select('id, num_pedido, cliente, turno, entregador, valor_liquido, frete, restricao, rota_definida, sugestao_rota, veiculo, ocorrencia')
       .eq('data_entrega', date)
       .neq('status_icon', '❌')
     if (turnoOr) qC = qC.or(turnoOr)
@@ -229,7 +229,7 @@ export default function RomaneioTab() {
       turno:         (p.turno ?? '').toUpperCase(),
       rota:          p.rota_definida ?? p.sugestao_rota ?? '',
       pgto:          '',
-      valor:         Number(p.valor_liquido) || 0,
+      valor:         (Number(p.valor_liquido) || 0) + (Number(p.frete) || 0),
       obs:           p.restricao ?? '',
       ocorrencia_db: p.ocorrencia ?? '',
       entregador:    p.entregador ?? '',

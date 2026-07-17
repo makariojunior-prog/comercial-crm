@@ -323,6 +323,7 @@ export interface VarejoPedido {
   order_type: string | null          // 'delivery' | 'takeout' | 'onsite' | 'closed_table'
   veiculo: string | null
   ocorrencia: string | null
+  cardapio_order_id: string | null
 }
 
 export const TURNOS = ['MANHÃ', 'TARDE', 'NOITE'] as const
