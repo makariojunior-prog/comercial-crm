@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, Link } from 'react-router-dom'
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut,
   CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Gift, Calculator, Truck,
@@ -10,6 +10,8 @@ import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
 import type { ModuleId } from '../contexts/AuthContext'
 import { usePreferences } from '../contexts/PreferencesContext'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import GlobalSearch from './GlobalSearch'
 
 const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'admin' | 'personal' }[] = [
@@ -42,6 +44,9 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
 export default function Layout() {
   const { profile, isAdmin, canAccess, signOut } = useAuth()
   const { prefs, updateSidebarMode } = usePreferences()
+  const location = useLocation()
+  const isDashboard = location.pathname === '/dashboard' || location.pathname === '/'
+  const todayLabel = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })
   const sidebarMode = prefs.sidebarMode
   const [searchOpen, setSearchOpen] = useState(false)
 
@@ -273,19 +278,26 @@ export default function Layout() {
         {/* Desktop top bar — full/icons mode (replaces fixed button) */}
         {!isBottomMode && (
           <header className="hidden lg:flex items-center gap-4 px-5 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/60 shrink-0">
-            {/* Search bar — central and prominent */}
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="flex flex-1 items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600/50 hover:border-orange-300 dark:hover:border-orange-600/50 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-left max-w-2xl"
-            >
-              <Search size={16} className="text-slate-400 shrink-0" />
-              <span className="flex-1 text-sm text-slate-400 select-none">
-                Buscar clientes, pedidos, negócios, visitas...
-              </span>
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-slate-600 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-500 shrink-0">
-                ⌃K
-              </kbd>
-            </button>
+            {/* Dashboard title + date or Search bar */}
+            {isDashboard ? (
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-400 capitalize">{todayLabel}</p>
+                <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">Dashboard Geral</h1>
+              </div>
+            ) : (
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="flex flex-1 items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600/50 hover:border-orange-300 dark:hover:border-orange-600/50 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-left max-w-2xl"
+              >
+                <Search size={16} className="text-slate-400 shrink-0" />
+                <span className="flex-1 text-sm text-slate-400 select-none">
+                  Buscar clientes, pedidos, negócios, visitas...
+                </span>
+                <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-slate-600 text-slate-400 dark:text-slate-400 border border-slate-200 dark:border-slate-500 shrink-0">
+                  ⌃K
+                </kbd>
+              </button>
+            )}
 
             {/* User info + logout */}
             {profile && (

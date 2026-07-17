@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Plus, AlertTriangle, Phone, RefreshCw, TrendingUp, User, Lock } from 'lucide-react'
+import { Plus, AlertTriangle, Phone, TrendingUp, User, Lock } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -68,7 +68,7 @@ export default function DashboardNegocios() {
   const novo   = active.filter(d => d.status === 'NOVO')
   const emAndamento = active.filter(d => d.status === 'EM ANDAMENTO')
 
-  const today = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })
+
 
   // Merge saved prefs with defaults (in case new widgets were added)
   // conversas_alertas is always pinned first regardless of saved order
@@ -199,25 +199,6 @@ export default function DashboardNegocios() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-slate-400 capitalize">{today}</p>
-          <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-             Dashboard Geral
-          </h1>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={load} className="btn-ghost p-2">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <button onClick={() => setNewDeal(true)} className="btn-primary">
-            <Plus size={16} />
-            <span className="hidden sm:inline">Novo Negócio</span>
-          </button>
-        </div>
-      </div>
-
       <div className="space-y-6">
         {/* ── Seção Fixa — definida pelo administrador ── */}
         {fixedWidgets.some(w => w.visible) && (
