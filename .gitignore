@@ -5,3 +5,4 @@ dist
 *.local
 read_xlsx.js
 backup/dados/
+.claude/launch.json

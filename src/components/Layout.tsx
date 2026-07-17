@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, Link } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut,
   CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Gift, Calculator, Truck,
@@ -98,16 +98,18 @@ export default function Layout() {
           {/* Sidebar header */}
           <div className={`${isIconsMode ? 'flex flex-col items-center gap-2 px-2 pt-4 pb-3' : 'px-5 pt-5 pb-3'} border-b border-slate-700`}>
             {isIconsMode ? (
-              <img src={logoUrl} alt="Cantina" className="w-7 h-7" style={{ filter: 'invert(1)' }} />
+              <Link to="/dashboard">
+                <img src={logoUrl} alt="Cantina" className="w-7 h-7" style={{ filter: 'invert(1)' }} />
+              </Link>
             ) : (
               <>
-                <div className="flex items-center gap-2.5 mb-3">
+                <Link to="/dashboard" className="flex items-center gap-2.5 mb-3">
                   <img src={logoUrl} alt="Cantina" className="w-8 h-8 shrink-0" style={{ filter: 'invert(1)' }} />
                   <div>
                     <p className="font-bold text-sm leading-tight">CRM Comercial</p>
                     <p className="text-xs text-slate-400">Cantina · Lumar</p>
                   </div>
-                </div>
+                </Link>
                 <div className="flex items-center justify-between gap-2">
                   {profile && (
                     <div className="min-w-0 flex-1">
@@ -225,8 +227,10 @@ export default function Layout() {
 
         {/* Mobile header */}
         <header className="lg:hidden bg-slate-800 text-white px-4 py-3 flex items-center gap-2.5">
-          <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0" style={{ filter: 'invert(1)' }} />
-          <p className="font-bold text-sm flex-1">CRM Comercial · Cantina Lumar</p>
+          <Link to="/dashboard" className="flex items-center gap-2.5 flex-1 min-w-0">
+            <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0" style={{ filter: 'invert(1)' }} />
+            <p className="font-bold text-sm truncate">CRM Comercial · Cantina Lumar</p>
+          </Link>
           <button onClick={() => setSearchOpen(true)} className="text-slate-400 hover:text-white p-1 transition-colors">
             <Search size={16} />
           </button>
@@ -238,8 +242,10 @@ export default function Layout() {
         {/* Desktop header — bottom mode only */}
         {isBottomMode && (
           <header className="hidden lg:flex items-center gap-4 px-5 py-3 bg-white dark:bg-slate-800 shrink-0 border-b border-slate-200 dark:border-slate-700/60">
-            <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0 opacity-80" />
-            <p className="font-bold text-sm text-slate-700 dark:text-slate-200 shrink-0">CRM Comercial</p>
+            <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0">
+              <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0 opacity-80" />
+              <p className="font-bold text-sm text-slate-700 dark:text-slate-200 shrink-0">CRM Comercial</p>
+            </Link>
             {/* Central search */}
             <button
               onClick={() => setSearchOpen(true)}
