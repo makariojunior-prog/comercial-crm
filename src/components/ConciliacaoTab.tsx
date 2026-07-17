@@ -174,6 +174,7 @@ export default function ConciliacaoTab({
       const conciliacoes = itensSelecionados.map(item => ({
         empresa: item.empresa,
         pedido_ref: item.uid.slice(1),
+        pedido_uid: item.uid,
         cliente_nome: item.cliente,
         numero_pedido: item.pedido,
         data_entrega: item.data_entrega,
@@ -191,7 +192,7 @@ export default function ConciliacaoTab({
 
       const { error } = await supabase
         .from('romaneio_conciliacao')
-        .insert(conciliacoes)
+        .upsert(conciliacoes, { onConflict: 'pedido_uid' })
 
       if (error) throw error
 

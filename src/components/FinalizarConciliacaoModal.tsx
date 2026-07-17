@@ -115,6 +115,7 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
       const payload = {
         empresa: item.empresa,
         pedido_ref: item.uid.slice(1),
+        pedido_uid: item.uid,
         cliente_nome: item.cliente,
         numero_pedido: item.pedido,
         data_entrega: item.data_entrega,
@@ -138,17 +139,17 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
           .eq('id', existing.id)
         if (err) throw err
       } else {
-        // Inserir
+        // Inserir (upsert para evitar conflito 409 se já existir)
         const { error: err } = await supabase
           .from('romaneio_conciliacao')
-          .insert([payload])
+          .upsert([payload], { onConflict: 'pedido_uid' })
         if (err) throw err
       }
 
       onSaved()
       onClose()
     } catch (err) {
-      setError(`Erro ao salvar: ${err instanceof Error ? err.message : 'desconhecido'}`)
+      setError(`Erro ao salvar: ${err instanceof Error ? err.message : (err as any)?.message || JSON.stringify(err)}`)
     } finally {
       setSaving(false)
     }
