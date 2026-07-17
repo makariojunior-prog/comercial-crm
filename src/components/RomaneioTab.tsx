@@ -213,7 +213,7 @@ export default function RomaneioTab() {
       cliente:       p.crm_client?.nome ?? p.cliente_nome ?? '—',
       turno:         (p.turno ?? '').toUpperCase(),
       rota:          p.crm_client?.rota ?? '',
-      pgto:          p.crm_client?.pgto ?? '',
+      pgto:          '',
       valor:         Number(p.valor) || 0,
       obs:           '',
       ocorrencia_db: p.ocorrencia ?? '',
@@ -730,7 +730,7 @@ export default function RomaneioTab() {
                                 {item.rota || '—'}
                               </td>
                               <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-center text-slate-500 dark:text-slate-400 text-[10px]">
-                                {item.pgto || '—'}
+                                {item.pgto || ''}
                               </td>
                               <td className="px-2 py-2 border-b border-slate-200 dark:border-slate-700 text-center font-semibold text-green-700 dark:text-green-400 whitespace-nowrap">
                                 {item.valor > 0 ? fmt(item.valor) : '—'}
