@@ -59,6 +59,7 @@ export default function ConciliacaoTab({
   // Seleção múltipla
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [finalizandoLote, setFinalizandoLote] = useState(false)
+  const [loteError, setLoteError] = useState<string | null>(null)
 
   // Modal de finalização
   const [editingItem, setEditingItem] = useState<RomaneioItem | null>(null)
@@ -164,6 +165,7 @@ export default function ConciliacaoTab({
   const handleFinalizarLote = useCallback(async () => {
     if (selected.size === 0) return
     setFinalizandoLote(true)
+    setLoteError(null)
 
     try {
       const itensSelecionados = itensPendentes.filter(i => selected.has(i.uid))
@@ -171,10 +173,11 @@ export default function ConciliacaoTab({
       // Encontrar tipo "Sem Ocorrência"
       const tipoSemOcorrencia = tipos.find(t => t.nome === 'Sem Ocorrência')
 
+      // pedido_uid NÃO entra no payload: é coluna gerada (GENERATED ALWAYS)
+      // no banco — enviar valor causa erro 428C9 em qualquer insert/update
       const conciliacoes = itensSelecionados.map(item => ({
         empresa: item.empresa,
         pedido_ref: item.uid.slice(1),
-        pedido_uid: item.uid,
         cliente_nome: item.cliente,
         numero_pedido: item.pedido,
         data_entrega: item.data_entrega,
@@ -190,9 +193,10 @@ export default function ConciliacaoTab({
         observacoes: null,
       }))
 
+      // A unique constraint da tabela é (empresa, pedido_ref) — não pedido_uid
       const { error } = await supabase
         .from('romaneio_conciliacao')
-        .upsert(conciliacoes, { onConflict: 'pedido_uid' })
+        .upsert(conciliacoes, { onConflict: 'empresa,pedido_ref' })
 
       if (error) throw error
 
@@ -200,6 +204,7 @@ export default function ConciliacaoTab({
       await loadAll()
     } catch (err) {
       console.error('Erro ao finalizar lote:', err)
+      setLoteError(`Erro ao finalizar lote: ${(err as any)?.message || JSON.stringify(err)}`)
     } finally {
       setFinalizandoLote(false)
     }
@@ -216,6 +221,7 @@ export default function ConciliacaoTab({
       await loadAll()
     } catch (err) {
       console.error('Erro ao deletar:', err)
+      setLoteError(`Erro ao deletar conciliação: ${(err as any)?.message || JSON.stringify(err)}`)
     }
   }
 
@@ -397,6 +403,12 @@ export default function ConciliacaoTab({
                   {finalizandoLote ? 'Finalizando...' : 'Finalizar Selecionados'}
                 </button>
               )}
+            </div>
+          )}
+
+          {loteError && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 p-3 rounded text-sm">
+              {loteError}
             </div>
           )}
 

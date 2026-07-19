@@ -112,10 +112,11 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
         .filter(([_, m]) => m.checked && m.valor > 0)
         .map(([tipo, m]) => ({ tipo: tipo as MetodoTipo, valor: m.valor }))
 
+      // pedido_uid NÃO entra no payload: é coluna gerada (GENERATED ALWAYS)
+      // no banco — enviar valor causa erro 428C9 em qualquer insert/update
       const payload = {
         empresa: item.empresa,
         pedido_ref: item.uid.slice(1),
-        pedido_uid: item.uid,
         cliente_nome: item.cliente,
         numero_pedido: item.pedido,
         data_entrega: item.data_entrega,
@@ -139,10 +140,11 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
           .eq('id', existing.id)
         if (err) throw err
       } else {
-        // Inserir (upsert para evitar conflito 409 se já existir)
+        // Inserir (upsert para evitar conflito 409 se já existir).
+        // A unique constraint da tabela é (empresa, pedido_ref) — não pedido_uid
         const { error: err } = await supabase
           .from('romaneio_conciliacao')
-          .upsert([payload], { onConflict: 'pedido_uid' })
+          .upsert([payload], { onConflict: 'empresa,pedido_ref' })
         if (err) throw err
       }
 
