@@ -163,6 +163,9 @@ export interface Client {
   comissao_pago_em: string | null
 }
 
+// Tipos de crm_clients.tipo considerados clientes de Revenda (módulo Revenda)
+export const REVENDA_TIPOS = ['CANTINA REVENDA', 'LUMAR / CANTINA', 'LUMAR REVENDA'] as const
+
 export type EventStatus = 'AGENDADO' | 'REALIZADO' | 'CANCELADO'
 
 export interface Event {

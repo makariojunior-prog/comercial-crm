@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, Building2, Phone, MapPin, Edit2, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Building2, Phone, MapPin, Edit2, MessageCircle, ChevronDown, ChevronUp, TrendingUp, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
+import { REVENDA_TIPOS } from '../types'
 import ClientModal from '../components/ClientModal'
+import RevendaComprasTab from '../components/RevendaComprasTab'
 
 const STATUS_LABELS: Record<ClientStatus, string> = {
   ATIVO: 'Ativo',
@@ -19,6 +21,7 @@ const STATUS_COLORS: Record<ClientStatus, string> = {
 const CARTEIRAS = ['TODOS', 'MAKÁRIO', 'TIAGO', 'BRUNA', 'MARCO'] as const
 
 export default function RevendaPage() {
+  const [tab,           setTab]           = useState<'clientes' | 'compras'>('clientes')
   const [clients,       setClients]       = useState<Client[]>([])
   const [loading,       setLoading]       = useState(true)
   const [showModal,     setShowModal]     = useState(false)
@@ -33,7 +36,7 @@ export default function RevendaPage() {
     const { data } = await supabase
       .from('crm_clients')
       .select('*')
-      .in('tipo', ['CANTINA REVENDA', 'LUMAR / CANTINA'])
+      .in('tipo', REVENDA_TIPOS)
       .order('nome', { ascending: true })
     setClients((data ?? []) as Client[])
     setLoading(false)
@@ -78,6 +81,30 @@ export default function RevendaPage() {
         </p>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-slate-100 dark:bg-slate-700 rounded-lg p-1 w-fit">
+        {([
+          { id: 'clientes', label: 'Clientes', icon: Users },
+          { id: 'compras',  label: 'Compras Mensais', icon: TrendingUp },
+        ] as const).map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              tab === t.id
+                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-slate-100 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+          >
+            <t.icon size={13} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'compras' && <RevendaComprasTab clients={clients} loading={loading} />}
+
+      {tab === 'clientes' && (
+      <>
       {/* Resumo status */}
       {!loading && (
         <div className="grid grid-cols-3 gap-3">
@@ -293,6 +320,8 @@ export default function RevendaPage() {
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); load() }}
         />
+      )}
+      </>
       )}
     </div>
   )
