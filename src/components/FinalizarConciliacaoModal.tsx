@@ -63,7 +63,8 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
       if (err) throw err
       setTipos(data || [])
       if (data && data.length > 0 && !existing) {
-        setTipoOcorrenciaId(data[0].id)
+        const semOcorrencia = data.find(t => t.nome === 'Sem Ocorrência')
+        setTipoOcorrenciaId(semOcorrencia?.id || data[0].id)
       }
     } catch (err) {
       setError(`Erro ao carregar tipos: ${err instanceof Error ? err.message : 'desconhecido'}`)
@@ -84,8 +85,10 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
       [tipo]: {
         ...prev[tipo],
         checked,
-        // Bonificação não exige pagamento: preenche com o valor do pedido para zerar a divergência
-        valor: tipo === 'Bonificação' && checked && prev[tipo].valor === 0 ? item.valor : prev[tipo].valor,
+        // Preenche com o valor do pedido ao marcar — evita divergência falsa quando
+        // o atendente só confirma o método sem digitar nada; só precisa editar se
+        // o valor recebido for realmente diferente do valor do pedido
+        valor: checked && prev[tipo].valor === 0 ? item.valor : prev[tipo].valor,
       },
     }))
   }
@@ -267,7 +270,7 @@ export default function FinalizarConciliacaoModal({ item, existing, onClose, onS
               <select
                 value={tipoOcorrenciaId}
                 onChange={e => setTipoOcorrenciaId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500 appearance-none"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:[color-scheme:dark] appearance-none"
               >
                 <option value="">Selecione...</option>
                 {tipos.map(t => (
