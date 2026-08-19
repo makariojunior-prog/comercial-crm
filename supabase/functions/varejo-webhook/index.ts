@@ -30,9 +30,8 @@ function getTurno(isoDateTime: string | null): string | null {
   const m = isoDateTime.match(/T(\d{2}):/)
   if (!m) return null
   const h = parseInt(m[1])
-  if (h >= 6 && h < 12) return 'MANHÃ'
-  if (h >= 12 && h < 18) return 'TARDE'
-  return 'NOITE'
+  // Só MANHÃ e TARDE — turno NOITE descontinuado
+  return h < 12 ? 'MANHÃ' : 'TARDE'
 }
 
 async function fetchOrderFromAPI(orderId: string): Promise<any | null> {

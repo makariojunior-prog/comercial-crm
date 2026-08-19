@@ -32,8 +32,7 @@ function turnoOrd(t: string | null) {
   const u = (t ?? '').toUpperCase()
   if (u.includes('MAN')) return 1
   if (u.includes('TARD')) return 2
-  if (u.includes('NOIT')) return 3
-  return 4
+  return 3
 }
 
 function firstName(nome: string) {
@@ -67,7 +66,6 @@ export default function RomaneioTab() {
   const [entregador, setEntregador] = useState('')
   const [turnoManha, setM]          = useState(true)
   const [turnoTarde, setT]          = useState(true)
-  const [turnoNoite, setN]          = useState(true)
   const [empresaLumar,   setEL]     = useState(true)
   const [empresaCantina, setEC]     = useState(true)
 
@@ -112,7 +110,7 @@ export default function RomaneioTab() {
     ? '🏪 RETIRADA / BALCÃO'
     : entregador || 'TODOS OS ENTREGADORES'
   const turnosLabel = [
-    turnoManha && 'MANHÃ', turnoTarde && 'TARDE', turnoNoite && 'NOITE',
+    turnoManha && 'MANHÃ', turnoTarde && 'TARDE',
   ].filter(Boolean).join(' + ') || 'Todos'
 
   const lumarItems   = useMemo(() => items.filter(i => i.empresa === 'LUMAR'),   [items])
@@ -160,13 +158,12 @@ export default function RomaneioTab() {
     setSeqMap({})
     setVeiculoSalvo(false)
 
-    const nenhum = !turnoManha && !turnoTarde && !turnoNoite
+    const nenhum = !turnoManha && !turnoTarde
     const buildOr = () => {
       if (nenhum) return undefined
       const parts = ['turno.is.null']
       if (turnoManha) parts.push('turno.eq.MANHÃ')
       if (turnoTarde) parts.push('turno.eq.TARDE')
-      if (turnoNoite) parts.push('turno.eq.NOITE')
       return parts.join(',')
     }
     const turnoOr = buildOr()
@@ -243,7 +240,7 @@ export default function RomaneioTab() {
 
     setItems([...lumar, ...cant])
     setLoading(false)
-  }, [date, entregador, turnoManha, turnoTarde, turnoNoite, empresaLumar, empresaCantina])
+  }, [date, entregador, turnoManha, turnoTarde, empresaLumar, empresaCantina])
 
   // ── Salvar veículo em todos os pedidos do romaneio ───────────────
 
@@ -524,7 +521,6 @@ export default function RomaneioTab() {
             {([
               ['MANHÃ', turnoManha, setM],
               ['TARDE', turnoTarde, setT],
-              ['NOITE', turnoNoite, setN],
             ] as const).map(([label, val, set]) => (
               <label key={label} className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
@@ -919,7 +915,6 @@ function RomaneioEditModal({ uid, pedidoData, vehicles, onClose, onSaved }: {
               <option value="">— sem turno —</option>
               <option value="MANHÃ">MANHÃ</option>
               <option value="TARDE">TARDE</option>
-              <option value="NOITE">NOITE</option>
             </select>
           </div>
 

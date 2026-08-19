@@ -85,7 +85,7 @@ export default function MapaEntregasTab() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('data')
-  const [turnoFilter, setTurnoFilter] = useState<string[]>(['MANHÃ', 'TARDE', 'NOITE'])
+  const [turnoFilter, setTurnoFilter] = useState<string[]>(['MANHÃ', 'TARDE'])
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>(['⚠️', '🛵'])
   const [showEntregues, setShowEntregues] = useState(false)
   const [mapDarkMode, setMapDarkMode] = useState(true)
@@ -248,7 +248,7 @@ export default function MapaEntregasTab() {
           <div className="flex gap-2 items-center justify-between">
             <span className="text-sm font-semibold text-slate-700 w-16">Turnos</span>
             <div className="flex gap-1.5">
-              {['MANHÃ', 'TARDE', 'NOITE'].map((turno) => (
+              {['MANHÃ', 'TARDE'].map((turno) => (
                 <button
                   key={turno}
                   onClick={() => toggleTurno(turno)}

@@ -31,9 +31,8 @@ function prevDay(dateStr: string): string {
 function getTurnoOrder(): string[] {
   const h = new Date().getHours()
   // SR (Sem Restrição de Horário) always appears last — pode ir a qualquer hora
-  if (h >= 6  && h < 12) return ['MANHÃ', 'TARDE', 'NOITE', 'SR']
-  if (h >= 12 && h < 18) return ['TARDE', 'NOITE', 'MANHÃ', 'SR']
-  return ['NOITE', 'TARDE', 'MANHÃ', 'SR']
+  if (h < 12) return ['MANHÃ', 'TARDE', 'SR']
+  return ['TARDE', 'MANHÃ', 'SR']
 }
 
 function flagPriority(f: string | null): number {
@@ -89,7 +88,6 @@ function borderColor(p: VarejoPedido): string {
 const TURNO_CONFIG: Record<string, { icon: string; label: string; color: string; bg: string; border: string }> = {
   'MANHÃ':  { icon: '🌅', label: 'Manhã',              color: 'text-amber-700 dark:text-amber-400',  bg: 'bg-amber-50 dark:bg-amber-900/20',   border: 'border-amber-300 dark:border-amber-700'  },
   'TARDE':  { icon: '☀️', label: 'Tarde',              color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/20',  border: 'border-orange-300 dark:border-orange-700' },
-  'NOITE':  { icon: '🌙', label: 'Noite',              color: 'text-indigo-700 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20',  border: 'border-indigo-300 dark:border-indigo-700' },
   'SR':     { icon: '🕐', label: 'SR — Sem Restrição', color: 'text-slate-600 dark:text-slate-300',   bg: 'bg-slate-100 dark:bg-slate-800/60',   border: 'border-slate-300 dark:border-slate-600'   },
 }
 
@@ -670,13 +668,20 @@ export default function VarejoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Realtime
+  // Realtime com debounce — evita reloads em cascata
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
     const channel = supabase
       .channel(`varejo_realtime_${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'varejo_pedidos' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'varejo_pedidos' }, () => {
+        if (debounceTimer) clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(() => load(), 800)
+      })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      supabase.removeChannel(channel)
+    }
   }, [load])
 
   // ── Derivados ─────────────────────────────────────────────────────

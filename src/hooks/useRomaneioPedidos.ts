@@ -21,7 +21,6 @@ interface LoadParams {
   entregador?: string
   turnoManha?: boolean
   turnoTarde?: boolean
-  turnoNoite?: boolean
   empresaLumar?: boolean
   empresaCantina?: boolean
 }
@@ -38,18 +37,16 @@ export function useRomaneioPedidos() {
       entregador = '',
       turnoManha = true,
       turnoTarde = true,
-      turnoNoite = true,
       empresaLumar = true,
       empresaCantina = true,
     } = params
 
-    const nenhum = !turnoManha && !turnoTarde && !turnoNoite
+    const nenhum = !turnoManha && !turnoTarde
     const buildOr = () => {
       if (nenhum) return undefined
       const parts = ['turno.is.null']
       if (turnoManha) parts.push('turno.eq.MANHÃ')
       if (turnoTarde) parts.push('turno.eq.TARDE')
-      if (turnoNoite) parts.push('turno.eq.NOITE')
       return parts.join(',')
     }
     const turnoOr = buildOr()

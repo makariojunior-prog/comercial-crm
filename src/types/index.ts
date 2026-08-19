@@ -301,7 +301,7 @@ export interface VarejoPedido {
   complemento: string | null         // U
   ponto_referencia: string | null    // reference do endereço de entrega
   // Atendente
-  turno: string | null               // G – MANHÃ / TARDE / NOITE
+  turno: string | null               // G – MANHÃ / TARDE
   restricao: string | null           // J – restrição/obs de entrega
   flag_restricao: string | null      // L – ⚠️ / ✅
   atendente: string | null           // N
@@ -329,7 +329,7 @@ export interface VarejoPedido {
   cardapio_order_id: string | null
 }
 
-export const TURNOS = ['MANHÃ', 'TARDE', 'NOITE'] as const
+export const TURNOS = ['MANHÃ', 'TARDE'] as const
 export const EMPRESAS_ROTA = ['CANTINA', 'LUMAR'] as const
 
 export const VEHICLE_TIPOS: VehicleTipo[] = ['Carro', 'Van', 'Moto', 'Caminhão', 'Utilitário', 'Outro']

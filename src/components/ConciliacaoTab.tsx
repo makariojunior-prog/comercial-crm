@@ -23,7 +23,6 @@ interface Props {
   entregador?: string
   turnoManha?: boolean
   turnoTarde?: boolean
-  turnoNoite?: boolean
   empresaLumar?: boolean
   empresaCantina?: boolean
   drivers?: { id: string; nome: string }[]
@@ -45,7 +44,6 @@ export default function ConciliacaoTab({
   const [filterEntregador, setFilterEntregador] = useState('')
   const [filterTurnoManha, setFilterTurnoManha] = useState(true)
   const [filterTurnoTarde, setFilterTurnoTarde] = useState(true)
-  const [filterTurnoNoite, setFilterTurnoNoite] = useState(true)
   const [filterEmpresaLumar, setFilterEmpresaLumar] = useState(true)
   const [filterEmpresaCantina, setFilterEmpresaCantina] = useState(true)
 
@@ -80,7 +78,7 @@ export default function ConciliacaoTab({
   // Carregamento inicial
   useEffect(() => {
     loadAll()
-  }, [filterDate, filterEntregador, filterTurnoManha, filterTurnoTarde, filterTurnoNoite, filterEmpresaLumar, filterEmpresaCantina])
+  }, [filterDate, filterEntregador, filterTurnoManha, filterTurnoTarde, filterEmpresaLumar, filterEmpresaCantina])
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -91,7 +89,6 @@ export default function ConciliacaoTab({
         entregador: filterEntregador,
         turnoManha: filterTurnoManha,
         turnoTarde: filterTurnoTarde,
-        turnoNoite: filterTurnoNoite,
         empresaLumar: filterEmpresaLumar,
         empresaCantina: filterEmpresaCantina,
       })
@@ -136,7 +133,7 @@ export default function ConciliacaoTab({
     } finally {
       setLoading(false)
     }
-  }, [filterDate, filterEntregador, filterTurnoManha, filterTurnoTarde, filterTurnoNoite, filterEmpresaLumar, filterEmpresaCantina, load])
+  }, [filterDate, filterEntregador, filterTurnoManha, filterTurnoTarde, filterEmpresaLumar, filterEmpresaCantina, load])
 
   // Itens pendentes (sem conciliação), ordenados
   const itensPendentes = useMemo(() => {
@@ -312,15 +309,6 @@ export default function ConciliacaoTab({
               className="w-4 h-4 accent-orange-500"
             />
             TARDE
-          </label>
-          <label className="flex items-center gap-1 text-sm">
-            <input
-              type="checkbox"
-              checked={filterTurnoNoite}
-              onChange={e => setFilterTurnoNoite(e.target.checked)}
-              className="w-4 h-4 accent-orange-500"
-            />
-            NOITE
           </label>
         </div>
 

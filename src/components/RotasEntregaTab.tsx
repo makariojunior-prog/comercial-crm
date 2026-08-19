@@ -33,18 +33,17 @@ const DIAS_ORDEM = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO']
 const DIA_ABREV: Record<string, string> = {
   SEGUNDA: 'Seg', TERÇA: 'Ter', QUARTA: 'Qua', QUINTA: 'Qui', SEXTA: 'Sex', 'SÁBADO': 'Sáb',
 }
-const TURNO_ORDEM = ['MANHÃ', 'TARDE', 'NOITE'] as const
+const TURNO_ORDEM = ['MANHÃ', 'TARDE'] as const
 
 const TURNO_STYLES: Record<string, string> = {
   'MANHÃ': 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
   'TARDE': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-  'NOITE': 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
 }
 const TURNO_DOT: Record<string, string> = {
-  'MANHÃ': 'bg-amber-500', 'TARDE': 'bg-blue-500', 'NOITE': 'bg-indigo-500',
+  'MANHÃ': 'bg-amber-500', 'TARDE': 'bg-blue-500',
 }
 const TURNO_LABEL: Record<string, string> = {
-  'MANHÃ': 'Manhã', 'TARDE': 'Tarde', 'NOITE': 'Noite',
+  'MANHÃ': 'Manhã', 'TARDE': 'Tarde',
 }
 
 function turnoBadgeClass(turno: string) {
