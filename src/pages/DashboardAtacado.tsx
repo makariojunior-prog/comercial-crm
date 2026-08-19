@@ -14,7 +14,7 @@ import type { AtacadoPedido, Client } from '../types'
 // ─── Constants ────────────────────────────────────────────────
 const PT_DAYS       = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO']
 const PT_DAY_LABELS = ['DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO']
-const TURNOS_LIST   = ['MANHÃ', 'TARDE', 'NOITE']
+const TURNOS_LIST   = ['MANHÃ', 'TARDE']
 const RETIRADA_VALS = ['RETIRADA', 'BALCÃO', 'RETIRADA/BALCÃO']
 
 const firstName = (nome: string) => nome.trim().split(/\s+/)[0].toUpperCase()
@@ -40,17 +40,25 @@ function dayRange(date: Date): [string, string] {
   return [start.toISOString(), new Date(start.getTime() + 86400000).toISOString()]
 }
 
+function matchesQuery(p: AtacadoPedido, q: string): boolean {
+  return (
+    String(p.numero_pedido ?? '').includes(q) ||
+    String(p.id_venda ?? '').includes(q) ||
+    (p.crm_client?.nome ?? p.cliente_nome ?? '').toLowerCase().includes(q)
+  )
+}
+
 function turnoScore(t: string | null) {
-  return t === 'MANHÃ' ? 1 : t === 'TARDE' ? 2 : t === 'NOITE' ? 3 : 4
+  return t === 'MANHÃ' ? 1 : t === 'TARDE' ? 2 : 3
 }
 
 function circularSort(pedidos: AtacadoPedido[]): AtacadoPedido[] {
   const h = new Date().getHours()
-  const now = h < 12 ? 1 : h < 18 ? 2 : 3
+  const now = h < 12 ? 1 : 2
   return [...pedidos].sort((a, b) => {
     const sa = turnoScore(a.turno), sb = turnoScore(b.turno)
-    const ca = sa >= now ? sa - now : sa + 3 - now
-    const cb = sb >= now ? sb - now : sb + 3 - now
+    const ca = sa >= now ? sa - now : sa + 2 - now
+    const cb = sb >= now ? sb - now : sb + 2 - now
     if (ca !== cb) return ca - cb
     return (a.crm_client?.rota ?? '').localeCompare(b.cliente?.rota ?? '', 'pt-BR')
   })
@@ -111,26 +119,32 @@ export default function DashboardAtacado() {
   const kpiValor         = useMemo(() => pedidosDia.reduce((s, p) => s + p.valor, 0), [pedidosDia])
   const isRotinaHoje      = format(rotinaDate, 'yyyy-MM-dd') === todayStr
 
-  // Filtered novos based on search
+  // Busca aplicada às 4 listas do dashboard — antes só "Novos" e "Histórico"
+  // filtravam por searchQuery; "Rotas" e "Retirada" ficavam de fora porque um
+  // pedido some da tela assim que ganha data_entrega e migra de lista
   const filteredNovos = useMemo(() => {
     if (!searchQuery.trim()) return pedidosNovos
     const q = searchQuery.toLowerCase().trim()
-    return pedidosNovos.filter(p =>
-      String(p.numero_pedido ?? '').includes(q) ||
-      String(p.id_venda ?? '').includes(q) ||
-      (p.crm_client?.nome ?? p.cliente_nome ?? '').toLowerCase().includes(q)
-    )
+    return pedidosNovos.filter(p => matchesQuery(p, q))
   }, [pedidosNovos, searchQuery])
+
+  const filteredRotas = useMemo(() => {
+    if (!searchQuery.trim()) return sortedPedidosDia
+    const q = searchQuery.toLowerCase().trim()
+    return sortedPedidosDia.filter(p => matchesQuery(p, q))
+  }, [sortedPedidosDia, searchQuery])
+
+  const filteredRetirada = useMemo(() => {
+    if (!searchQuery.trim()) return pedidosRetirada
+    const q = searchQuery.toLowerCase().trim()
+    return pedidosRetirada.filter(p => matchesQuery(p, q))
+  }, [pedidosRetirada, searchQuery])
 
   const filteredHistorico = useMemo(() => {
     let result = historico
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim()
-      result = result.filter(p =>
-        String(p.numero_pedido ?? '').includes(q) ||
-        String(p.id_venda ?? '').includes(q) ||
-        (p.crm_client?.nome ?? p.cliente_nome ?? '').toLowerCase().includes(q)
-      )
+      result = result.filter(p => matchesQuery(p, q))
     }
     if (histSoOcorrencia) result = result.filter(p => p.ocorrencia?.trim())
     return result
@@ -247,20 +261,19 @@ export default function DashboardAtacado() {
   useEffect(() => { loadRotas() }, [loadRotas])
   useEffect(() => { if (showHistorico) loadHistorico() }, [showHistorico, loadHistorico])
 
-  // Auto-refresh every 90 s
+  // Realtime com debounce — evita reloads em cascata quando várias mudanças chegam ao mesmo tempo
   useEffect(() => {
-    const id = setInterval(() => { loadNovos(); loadRotas() }, 90000)
-    return () => clearInterval(id)
-  }, [loadNovos, loadRotas])
-
-  // Realtime
-  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
     const ch = supabase.channel('atacado-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'atacado_pedidos' }, () => {
-        loadNovos(); loadRotas()
+        if (debounceTimer) clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(() => { loadNovos(); loadRotas() }, 800)
       })
       .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      supabase.removeChannel(ch)
+    }
   }, [loadNovos, loadRotas])
 
   // ─── Mutations ──────────────────────────────────────────
@@ -529,11 +542,15 @@ export default function DashboardAtacado() {
 
           {/* Rotas */}
           {activeTab === 'rotas' && (
-            sortedPedidosDia.length === 0 ? (
+            filteredRotas.length === 0 ? (
               <div className="py-10 text-center text-slate-400">
                 <Package2 size={28} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Nenhuma entrega para {isRotasHoje ? 'hoje' : format(rotasDate, "dd/MM", { locale: ptBR })}</p>
-                {isRotasHoje && <p className="text-xs mt-1 opacity-70">Defina a data de entrega nos pedidos aguardando</p>}
+                <p className="text-sm">
+                  {searchQuery
+                    ? 'Nenhum pedido encontrado para essa busca'
+                    : `Nenhuma entrega para ${isRotasHoje ? 'hoje' : format(rotasDate, "dd/MM", { locale: ptBR })}`}
+                </p>
+                {isRotasHoje && !searchQuery && <p className="text-xs mt-1 opacity-70">Defina a data de entrega nos pedidos aguardando</p>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -551,7 +568,7 @@ export default function DashboardAtacado() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                    {sortedPedidosDia.map(p => (
+                    {filteredRotas.map(p => (
                       <RotaRow key={p.id} pedido={p}
                         onUpdate={patch => updatePedido(p.id, patch)}
                         onEdit={() => setEditPedidoId(p.id)}
@@ -567,11 +584,15 @@ export default function DashboardAtacado() {
 
           {/* Retirada / Balcão */}
           {activeTab === 'retirada' && (
-            pedidosRetirada.length === 0 ? (
+            filteredRetirada.length === 0 ? (
               <div className="py-10 text-center text-slate-400">
                 <Package2 size={28} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Nenhuma retirada {isRotasHoje ? 'hoje' : `em ${format(rotasDate, "dd/MM", { locale: ptBR })}`}</p>
-                <p className="text-xs mt-1 opacity-70">Pedidos com entregador = RETIRADA aparecem aqui</p>
+                <p className="text-sm">
+                  {searchQuery
+                    ? 'Nenhum pedido encontrado para essa busca'
+                    : `Nenhuma retirada ${isRotasHoje ? 'hoje' : `em ${format(rotasDate, "dd/MM", { locale: ptBR })}`}`}
+                </p>
+                {!searchQuery && <p className="text-xs mt-1 opacity-70">Pedidos com entregador = RETIRADA aparecem aqui</p>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -587,7 +608,7 @@ export default function DashboardAtacado() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                    {pedidosRetirada.map(p => {
+                    {filteredRetirada.map(p => {
                       const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
                       return (
                         <tr key={p.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
@@ -921,8 +942,6 @@ function RotaRow({ pedido: p, onUpdate, onEdit, cobrancaAberto, drivers }: {
     ? turnoEhDoCliente ? 'text-yellow-400/60 dark:text-yellow-500/60' : 'text-yellow-600 dark:text-yellow-400'
     : turnoDisplay === 'TARDE'
     ? turnoEhDoCliente ? 'text-orange-400/60' : 'text-orange-500'
-    : turnoDisplay === 'NOITE'
-    ? turnoEhDoCliente ? 'text-blue-400/60' : 'text-blue-500'
     : 'text-slate-400'
 
   return (
