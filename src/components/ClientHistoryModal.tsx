@@ -72,7 +72,7 @@ export default function ClientHistoryModal({ clientId, clienteName, onClose }: P
       // Visitas
       const { data: visitas } = await supabase
         .from('visits')
-        .select('id, visit_date, visit_type, client_name, status, notes, responsible')
+        .select('id, visit_date, visit_type, client_name, status, report, responsible')
         .eq('client_name', clienteName)
         .order('visit_date', { ascending: false })
         .limit(100)
@@ -83,7 +83,7 @@ export default function ClientHistoryModal({ clientId, clienteName, onClose }: P
           id: `vis-${v.id}`,
           date: v.visit_date,
           title: `Visita: ${v.visit_type}`,
-          subtitle: v.notes || '—',
+          subtitle: v.report || '—',
           details: v,
         })
       }
@@ -110,7 +110,7 @@ export default function ClientHistoryModal({ clientId, clienteName, onClose }: P
       // Agenda
       const { data: agenda } = await supabase
         .from('agenda_compromissos')
-        .select('id, titulo, tipo, data, observacoes, cliente_nome')
+        .select('id, titulo, tipo, data, descricao, cliente_nome')
         .eq('cliente_nome', clienteName)
         .order('data', { ascending: false })
         .limit(100)
@@ -121,7 +121,7 @@ export default function ClientHistoryModal({ clientId, clienteName, onClose }: P
           id: `age-${a.id}`,
           date: a.data,
           title: `${a.tipo}: ${a.titulo}`,
-          subtitle: a.observacoes || '—',
+          subtitle: a.descricao || '—',
           details: a,
         })
       }
