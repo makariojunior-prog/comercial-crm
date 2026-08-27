@@ -153,7 +153,7 @@ export default function ClientsPage() {
 
   async function loadClients() {
     setLoading(true)
-    let query = supabase.from('crm_clients').select('*').order('nome', { ascending: true })
+    let query = supabase.from('crm_clients').select('*').order('nome', { ascending: true }).limit(1000)
     
     if (statusFilter !== 'TODOS') {
       query = query.eq('status', statusFilter)

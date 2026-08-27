@@ -191,6 +191,7 @@ export default function DashboardAtacado() {
       .eq('data_entrega', rotasDateStr)
       .neq('tipo', 'CANCELADO')
       .order('atualizacao')
+      .limit(500)
     setPedidosDia((data ?? []) as AtacadoPedido[])
   }, [rotasDateStr])
 
@@ -261,20 +262,60 @@ export default function DashboardAtacado() {
   useEffect(() => { loadRotas() }, [loadRotas])
   useEffect(() => { if (showHistorico) loadHistorico() }, [showHistorico, loadHistorico])
 
-  // Realtime com debounce — evita reloads em cascata quando várias mudanças chegam ao mesmo tempo
+  // Realtime com debounce — em vez de recarregar as listas inteiras (até 500 linhas
+  // com JOIN) a cada mudança, busca só as linhas que mudaram e reposiciona/remove
+  // localmente. Evita amplificar 1 UPDATE em atacado_pedidos em centenas de KB por
+  // tela aberta.
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const pendingIds = new Set<number>()
+
+    const isNovo  = (p: AtacadoPedido) => p.data_entrega == null && !p.ignorado && p.tipo !== 'CANCELADO'
+    const isDoDia = (p: AtacadoPedido) => p.data_entrega === rotasDateStr && p.tipo !== 'CANCELADO'
+
+    const applyPending = async () => {
+      const ids = [...pendingIds]
+      pendingIds.clear()
+      if (ids.length === 0) return
+
+      const { data } = await supabase.from('atacado_pedidos').select(JOIN).in('id', ids)
+      const fetched = new Map((data ?? []).map((p: any) => [p.id as number, p as AtacadoPedido]))
+
+      setPedidosNovos(prev => {
+        const next = prev.filter(p => !ids.includes(p.id))
+        for (const id of ids) {
+          const p = fetched.get(id)
+          if (p && isNovo(p)) next.push(p)
+        }
+        next.sort((a, b) => (b.id_venda ?? 0) - (a.id_venda ?? 0))
+        return next
+      })
+
+      setPedidosDia(prev => {
+        const next = prev.filter(p => !ids.includes(p.id))
+        for (const id of ids) {
+          const p = fetched.get(id)
+          if (p && isDoDia(p)) next.push(p)
+        }
+        next.sort((a, b) => new Date(a.atualizacao).getTime() - new Date(b.atualizacao).getTime())
+        return next
+      })
+    }
+
     const ch = supabase.channel('atacado-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'atacado_pedidos' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'atacado_pedidos' }, (payload) => {
+        const id = (payload.new as { id?: number }).id ?? (payload.old as { id?: number }).id
+        if (id == null) return
+        pendingIds.add(id)
         if (debounceTimer) clearTimeout(debounceTimer)
-        debounceTimer = setTimeout(() => { loadNovos(); loadRotas() }, 800)
+        debounceTimer = setTimeout(applyPending, 800)
       })
       .subscribe()
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer)
       supabase.removeChannel(ch)
     }
-  }, [loadNovos, loadRotas])
+  }, [rotasDateStr])
 
   // ─── Mutations ──────────────────────────────────────────
   async function updatePedido(id: number, patch: Partial<AtacadoPedido>) {

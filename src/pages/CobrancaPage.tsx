@@ -71,7 +71,7 @@ export default function CobrancaPage() {
   async function loadData() {
     setLoading(true)
     const [{ data: recs }, { data: cls }] = await Promise.all([
-      supabase.from('cobranca').select('*').order('data_emissao', { ascending: false }),
+      supabase.from('cobranca').select('id, crm_client_id, cliente_nome, empresa, valor, data_emissao, situacao, tipo, numero, data_pagamento, observacao').order('data_emissao', { ascending: false }).limit(2000),
       supabase.from('crm_clients').select('id, nome').order('nome'),
     ])
     setRecords((recs ?? []) as CobrancaRecord[])

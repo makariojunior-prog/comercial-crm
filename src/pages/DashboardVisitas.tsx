@@ -45,6 +45,7 @@ export default function DashboardVisitas() {
       .from('visits')
       .select('*')
       .order('visit_date', { ascending: false })
+      .limit(500)
     if (error) { setLoadError(error.message); setLoading(false); return }
     setVisits(data as Visit[] ?? [])
     setLoading(false)
