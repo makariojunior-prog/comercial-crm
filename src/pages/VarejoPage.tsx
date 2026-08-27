@@ -347,7 +347,7 @@ function DeliveryTab({ pedidos }: { pedidos: VarejoPedido[] }) {
 function HistoricoTab({ onEdit }: { onEdit: (p: VarejoPedido) => void }) {
   const [search, setSearch]   = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [from,   setFrom]     = useState(() => format(subDays(new Date(), 540), 'yyyy-MM-dd'))
+  const [from,   setFrom]     = useState(() => format(subDays(new Date(), 60), 'yyyy-MM-dd'))
   const [to,     setTo]       = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [data,   setData]     = useState<VarejoPedido[]>([])
   const [loading, setLoading] = useState(false)
@@ -668,21 +668,49 @@ export default function VarejoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Realtime com debounce — evita reloads em cascata
+  // Realtime com debounce — em vez de rodar load() inteiro (2 queries, até 700
+  // linhas) a cada mudança em varejo_pedidos, busca só as linhas alteradas e
+  // reposiciona/remove localmente.
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const pendingIds = new Set<string>()
+
+    const applyPending = async () => {
+      const ids = [...pendingIds]
+      pendingIds.clear()
+      if (ids.length === 0) return
+
+      const { data } = await supabase.from('varejo_pedidos').select('*').in('id', ids)
+      const fetched = new Map((data ?? []).map((p: any) => [p.id as string, p as VarejoPedido]))
+      const datesToFetch = new Set([selectedDate, tomorrow, actualTomorrow])
+
+      setPedidos(prev => {
+        const next = prev.filter(p => !ids.includes(p.id))
+        for (const id of ids) {
+          const p = fetched.get(id)
+          if (!p) continue
+          const belongs = datesToFetch.has(p.data_entrega ?? '') || (p.data_entrega == null && p.status_icon === '⚠️')
+          if (belongs) next.push(p)
+        }
+        return next
+      })
+    }
+
     const channel = supabase
       .channel(`varejo_realtime_${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'varejo_pedidos' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'varejo_pedidos' }, (payload) => {
+        const id = (payload.new as { id?: string }).id ?? (payload.old as { id?: string }).id
+        if (id == null) return
+        pendingIds.add(id)
         if (debounceTimer) clearTimeout(debounceTimer)
-        debounceTimer = setTimeout(() => load(), 800)
+        debounceTimer = setTimeout(applyPending, 800)
       })
       .subscribe()
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer)
       supabase.removeChannel(channel)
     }
-  }, [load])
+  }, [selectedDate, tomorrow, actualTomorrow])
 
   // ── Derivados ─────────────────────────────────────────────────────
   const today = pedidos.filter(p =>

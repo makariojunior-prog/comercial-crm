@@ -33,7 +33,7 @@ export default function RecentVisitsWidget() {
   async function load() {
     const { data } = await supabase
       .from('visits')
-      .select('*')
+      .select('id, client_name, visit_date, visit_type, status, report, priority, created_at')
       .order('created_at', { ascending: false })
       .limit(8)
     setVisits((data || []) as Visit[])

@@ -39,6 +39,7 @@ export default function DashboardNegocios() {
       .select('*')
       .order('last_contact_date', { ascending: false, nullsFirst: false })
       .order('start_date', { ascending: false })
+      .limit(500)
     if (error) { setLoadError(error.message); setLoading(false); return }
     setDeals(data ?? [])
     setLoading(false)
