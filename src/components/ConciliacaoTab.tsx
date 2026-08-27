@@ -117,6 +117,7 @@ export default function ConciliacaoTab({
         .eq('status', 'finalizado')
         .gte('data_entrega', dataMinima)
         .order('data_conciliacao', { ascending: false })
+        .limit(500)
 
       setHistorico((hist || []) as RomaneioConciliacao[])
 
