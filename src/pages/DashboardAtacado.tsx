@@ -172,6 +172,9 @@ export default function DashboardAtacado() {
   // ─── Loaders ────────────────────────────────────────────
   const JOIN = '*, crm_client:crm_clients(id,nome,rota,pgto,setor,restricao,observacoes,telefone,turno)'
 
+  // Acima disso, um refetch por id sai mais caro que recarregar as listas
+  const MAX_REALTIME_IDS = 200
+
   const loadNovos = useCallback(async () => {
     const { data } = await supabase
       .from('atacado_pedidos')
@@ -278,6 +281,15 @@ export default function DashboardAtacado() {
       pendingIds.clear()
       if (ids.length === 0) return
 
+      // Rede de segurança: se uma alteração em massa atingir a tabela (sync mal
+      // comportado, migration, correção manual), buscar linha a linha geraria uma
+      // URL gigante e um refetch de megabytes. Acima do teto vale mais recarregar
+      // as listas já limitadas.
+      if (ids.length > MAX_REALTIME_IDS) {
+        await Promise.all([loadNovos(), loadRotas()])
+        return
+      }
+
       const { data } = await supabase.from('atacado_pedidos').select(JOIN).in('id', ids)
       const fetched = new Map((data ?? []).map((p: any) => [p.id as number, p as AtacadoPedido]))
 
@@ -374,11 +386,13 @@ export default function DashboardAtacado() {
       }
       if (type === 'pedidos') {
         const cols = data.sheetHeaders?.join(', ') ?? 'n/a'
-        setSyncMsg(`✓ ${data.upserted} pedidos importados (${data.skipped} ignorados) — colunas: ${cols}`)
+        const semMudanca = data.unchanged ? `, ${data.unchanged} sem mudança` : ''
+        setSyncMsg(`✓ ${data.upserted} pedidos importados (${data.skipped} ignorados${semMudanca}) — colunas: ${cols}`)
         await loadNovos()
       } else {
         const cols = data.sheetHeaders?.join(', ') ?? 'n/a'
-        setSyncMsg(`✓ ${data.updated} atualizados, ${data.datesSet ?? 0} datas de entrega definidas (${data.skipped} ignorados) — colunas: ${cols}`)
+        const semMudanca = data.unchanged ? `, ${data.unchanged} sem mudança` : ''
+        setSyncMsg(`✓ ${data.updated} atualizados, ${data.datesSet ?? 0} datas de entrega definidas (${data.skipped} ignorados${semMudanca}) — colunas: ${cols}`)
         await Promise.all([loadNovos(), loadRotas(), showHistorico ? loadHistorico() : Promise.resolve()])
       }
     } catch (e: unknown) {
