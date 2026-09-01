@@ -44,6 +44,12 @@ function fmtBRL(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+// Mesmo critério do PedidoModal ao salvar "Atendente responsável" em
+// varejo_pedidos.atendente — precisa bater exatamente para o filtro funcionar
+function firstName(nome: string) {
+  return nome.trim().split(/\s+/)[0] ?? ''
+}
+
 function fmtDate(s: string | null) {
   if (!s) return '—'
   try { return format(parseISO(s), 'dd/MM/yyyy') } catch { return s }
@@ -119,13 +125,18 @@ function exportExcel(
 export default function ComissaoPage() {
   const { profile, isAdmin } = useAuth()
   const now = new Date()
+  // Nome completo — usado por Positivações, onde crm_clients.indicador guarda o nome inteiro
   const selfName = (profile?.nome ?? '').toUpperCase().trim()
+  // Só o primeiro nome — varejo_pedidos.atendente guarda apenas o primeiro nome
+  // (PedidoModal salva com firstName()); usar o nome completo aqui fazia o
+  // filtro nunca bater e a comissão do atendente sumir da tela
+  const selfNameVarejo = firstName(profile?.nome ?? '').toUpperCase().trim()
 
   const [tab, setTab] = useState<'varejo' | 'positivacoes'>('varejo')
 
   // ── Varejo state ──
   const [mode, setMode]           = useState<'mensal' | 'periodo'>('mensal')
-  const [atendente, setAtendente] = useState(() => isAdmin ? 'TODOS' : selfName)
+  const [atendente, setAtendente] = useState(() => isAdmin ? 'TODOS' : selfNameVarejo)
   const [mes, setMes]             = useState(now.getMonth())
   const [ano, setAno]             = useState(now.getFullYear())
   const [dataIni, setDataIni]     = useState('')
@@ -139,15 +150,15 @@ export default function ComissaoPage() {
     supabase.from('crm_users').select('nome').eq('ativo', true)
       .then(({ data }) => {
         const nomes = (data ?? [])
-          .map((u: any) => String(u.nome ?? '').toUpperCase().trim())
+          .map((u: any) => firstName(String(u.nome ?? '')).toUpperCase())
           .filter(Boolean)
         setAtendentes([...new Set(nomes)].sort())
       })
   }, [])
 
   useEffect(() => {
-    if (!isAdmin && selfName) setAtendente(selfName)
-  }, [isAdmin, selfName])
+    if (!isAdmin && selfNameVarejo) setAtendente(selfNameVarejo)
+  }, [isAdmin, selfNameVarejo])
 
   function getDateRange() {
     if (mode === 'mensal') {
@@ -271,7 +282,7 @@ export default function ComissaoPage() {
                   </select>
                 ) : (
                   <div className="input w-44 bg-slate-50 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 cursor-default select-none">
-                    {selfName || '—'}
+                    {selfNameVarejo || '—'}
                   </div>
                 )}
               </div>
