@@ -65,8 +65,15 @@ Regras aplicadas:
 
 ### Nada é perdido
 
-O texto original vai para `crm_clients.comodato_legado` antes de qualquer reescrita, e aparece no
-cadastro do cliente sob "Ver o texto livre original".
+Antes de qualquer reescrita, os textos originais são copiados uma única vez:
+
+- `crm_clients.comodato` → `crm_clients.comodato_legado`
+- `crm_clients.valor` → `crm_clients.comodato_valor_legado`
+
+A cópia acontece dentro de `comodato_sync_texto_cliente()`, então vale tanto para a migração do
+legado quanto para a **primeira alocação feita pela tela** em um cliente que nunca passou pela
+migração. Uma vez preservado, o original nunca mais é tocado. Os dois aparecem no cadastro do
+cliente sob "Ver o cadastro livre original".
 
 ### Fila de revisão
 
@@ -94,7 +101,8 @@ alocar e devolver. É o mesmo dado do módulo — mexeu num lado, aparece no out
 
 `crm_clients.comodato` continua existindo, mas agora é um **espelho gerado** por trigger
 (`FRZ-0012 FREEZER FRICON 450LT, ARM-0003 ARMÁRIO 58X70`) e `crm_clients.valor` recebe a soma dos
-bens. Isso mantém listagens, exports e integrações antigas funcionando.
+bens. Isso mantém listagens, exports e integrações antigas funcionando. Os valores originais dos
+dois campos ficam preservados em `comodato_legado` e `comodato_valor_legado`.
 
 **Consequência importante:** a sincronização com a planilha do Google não sobrescreve mais
 `comodato` nem `valor` de clientes que já têm alocação ativa — senão o texto da planilha apagaria o

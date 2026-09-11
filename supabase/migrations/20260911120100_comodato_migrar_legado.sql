@@ -150,12 +150,12 @@ DECLARE
   c_falhas     INTEGER := 0;
   v_tem_atacado BOOLEAN := to_regclass('public.atacado_clientes') IS NOT NULL;
 BEGIN
-  -- 2.1 Preserva o texto original antes de qualquer reescrita
+  -- 2.1 Preserva os textos originais antes de qualquer reescrita
   UPDATE public.crm_clients
-     SET comodato_legado = comodato
-   WHERE comodato IS NOT NULL
-     AND TRIM(comodato) <> ''
-     AND comodato_legado IS NULL;
+     SET comodato_legado       = COALESCE(comodato_legado,       NULLIF(TRIM(comodato), '')),
+         comodato_valor_legado = COALESCE(comodato_valor_legado, NULLIF(TRIM(valor), ''))
+   WHERE (comodato IS NOT NULL AND TRIM(comodato) <> '')
+     AND (comodato_legado IS NULL OR comodato_valor_legado IS NULL);
 
   -- 2.2 Traz para crm_clients o comodato que só existe no ERP (atacado_clientes),
   --     casando por nome normalizado. Não sobrescreve texto já existente.

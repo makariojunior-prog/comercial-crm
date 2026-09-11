@@ -18,6 +18,8 @@ interface Props {
   clientNome: string
   /** Texto livre original, exibido como referência histórica da migração. */
   textoLegado?: string | null
+  /** Valor em texto livre original, idem. */
+  valorLegado?: string | null
   canEdit?: boolean
 }
 
@@ -26,7 +28,7 @@ interface Props {
  * Contratos do módulo. Opera sobre as mesmas tabelas do módulo Comodato,
  * então qualquer alteração aqui aparece lá e vice-versa.
  */
-export default function ComodatoClientePanel({ clientId, clientNome, textoLegado, canEdit = true }: Props) {
+export default function ComodatoClientePanel({ clientId, clientNome, textoLegado, valorLegado, canEdit = true }: Props) {
   const [equipamentos, setEquipamentos] = useState<ComodatoEquipamentoView[]>([])
   const [contratos, setContratos]       = useState<ComodatoContrato[]>([])
   const [loading, setLoading]           = useState(true)
@@ -206,14 +208,15 @@ export default function ComodatoClientePanel({ clientId, clientNome, textoLegado
       )}
 
       {/* Texto original preservado da migração */}
-      {textoLegado && (
+      {(textoLegado || valorLegado) && (
         <details className="text-[11px] text-slate-400">
           <summary className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300">
-            Ver o texto livre original (antes do módulo)
+            Ver o cadastro livre original (antes do módulo)
           </summary>
-          <p className="mt-1.5 px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600 font-mono">
-            {textoLegado}
-          </p>
+          <div className="mt-1.5 px-2.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600 font-mono space-y-1">
+            {textoLegado && <p>Equipamentos: {textoLegado}</p>}
+            {valorLegado && <p>Valor: {valorLegado}</p>}
+          </div>
         </details>
       )}
 

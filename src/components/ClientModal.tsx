@@ -385,6 +385,7 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
                 clientId={client.id}
                 clientNome={client.nome}
                 textoLegado={client.comodato_legado ?? null}
+                valorLegado={client.comodato_valor_legado ?? null}
               />
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-4 text-center">

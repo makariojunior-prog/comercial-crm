@@ -34,6 +34,24 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------
+-- 0.1 Campos de preservação do texto livre original em crm_clients
+--     Criados antes de tudo: comodato_sync_texto_cliente() grava neles
+--     antes de sobrescrever comodato/valor.
+-- ---------------------------------------------------------------------
+ALTER TABLE public.crm_clients
+  ADD COLUMN IF NOT EXISTS comodato_legado TEXT,
+  ADD COLUMN IF NOT EXISTS comodato_valor_legado TEXT;
+
+COMMENT ON COLUMN public.crm_clients.comodato_legado IS
+  'Texto livre original do campo comodato, preservado na migração para o módulo estruturado.';
+COMMENT ON COLUMN public.crm_clients.comodato_valor_legado IS
+  'Valor do comodato em texto livre original, preservado na migração para o módulo estruturado.';
+COMMENT ON COLUMN public.crm_clients.comodato IS
+  'Espelho gerado a partir de comodato_alocacoes ativas. Editar pelo módulo Comodato, não diretamente.';
+COMMENT ON COLUMN public.crm_clients.valor IS
+  'Soma dos bens em comodato, gerada pelo módulo. Original preservado em comodato_valor_legado.';
+
+-- ---------------------------------------------------------------------
 -- 1. CATÁLOGO DE MODELOS
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.comodato_modelos (
@@ -399,6 +417,15 @@ BEGIN
        AND a.status = 'ativa'
   ) s;
 
+  -- Antes de sobrescrever, guarda uma única vez os textos originais. Vale tanto
+  -- para a migração do legado quanto para a primeira alocação feita pela tela:
+  -- depois disso os campos são espelhos gerados e o original não é mais tocado.
+  UPDATE public.crm_clients
+     SET comodato_legado       = COALESCE(comodato_legado,       NULLIF(TRIM(comodato), '')),
+         comodato_valor_legado = COALESCE(comodato_valor_legado, NULLIF(TRIM(valor), ''))
+   WHERE id = p_client_id
+     AND (comodato_legado IS NULL OR comodato_valor_legado IS NULL);
+
   UPDATE public.crm_clients
      SET comodato = v_txt,
          valor    = CASE WHEN v_valor IS NOT NULL
@@ -644,12 +671,3 @@ REVOKE ALL ON public.comodato_resumo_cliente    FROM anon;
 GRANT SELECT ON public.comodato_equipamentos_view TO authenticated;
 GRANT SELECT ON public.comodato_resumo_cliente    TO authenticated;
 
--- ---------------------------------------------------------------------
--- 13. Campo de preservação do texto livre original
--- ---------------------------------------------------------------------
-ALTER TABLE public.crm_clients
-  ADD COLUMN IF NOT EXISTS comodato_legado TEXT;
-COMMENT ON COLUMN public.crm_clients.comodato_legado IS
-  'Texto livre original do campo comodato, preservado na migração para o módulo estruturado.';
-COMMENT ON COLUMN public.crm_clients.comodato IS
-  'Espelho gerado a partir de comodato_alocacoes ativas. Editar pelo módulo Comodato, não diretamente.';

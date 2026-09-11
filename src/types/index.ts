@@ -152,7 +152,10 @@ export interface Client {
   comodato: string | null
   /** Texto livre original, preservado na migração para o módulo Comodato. */
   comodato_legado: string | null
+  /** Soma dos bens em comodato, gerada pelo módulo. */
   valor: string | null
+  /** Valor em texto livre original, preservado na migração. */
+  comodato_valor_legado: string | null
   data_planilha: string | null
   observacao_extra: string | null
   status: ClientStatus
