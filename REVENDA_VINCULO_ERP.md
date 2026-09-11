@@ -103,27 +103,48 @@ Revenda a cada sync.
 - as consultas passaram a paginar, para o limite de linhas do PostgREST não
   cortar a janela de 12 meses em silêncio.
 
-## Efeito medido
+## Efeito medido — já aplicado em produção (11/09/2026)
 
-Simulando o matcher novo contra os dados reais de produção:
+Migration aplicada, edge function publicada (versão 28) e sync reprocessando a
+planilha inteira. Resultado real:
 
 | | antes | depois |
 |---|---|---|
-| Nomes do ERP sem vínculo que passam a casar | — | **78 de 185** |
-| Pedidos recuperados | — | **1.006 de 2.404** |
-| Valor recuperado | — | **R$ 317.683,44** |
-| Clientes de Revenda zerados que voltam a ter histórico | — | **14 de 27** |
+| Clientes de Revenda com histórico | 64 de 91 | **77 de 91** |
+| Clientes de Revenda zerados | 27 | **14** |
+| Pedidos do módulo Revenda | 534 | **756** |
+| Faturamento do módulo Revenda | R$ 252.604,80 | **R$ 330.880,80** |
+| Pedidos sem vínculo (geral) | 2.405 | **1.389** |
+| Valor sem vínculo (geral) | R$ 1.215.360,01 | **R$ 907.058,27** |
+| `cliente_id` preenchido | 0 de 6.527 | **6.528 de 6.529** |
+| `numero_pedido` preenchido | 0 | **6.528** |
+| De-para gravado | — | **395 clientes do ERP** |
 
-Segurança: dos 320 vínculos que já existem, **303 continuam idênticos**;
-16 caem na regra de ambiguidade (cadastro duplicado no CRM) e 1 apontaria para
-o cadastro mais específico do mesmo cliente. Como o sync **nunca grava nulo por
-cima de um vínculo existente**, nenhum desses 17 é desfeito.
+Nenhum vínculo existente foi perdido: um sync completo rodado depois da
+correção deixa o estado idêntico (0 perdidos, 0 alterados).
 
-O resto (107 nomes) é cliente que de fato não tem cadastro no CRM
-(`Consumidor Final`, `loja cantina em casa`, `DEUSDETH ANTONIO DA SILVA`…) ou
-cuja grafia não tem como ser adivinhada (`FORMPAN INDUSTRIA DE PAO LTDA` ↔
-`PANIFICADORA MUNDIAL - FORMPAN PANIF`, R$ 326.473,80). Esses são o trabalho do
-de-para manual — e uma vez feito, vale para sempre.
+## Dois obstáculos que só apareceram na execução
+
+**1. FK órfã bloqueava a coluna `cliente_id`.** A coluna existia, mas com
+`FOREIGN KEY (cliente_id) REFERENCES atacado_clientes(id)` — tabela legada,
+hoje com 0 linhas, herdada de antes da migração para `crm_clients`. Como o
+valor a gravar é o `id_cliente` do ERP, que não tem linha lá, **todo upsert era
+rejeitado com 23503**. Era essa a razão real de a coluna estar nula nos 6.527
+pedidos — não esquecimento do sync. A FK só conseguia recusar escrita, nunca
+proteger nada. Removida.
+
+**2. O upsert em lote apagava vínculo.** O padrão `...(clientId ? {
+crm_client_id } : {})` não funciona em lote: o PostgREST monta UMA instrução
+com a união das colunas do lote, então a linha que omite a coluna recebe
+`NULL` explícito. Na primeira execução isso zerou **179 pedidos** de clientes
+com cadastro duplicado no CRM — justamente os que o matcher novo se recusa a
+chutar. Restaurados do backup e corrigido na raiz: o sync não grava mais
+`crm_client_id` no upsert; grava o de-para e chama
+`aplicar_vinculos_atacado()`, que só escreve onde o de-para tem resposta e
+portanto nunca apaga nada.
+
+Antes de qualquer escrita foi criada a tabela
+`backup_vinculo_revenda_20260911` com o estado original dos 6.529 pedidos.
 
 ## Pendência de qualidade de cadastro
 
@@ -132,14 +153,20 @@ cliente cadastrado duas vezes. Isso divide o histórico de compras em duas
 linhas na aba Revenda e é o que gera a maior parte das ambiguidades acima.
 Vale limpar.
 
-## Como aplicar
+## Como aplicar (já feito em produção)
 
-1. **Rodar a migration** — SQL Editor do Supabase, colando
-   `supabase/migrations/20260911130000_atacado_cliente_links.sql`.
-2. **Publicar a edge function**: `supabase functions deploy sync-atacado`.
-3. **Rodar o sync de pedidos** (`{ "type": "pedidos" }`). Ele reprocessa a
-   planilha inteira, então o histórico é corrigido de uma vez. Confira
-   `matchedById` / `matchedByName` / `unmatched` na resposta.
-4. **Publicar o front** e, na aba Revenda → Compras Mensais, abrir
-   "Não vinculados" e fazer o de-para do que sobrou, começando pelos de maior
-   valor.
+1. ~~Rodar a migration~~ — aplicada.
+2. ~~`supabase functions deploy sync-atacado`~~ — publicada, versão 28.
+3. ~~Rodar o sync `{ "type": "pedidos" }`~~ — reprocessado, histórico corrigido.
+4. **Pendente:** publicar o front (merge do PR → deploy) e, na aba
+   Revenda → Compras Mensais, abrir "Não vinculados" e fazer o de-para do que
+   sobrou, começando pelos de maior valor — o maior é
+   `FORMPAN INDUSTRIA DE PAO LTDA` ↔ `PANIFICADORA MUNDIAL - FORMPAN PANIF`,
+   com R$ 326.473,80.
+
+Para reverter o vínculo ao estado anterior, se necessário:
+
+```sql
+update atacado_pedidos p set crm_client_id = b.crm_client_id
+  from backup_vinculo_revenda_20260911 b where p.id = b.id;
+```

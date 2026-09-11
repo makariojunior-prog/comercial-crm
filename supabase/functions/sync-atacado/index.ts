@@ -302,8 +302,12 @@ Deno.serve(async (req: Request) => {
         // id_cliente do ERP: chave estável do vínculo, usada pelo de-para acima
         ...(erpClienteId ? { cliente_id: erpClienteId } : {}),
         cliente_nome:  clienteNome,
-        // crm_client_id only included when matched — avoids overwriting manually-set links on existing records
-        ...(clientId ? { crm_client_id: clientId } : {}),
+        // crm_client_id NÃO entra aqui. O upsert em lote do PostgREST monta uma
+        // única instrução com a união das colunas do lote, então uma linha que
+        // omite a coluna recebe NULL explícito e perde o vínculo que já tinha —
+        // foi assim que 179 pedidos de clientes com cadastro duplicado no CRM
+        // ficaram órfãos. O vínculo é aplicado depois, pelo de-para, via
+        // aplicar_vinculos_atacado().
         valor:         parseValor(row.valor ?? row.total ?? row.valorliquido ?? row.valortotal ?? ''),
         // turno e entregador NÃO são preenchidos pelo sync ERP — são gerenciados manualmente
         // pela atendente (via UI ou sync reg_lumar). Incluí-los aqui apagaria os valores manuais.
@@ -337,6 +341,13 @@ Deno.serve(async (req: Request) => {
       else linksLearned = linkRows.length
     }
 
+    // Propaga o de-para para os pedidos. Só escreve onde o de-para tem
+    // resposta, então nenhum vínculo existente é apagado.
+    let vinculosAplicados = 0
+    const { data: rpcData, error: rpcError } = await supabase.rpc('aplicar_vinculos_atacado')
+    if (rpcError) upsertErrors.push(`aplicar_vinculos_atacado: ${rpcError.message}`)
+    else vinculosAplicados = Number(rpcData ?? 0)
+
     return json200({
       ok: upsertErrors.length === 0,
       type,
@@ -350,6 +361,7 @@ Deno.serve(async (req: Request) => {
       matchedByName,
       unmatched,
       linksLearned,
+      vinculosAplicados,
       sheetHeaders,
       error: upsertErrors.length ? upsertErrors[0] : undefined,
     })
