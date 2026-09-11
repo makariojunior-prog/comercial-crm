@@ -148,7 +148,10 @@ export interface Client {
   carteira: string | null
   manutencao: string | null
   frequencia: string | null
+  /** Espelho gerado pelo módulo Comodato a partir das alocações ativas. */
   comodato: string | null
+  /** Texto livre original, preservado na migração para o módulo Comodato. */
+  comodato_legado: string | null
   valor: string | null
   data_planilha: string | null
   observacao_extra: string | null
@@ -721,4 +724,222 @@ export interface RomaneioConciliacao {
   observacoes: string | null
   created_at: string
   updated_at: string
+}
+
+// ─── Módulo Comodato ───────────────────────────────────────────
+// Ver docs/BENCHMARK_COMODATO.md para o racional do modelo.
+
+export const COMODATO_CATEGORIAS = [
+  'FREEZER', 'ARMARIO', 'FORNO', 'EXPOSITOR', 'ESTUFA', 'BALCAO', 'VITRINE',
+  'GELADEIRA', 'MASSEIRA', 'CILINDRO', 'FRITADEIRA', 'MICROONDAS', 'OUTROS',
+] as const
+export type ComodatoCategoria = typeof COMODATO_CATEGORIAS[number]
+
+export type ComodatoSituacao   = 'disponivel' | 'reservado' | 'em_comodato' | 'manutencao' | 'baixado'
+export type ComodatoEstado     = 'novo' | 'bom' | 'regular' | 'ruim' | 'inservivel'
+export type ComodatoContratoStatus = 'rascunho' | 'pendente_assinatura' | 'vigente' | 'encerrado' | 'cancelado'
+export type ComodatoAlocacaoStatus = 'ativa' | 'devolvida' | 'cancelada'
+export type ComodatoManutTipo   = 'preventiva' | 'corretiva' | 'instalacao' | 'retirada' | 'higienizacao' | 'conferencia'
+export type ComodatoManutStatus = 'aberta' | 'agendada' | 'em_andamento' | 'concluida' | 'cancelada'
+export type ComodatoPrioridade  = 'baixa' | 'media' | 'alta' | 'urgente'
+
+export interface ComodatoModelo {
+  id: string
+  nome: string
+  categoria: ComodatoCategoria
+  marca: string | null
+  modelo: string | null
+  capacidade: string | null
+  valor_referencia: number | null
+  manutencao_intervalo_meses: number | null
+  foto_url: string | null
+  observacoes: string | null
+  ativo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ComodatoEquipamento {
+  id: string
+  codigo_patrimonio: string
+  modelo_id: string | null
+  numero_serie: string | null
+  empresa: 'lumar' | 'cantina'
+  situacao: ComodatoSituacao
+  estado_conservacao: ComodatoEstado
+  client_id: string | null
+  alocacao_id: string | null
+  local_atual: string | null
+  valor_aquisicao: number | null
+  data_aquisicao: string | null
+  nota_fiscal_compra: string | null
+  fornecedor: string | null
+  manutencao_intervalo_meses: number | null
+  ultima_manutencao: string | null
+  proxima_manutencao: string | null
+  ultima_conferencia: string | null
+  foto_url: string | null
+  observacoes: string | null
+  origem: 'manual' | 'legado' | 'importacao'
+  revisar: boolean
+  ativo: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** comodato_equipamentos_view — unidade + modelo + cliente + contrato + alertas */
+export interface ComodatoEquipamentoView extends ComodatoEquipamento {
+  modelo_nome: string | null
+  categoria: ComodatoCategoria | null
+  marca: string | null
+  capacidade: string | null
+  modelo_valor_referencia: number | null
+  valor_efetivo: number | null
+  client_nome: string | null
+  client_rota: string | null
+  client_status: ClientStatus | null
+  data_entrega: string | null
+  contrato_id: string | null
+  contrato_status: ComodatoContratoStatus | null
+  contrato_assinado: boolean | null
+  contrato_data_fim: string | null
+  dias_em_comodato: number | null
+  dias_parado: number | null
+  manutencao_vencida: boolean
+  manutencao_proxima: boolean
+  sem_contrato: boolean
+  contrato_nao_assinado: boolean
+  os_abertas: number
+}
+
+export interface ComodatoContrato {
+  id: string
+  numero: string | null
+  client_id: string
+  empresa: 'lumar' | 'cantina'
+  status: ComodatoContratoStatus
+  contrato_assinado: boolean
+  data_assinatura: string | null
+  data_inicio: string | null
+  prazo_meses: number | null
+  data_fim: string | null
+  renovacao_automatica: boolean
+  contrapartida: string | null
+  volume_minimo: string | null
+  responsavel_manutencao: 'comodante' | 'comodatario' | 'compartilhado'
+  responsavel_interno: string | null
+  contato_cliente: string | null
+  arquivo_url: string | null
+  testemunhas: string | null
+  valor_total_bens: number | null
+  observacoes: string | null
+  origem: 'manual' | 'legado' | 'importacao'
+  created_at: string
+  updated_at: string
+  client?: { id: string; nome: string; rota: string | null; status: ClientStatus } | null
+}
+
+export interface ComodatoAlocacao {
+  id: string
+  equipamento_id: string
+  contrato_id: string | null
+  client_id: string
+  status: ComodatoAlocacaoStatus
+  data_entrega: string
+  data_prevista_retirada: string | null
+  data_retirada: string | null
+  estado_entrega: string | null
+  estado_devolucao: string | null
+  nf_remessa: string | null
+  nf_retorno: string | null
+  responsavel_entrega: string | null
+  recebido_por: string | null
+  motivo_retirada: string | null
+  observacoes: string | null
+  origem: 'manual' | 'legado' | 'importacao'
+  created_at: string
+  updated_at: string
+}
+
+export interface ComodatoManutencao {
+  id: string
+  equipamento_id: string
+  alocacao_id: string | null
+  client_id: string | null
+  tipo: ComodatoManutTipo
+  status: ComodatoManutStatus
+  prioridade: ComodatoPrioridade
+  descricao: string
+  solucao: string | null
+  data_abertura: string
+  data_agendada: string | null
+  data_conclusao: string | null
+  custo: number | null
+  tecnico: string | null
+  fornecedor: string | null
+  aberto_por: string | null
+  observacoes: string | null
+  created_at: string
+  updated_at: string
+  equipamento?: { codigo_patrimonio: string; modelo_id: string | null } | null
+  client?: { nome: string } | null
+}
+
+/** comodato_resumo_cliente — uma linha por cliente que detém equipamento hoje */
+export interface ComodatoResumoCliente {
+  client_id: string
+  client_nome: string
+  client_rota: string | null
+  client_status: ClientStatus
+  qtd_equipamentos: number
+  valor_total: number
+  primeira_entrega: string | null
+  tem_contrato_assinado: boolean | null
+  contrato_data_fim: string | null
+  itens_sem_contrato: number
+  itens_a_revisar: number
+}
+
+export const COMODATO_SITUACAO_LABELS: Record<ComodatoSituacao, string> = {
+  disponivel:  'Disponível',
+  reservado:   'Reservado',
+  em_comodato: 'Em comodato',
+  manutencao:  'Em manutenção',
+  baixado:     'Baixado',
+}
+
+export const COMODATO_ESTADO_LABELS: Record<ComodatoEstado, string> = {
+  novo: 'Novo', bom: 'Bom', regular: 'Regular', ruim: 'Ruim', inservivel: 'Inservível',
+}
+
+export const COMODATO_CONTRATO_LABELS: Record<ComodatoContratoStatus, string> = {
+  rascunho:            'Rascunho',
+  pendente_assinatura: 'Pendente de assinatura',
+  vigente:             'Vigente',
+  encerrado:           'Encerrado',
+  cancelado:           'Cancelado',
+}
+
+export const COMODATO_MANUT_TIPO_LABELS: Record<ComodatoManutTipo, string> = {
+  preventiva: 'Preventiva', corretiva: 'Corretiva', instalacao: 'Instalação',
+  retirada: 'Retirada', higienizacao: 'Higienização', conferencia: 'Conferência',
+}
+
+export const COMODATO_MANUT_STATUS_LABELS: Record<ComodatoManutStatus, string> = {
+  aberta: 'Aberta', agendada: 'Agendada', em_andamento: 'Em andamento',
+  concluida: 'Concluída', cancelada: 'Cancelada',
+}
+
+export const COMODATO_PRIORIDADE_LABELS: Record<ComodatoPrioridade, string> = {
+  baixa: 'Baixa', media: 'Média', alta: 'Alta', urgente: 'Urgente',
+}
+
+/** Contrato vencendo nos próximos 60 dias ou já vencido */
+export function comodatoContratoAlerta(dataFim: string | null | undefined): 'vencido' | 'vencendo' | null {
+  if (!dataFim) return null
+  const dias = daysUntil(dataFim)
+  if (dias === null) return null
+  if (dias < 0) return 'vencido'
+  if (dias <= 60) return 'vencendo'
+  return null
 }

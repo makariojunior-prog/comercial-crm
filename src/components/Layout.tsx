@@ -5,6 +5,7 @@ import {
   CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Gift, Calculator, Truck,
   ShoppingBag, MessageSquare, Instagram, Package2, Store, Banknote, TrendingUp,
   Building2, CalendarDays, PanelLeft, PanelBottom, Search, ChevronsLeft, ChevronsRight,
+  PackageOpen,
 } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
@@ -35,6 +36,7 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/comissao',       icon: TrendingUp,      label: 'Comissões',        module: 'comissao'        },
   { to: '/revenda',        icon: Building2,       label: 'Revenda',          module: 'revenda'         },
   { to: '/agenda',         icon: CalendarDays,    label: 'Agenda',           module: 'agenda'          },
+  { to: '/comodato',       icon: PackageOpen,     label: 'Comodato',         module: 'comodato'        },
   { to: '/logistica',      icon: Truck,           label: 'Logística',        module: 'logistica'       },
   { to: '/briefing',       icon: Sparkles,        label: 'IA',               module: 'briefing'        },
   { to: '/usuarios',       icon: ShieldCheck,     label: 'Usuários',         module: 'admin'           },

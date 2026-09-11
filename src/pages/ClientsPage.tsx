@@ -109,6 +109,13 @@ export default function ClientsPage() {
         (existing ?? []).map((c: any) => [normalizeKey(c.nome), c.id])
       )
 
+      // Clientes já controlados pelo módulo Comodato: neles os campos `comodato` e
+      // `valor` são espelhos gerados pelas alocações e não podem ser sobrescritos
+      // pelo texto livre da planilha.
+      const { data: comodatoAtivo } = await supabase
+        .from('comodato_alocacoes').select('client_id').eq('status', 'ativa')
+      const comodatoIds = new Set<string>((comodatoAtivo ?? []).map((a: any) => a.client_id))
+
       const toInsert: any[] = []
       const toUpdate: { id: string; data: any }[] = []
 
@@ -121,6 +128,10 @@ export default function ClientsPage() {
         if (!mapped.nome) continue
         const existingId = nameMap.get(normalizeKey(mapped.nome))
         if (existingId) {
+          if (comodatoIds.has(existingId)) {
+            delete mapped.comodato
+            delete mapped.valor
+          }
           toUpdate.push({ id: existingId, data: mapped })
         } else {
           toInsert.push({ ...mapped, status: 'ATIVO' })
