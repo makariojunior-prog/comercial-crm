@@ -81,49 +81,59 @@ function parseDate(v: string): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
-// Tamanho mínimo de um nome do CRM para valer como prefixo de um segmento
-// do nome do ERP. Abaixo disso o risco de falso positivo é alto.
+// Um nome só vale como prefixo do outro a partir deste tamanho. Abaixo
+// disso o risco de casar dois clientes diferentes é alto.
 const MIN_PREFIX_LEN = 8
-// Segmentos curtos ou genéricos do nome do ERP não identificam o cliente
+// Segmentos curtos ou genéricos ("ltda", "j.a") não identificam ninguém
 const MIN_SEGMENT_LEN = 6
 
-// O ERP anexa ao nome coisas que não fazem parte da identificação do cliente:
-// a rota de entrega — "(Rota Canedo)", "( Rota Hidrolândia )" — e o CPF do
-// titular — "BRENO ALEXANDRE JORDAO 75116243168".
+// Ruído que os dois cadastros anexam ao nome e que não identifica o cliente:
+//   "(Rota Canedo)", "( Rota Hidrolândia )"     → anotação de roteirização
+//   "45 860 507 Luziania Vieira dos Santos"     → CNPJ em grupos, na frente
+//   "BRENO ALEXANDRE JORDAO 75116243168"        → CPF colado no fim
 function stripAnnotations(raw: string): string {
   return raw
     .replace(/\(\s*rota[^)]*\)?/gi, ' ')
+    .replace(/^[\d\s./-]{8,}/, ' ')
     .replace(/\d{11,14}/g, ' ')
     .trim()
 }
 
-// O ERP grava o titular e o nome fantasia no mesmo campo, em qualquer ordem e
-// separados por "-", "/" ou parênteses. O CRM cadastra o cliente por UM dos
-// dois — normalmente o fantasia, que costuma vir por último:
+// ERP e CRM guardam titular e nome fantasia no MESMO campo, em ordem
+// diferente, com separadores diferentes e grafias diferentes:
 //
-//   "GISLAINE LUCAS OLIVEIRA - MERCADINHO ZÉ PAULISTA (Rota Canedo)"
-//     → ["gislainelucasoliveiramercadinhozepaulista",
-//        "gislainelucasoliveira", "mercadinhozepaulista"]
+//   ERP "GISLAINE LUCAS OLIVEIRA"                    ↔ CRM "MERCADINHO ZE PAULISTA - GISLAINE LUCAS"
+//   ERP "MANOEL RIVALDO RIBEIRO VILANOVA"            ↔ CRM "MERCADO AVENIDA - MANOEL RIVALDO RIBEIRO VILANOVA"
+//   ERP "45 860 507 Luziania Vieira dos Santos"      ↔ CRM "LUZIANIA VIEIRA DOS SANTOS-RONALDO CRISTO REI"
 //
-// Comparar só o nome inteiro (ou só o começo dele) perde todo cliente
-// cadastrado pelo fantasia. Por isso cada segmento também vira candidato.
+// Nenhum dos dois é prefixo do outro, então comparar os nomes inteiros (ou só
+// o começo de um deles) não acha nada. Por isso os DOIS lados são quebrados
+// nos separadores e cada pedaço vira candidato.
 function nameCandidates(raw: string): string[] {
   const out: string[] = []
   const push = (part: string, minLen: number) => {
     const k = nk(part)
     if (k.length >= minLen && !out.includes(k)) out.push(k)
   }
-  // O nome cru vem primeiro, e sem piso de tamanho: parte do cadastro do CRM
-  // foi importada com a mesma grafia do ERP, CPF incluído ("Cristiane Pereira
-  // Marques da Mata 93947488149"). A igualdade exata com ele tem de vencer o
-  // nome limpo, e um cadastro de nome curto não pode deixar de casar.
+  // O nome cru entra sem piso de tamanho: parte do cadastro do CRM foi
+  // importada com a mesma grafia do ERP, número incluído ("Cristiane Pereira
+  // Marques da Mata 93947488149"), e a igualdade exata com ele tem de valer.
   push(raw, 1)
   const base = stripAnnotations(raw)
   push(base, 1)
-  // Já os pedaços derivados precisam do piso — "me", "ltda" e afins casariam
-  // com qualquer coisa.
   for (const part of base.split(/[-/()]+/)) push(part, MIN_SEGMENT_LEN)
   return out
+}
+
+// Quanto os dois candidatos comprovam ser o mesmo cliente: 0 = não casam,
+// senão o tamanho da evidência (quanto maior o trecho em comum, mais forte).
+// A comparação é simétrica porque tanto faz qual dos dois cadastros tem o
+// nome composto.
+function matchScore(a: string, b: string): number {
+  if (a === b) return a.length
+  if (b.length >= MIN_PREFIX_LEN && a.startsWith(b)) return b.length
+  if (a.length >= MIN_PREFIX_LEN && b.startsWith(a)) return a.length
+  return 0
 }
 
 Deno.serve(async (req: Request) => {
@@ -134,34 +144,46 @@ Deno.serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Load crm_clients once per request for name → id matching
+  // Índice de nomes do CRM para o casamento. Cada cadastro entra com TODOS os
+  // seus candidatos (nome inteiro, nome limpo e cada segmento), porque o nome
+  // composto tanto pode estar deste lado quanto do lado do ERP.
   const { data: clientsData } = await supabase.from('crm_clients').select('id, nome')
-  const clientByExact = new Map<string, string>()
-  const clientPrefixList: Array<{ nkNome: string; id: string }> = []
+  const clientKeys: Array<{ k: string; id: string }> = []
   for (const c of (clientsData ?? []) as Array<{ id: string; nome: string }>) {
     if (!c.nome?.trim()) continue
-    const k = nk(c.nome)
-    clientByExact.set(k, c.id)
-    if (k.length >= MIN_PREFIX_LEN) clientPrefixList.push({ nkNome: k, id: c.id })
+    for (const k of nameCandidates(c.nome)) clientKeys.push({ k, id: c.id })
   }
-  // longest prefix wins — sort descending by length
-  clientPrefixList.sort((a, b) => b.nkNome.length - a.nkNome.length)
+
+  // Só ~500 nomes distintos vêm do ERP para milhares de pedidos — memoiza.
+  const matchCache = new Map<string, string | null>()
 
   function findClientId(nome: string | null | undefined): string | null {
     if (!nome?.trim()) return null
+    const cached = matchCache.get(nome)
+    if (cached !== undefined) return cached
+
     const candidates = nameCandidates(nome)
-    // 1) igualdade exata com o nome inteiro ou com um dos segmentos
-    for (const k of candidates) {
-      const id = clientByExact.get(k)
-      if (id) return id
-    }
-    // 2) nome do CRM como prefixo de um dos segmentos (o mais longo vence)
-    for (const c of clientPrefixList) {
-      for (const k of candidates) {
-        if (k.startsWith(c.nkNome)) return c.id
+    let bestScore = 0
+    let bestId: string | null = null
+    let ambiguo = false
+
+    for (const ck of clientKeys) {
+      for (const ec of candidates) {
+        const score = matchScore(ec, ck.k)
+        if (score === 0) continue
+        if (score > bestScore) { bestScore = score; bestId = ck.id; ambiguo = false }
+        // Mesma evidência apontando para outro cadastro: normalmente cadastro
+        // duplicado no CRM, ou dois clientes que dividem o nome fantasia
+        // ("PADARIA PÃO NOSSO - JOANA" e "PADARIA PÃO NOSSO - JOSE AIRTON").
+        // Chutar aqui vincularia o pedido ao cliente errado, então deixa para
+        // o de-para manual da tela de Revenda.
+        else if (score === bestScore && ck.id !== bestId) ambiguo = true
       }
     }
-    return null
+
+    const resultado = ambiguo ? null : bestId
+    matchCache.set(nome, resultado)
+    return resultado
   }
 
   // De-para id_cliente (ERP) → crm_clients.id.
