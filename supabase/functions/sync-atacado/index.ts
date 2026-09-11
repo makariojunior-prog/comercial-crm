@@ -81,6 +81,51 @@ function parseDate(v: string): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
+// Tamanho mínimo de um nome do CRM para valer como prefixo de um segmento
+// do nome do ERP. Abaixo disso o risco de falso positivo é alto.
+const MIN_PREFIX_LEN = 8
+// Segmentos curtos ou genéricos do nome do ERP não identificam o cliente
+const MIN_SEGMENT_LEN = 6
+
+// O ERP anexa ao nome coisas que não fazem parte da identificação do cliente:
+// a rota de entrega — "(Rota Canedo)", "( Rota Hidrolândia )" — e o CPF do
+// titular — "BRENO ALEXANDRE JORDAO 75116243168".
+function stripAnnotations(raw: string): string {
+  return raw
+    .replace(/\(\s*rota[^)]*\)?/gi, ' ')
+    .replace(/\d{11,14}/g, ' ')
+    .trim()
+}
+
+// O ERP grava o titular e o nome fantasia no mesmo campo, em qualquer ordem e
+// separados por "-", "/" ou parênteses. O CRM cadastra o cliente por UM dos
+// dois — normalmente o fantasia, que costuma vir por último:
+//
+//   "GISLAINE LUCAS OLIVEIRA - MERCADINHO ZÉ PAULISTA (Rota Canedo)"
+//     → ["gislainelucasoliveiramercadinhozepaulista",
+//        "gislainelucasoliveira", "mercadinhozepaulista"]
+//
+// Comparar só o nome inteiro (ou só o começo dele) perde todo cliente
+// cadastrado pelo fantasia. Por isso cada segmento também vira candidato.
+function nameCandidates(raw: string): string[] {
+  const out: string[] = []
+  const push = (part: string, minLen: number) => {
+    const k = nk(part)
+    if (k.length >= minLen && !out.includes(k)) out.push(k)
+  }
+  // O nome cru vem primeiro, e sem piso de tamanho: parte do cadastro do CRM
+  // foi importada com a mesma grafia do ERP, CPF incluído ("Cristiane Pereira
+  // Marques da Mata 93947488149"). A igualdade exata com ele tem de vencer o
+  // nome limpo, e um cadastro de nome curto não pode deixar de casar.
+  push(raw, 1)
+  const base = stripAnnotations(raw)
+  push(base, 1)
+  // Já os pedaços derivados precisam do piso — "me", "ltda" e afins casariam
+  // com qualquer coisa.
+  for (const part of base.split(/[-/()]+/)) push(part, MIN_SEGMENT_LEN)
+  return out
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
 
@@ -97,19 +142,41 @@ Deno.serve(async (req: Request) => {
     if (!c.nome?.trim()) continue
     const k = nk(c.nome)
     clientByExact.set(k, c.id)
-    if (k.length >= 8) clientPrefixList.push({ nkNome: k, id: c.id })
+    if (k.length >= MIN_PREFIX_LEN) clientPrefixList.push({ nkNome: k, id: c.id })
   }
   // longest prefix wins — sort descending by length
   clientPrefixList.sort((a, b) => b.nkNome.length - a.nkNome.length)
 
   function findClientId(nome: string | null | undefined): string | null {
     if (!nome?.trim()) return null
-    const k = nk(nome)
-    if (clientByExact.has(k)) return clientByExact.get(k)!
+    const candidates = nameCandidates(nome)
+    // 1) igualdade exata com o nome inteiro ou com um dos segmentos
+    for (const k of candidates) {
+      const id = clientByExact.get(k)
+      if (id) return id
+    }
+    // 2) nome do CRM como prefixo de um dos segmentos (o mais longo vence)
     for (const c of clientPrefixList) {
-      if (k.startsWith(c.nkNome)) return c.id
+      for (const k of candidates) {
+        if (k.startsWith(c.nkNome)) return c.id
+      }
     }
     return null
+  }
+
+  // De-para id_cliente (ERP) → crm_clients.id.
+  //
+  // O nome que o ERP manda para o MESMO cliente muda com o tempo
+  // ("SILVANA CORDEIRO DA SILVA LIMA" vira "SILVANA CORDEIRO DA SILVA LIMA
+  // ( PANIF E LANCH NOVA OPÇÃO) (Rota Garavelo I)" e volta), então casar só
+  // por nome deixava parte dos pedidos do cliente sem vínculo — e o módulo
+  // Revenda somava um mês e não somava o outro. `id_cliente` não muda, então
+  // o vínculo por id tem prioridade sobre o nome.
+  const { data: linkData } = await supabase
+    .from('atacado_cliente_links').select('cliente_id, crm_client_id')
+  const linkByErpId = new Map<number, string>()
+  for (const l of (linkData ?? []) as Array<{ cliente_id: number; crm_client_id: string }>) {
+    if (l.cliente_id && l.crm_client_id) linkByErpId.set(Number(l.cliente_id), l.crm_client_id)
   }
 
   let body: { type?: string } = {}
@@ -138,8 +205,22 @@ Deno.serve(async (req: Request) => {
     const sheetHeaders = rows.length > 0 ? Object.keys(rows[0]) : []
     const now = new Date().toISOString()
 
+    // A planilha de recepção do ERP traz só id_venda/venda/id_cliente/cliente/
+    // valor/cidade/datas. `tipo` e `ocorrencia` são classificação manual (UI ou
+    // sync reg_lumar) — escrevê-los sempre revertia todo BONIFICACAO/CANCELADO
+    // para 'PEDIDO' a cada sync, e o módulo Revenda voltava a contar
+    // bonificação e pedido cancelado como faturamento. Só inclui no upsert
+    // quando a planilha de fato trouxer a coluna; em linha nova o banco aplica
+    // o default 'PEDIDO'.
+    const hasTipoCol       = sheetHeaders.includes('tipo')
+    const hasOcorrenciaCol = sheetHeaders.includes('ocorrencia')
+
     let batch: Record<string, unknown>[] = []
     let upserted = 0, skipped = 0
+    let matchedById = 0, matchedByName = 0, unmatched = 0
+    // Vínculos descobertos por nome nesta execução — gravados no de-para para
+    // que as demais grafias do mesmo id_cliente já entrem vinculadas
+    const learnedLinks = new Map<number, { crm_client_id: string; cliente_nome: string | null }>()
     const upsertErrors: string[] = []
 
     async function flushBatch() {
@@ -172,19 +253,41 @@ Deno.serve(async (req: Request) => {
       )
 
       const clienteNome = row.cliente ?? row.nomecliente ?? row.nome ?? null
-      const clientId = findClientId(clienteNome)
+      const erpClienteId = !isNaN(clienteId) && clienteId ? clienteId : null
+
+      // Prioridade: de-para por id_cliente (estável, e onde mora a correção
+      // manual feita na tela de Revenda) → casamento por nome.
+      let clientId = erpClienteId ? (linkByErpId.get(erpClienteId) ?? null) : null
+      if (clientId) {
+        matchedById++
+      } else {
+        clientId = findClientId(clienteNome)
+        if (clientId) {
+          matchedByName++
+          if (erpClienteId) {
+            linkByErpId.set(erpClienteId, clientId)
+            learnedLinks.set(erpClienteId, { crm_client_id: clientId, cliente_nome: clienteNome })
+          }
+        } else {
+          unmatched++
+        }
+      }
 
       batch.push({
         id_venda:      idVenda,
-        numero_pedido: parseInt(row.numeropedido ?? row.numero ?? row.numpedido ?? '', 10) || null,
+        // a planilha chama de "venda" o número do pedido no ERP
+        numero_pedido: parseInt(row.numeropedido ?? row.numero ?? row.numpedido ?? row.venda ?? '', 10) || null,
+        // id_cliente do ERP: chave estável do vínculo, usada pelo de-para acima
+        ...(erpClienteId ? { cliente_id: erpClienteId } : {}),
         cliente_nome:  clienteNome,
         // crm_client_id only included when matched — avoids overwriting manually-set links on existing records
         ...(clientId ? { crm_client_id: clientId } : {}),
         valor:         parseValor(row.valor ?? row.total ?? row.valorliquido ?? row.valortotal ?? ''),
         // turno e entregador NÃO são preenchidos pelo sync ERP — são gerenciados manualmente
         // pela atendente (via UI ou sync reg_lumar). Incluí-los aqui apagaria os valores manuais.
-        tipo:          row.tipo          ? row.tipo.toUpperCase()       : 'PEDIDO',
-        ocorrencia:    row.ocorrencia    ?? null,
+        // tipo/ocorrencia seguem a mesma regra (ver hasTipoCol acima).
+        ...(hasTipoCol       && row.tipo       ? { tipo: row.tipo.toUpperCase() } : {}),
+        ...(hasOcorrenciaCol && row.ocorrencia ? { ocorrencia: row.ocorrencia }   : {}),
         data_emissao:  dataEmissao,
         // atualizacao NOT NULL — fallback garante que nunca será null
         atualizacao:   atualizacao ?? dataEmissao ?? now,
@@ -195,12 +298,36 @@ Deno.serve(async (req: Request) => {
     }
     await flushBatch()
 
+    // Persiste os vínculos descobertos por nome. ignoreDuplicates garante que
+    // um vínculo MANUAL (feito na tela de Revenda) nunca seja sobrescrito.
+    let linksLearned = 0
+    if (learnedLinks.size) {
+      const linkRows = [...learnedLinks.entries()].map(([cliente_id, v]) => ({
+        cliente_id,
+        crm_client_id: v.crm_client_id,
+        cliente_nome:  v.cliente_nome,
+        origem:        'AUTO',
+      }))
+      const { error } = await supabase
+        .from('atacado_cliente_links')
+        .upsert(linkRows, { onConflict: 'cliente_id', ignoreDuplicates: true })
+      if (error) upsertErrors.push(`atacado_cliente_links: ${error.message}`)
+      else linksLearned = linkRows.length
+    }
+
     return json200({
       ok: upsertErrors.length === 0,
       type,
       total: rows.length,
       upserted,
       skipped,
+      // diagnóstico do vínculo com o CRM — `unmatched` alto significa cliente
+      // de Revenda cadastrado com nome que o ERP não usa: vincule na aba
+      // "Compras Mensais" (card "Não vinculados")
+      matchedById,
+      matchedByName,
+      unmatched,
+      linksLearned,
       sheetHeaders,
       error: upsertErrors.length ? upsertErrors[0] : undefined,
     })
