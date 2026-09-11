@@ -83,42 +83,76 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- Um texto livre de comodato vira N linhas (descricao, quantidade).
--- Separadores: ; + / quebra de linha, e vírgula NÃO seguida de dígito
--- (para não quebrar "ARMÁRIO 1,20M").
-CREATE OR REPLACE FUNCTION public.comodato_split_itens(p TEXT)
-RETURNS TABLE (descricao TEXT, quantidade INTEGER)
+-- Lista de nomes de equipamento reconhecidos. É o que ancora a separação:
+-- um item novo só começa onde aparece um desses nomes.
+CREATE OR REPLACE FUNCTION public.comodato_kw_regex()
+RETURNS TEXT
 LANGUAGE sql
 IMMUTABLE
 AS $$
-  WITH bruto AS (
-    SELECT TRIM(parte) AS parte
-      FROM regexp_split_to_table(
-             COALESCE(p, ''),
-             '\s*(?:[;+/\n\r]|,(?!\s*[0-9]))\s*'
-           ) AS parte
-  ),
-  util AS (
-    SELECT parte
-      FROM bruto
-     WHERE parte <> ''
-       -- descarta marcadores que não são equipamento
-       AND public.comodato_sem_acento(parte) !~ '^(NAO|N|NA|N/A|SEM|SEM COMODATO|NENHUM|X|-+|0|COMODATO|SIM)$'
-       AND parte ~ '[A-Za-zÀ-ÿ]'
+  SELECT '(?:FREEZER|FRIZER|CONGELADOR|ARM[ÁA]RIO|FORNO|EXPOSITOR|ESTUFA|BALC[ÃA]O|'
+      || 'VITRINE|GELADEIRA|REFRIGERADOR|MASSEIRA|CILINDRO|FRITADEIRA|MICRO[ -]?ONDAS)';
+$$;
+
+-- Um texto livre de comodato vira N linhas (descricao, quantidade).
+--
+-- Separar por pontuação sozinha não funciona no dado real: em
+-- "FREEZER FRICON, C/ TAMPA DE VIDRO, 450LT. SEMINOVO, BRANCO" as vírgulas
+-- introduzem atributos do mesmo freezer, enquanto em
+-- "FREEZER ... BRANCO, 2 ARMARIOS 58X70, E FORNO G-PANIZ" elas introduzem
+-- equipamentos novos. O que distingue os dois casos é o que vem DEPOIS da
+-- pontuação — por isso a quebra exige (quantidade opcional +) nome de
+-- equipamento conhecido.
+--
+-- Regras:
+--   • texto sem nenhum nome de equipamento ("VERIFICAR") → nenhum item,
+--     vai inteiro para a fila de revisão;
+--   • separam: ; + quebra de linha, barra cercada de espaços (" / "), e
+--     vírgula (com "E" opcional depois) — sempre seguidos de equipamento;
+--   • " e " só separa quando vem com quantidade explícita ("… e 1 ARMÁRIO"),
+--     senão quebraria nomes legítimos como "Freezer e Expositor Horizontal";
+--   • "C/", "P/", "S/" não separam, porque a barra não está cercada de espaços.
+CREATE OR REPLACE FUNCTION public.comodato_split_itens(p TEXT)
+RETURNS TABLE (descricao TEXT, quantidade INTEGER)
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  kw      TEXT := public.comodato_kw_regex();
+  qty_opt TEXT := '(?:[0-9]{1,3}\s*(?:X|UN|UND|UNID|PC|PCS)?\s+)?';
+  qty_req TEXT := '(?:[0-9]{1,3}\s*(?:X|UN|UND|UNID|PC|PCS)?\s+)';
+  sep     TEXT := '(?:\s*[;+]\s*|\s+/\s+|\s*[\r\n]+\s*|\s*,\s*(?:E\s+)?)';
+  corta   TEXT := '^\s*[0-9]+\s*(?:X|UN|UND|UNID|PC|PCS)?\s*[-–:]?\s*';
+  marca   CONSTANT TEXT := chr(1);
+  txt     TEXT;
+BEGIN
+  IF p IS NULL OR TRIM(p) = '' THEN RETURN; END IF;
+  IF p !~* kw THEN RETURN; END IF;
+
+  txt := TRIM(p);
+  txt := regexp_replace(txt, sep || '(' || qty_opt || kw || ')', marca || '\1', 'gi');
+  txt := regexp_replace(txt, '\s+E\s+(' || qty_req || kw || ')', marca || '\1', 'gi');
+
+  RETURN QUERY
+  WITH partes AS (
+    SELECT TRIM(x) AS parte FROM regexp_split_to_table(txt, marca) AS x
   )
   SELECT
-    NULLIF(TRIM(regexp_replace(parte, '^\s*[0-9]+\s*(X|UN|UND|UNID|PC|PCS)?\s*[-–:]?\s*', '', 'i')), '')
-      AS descricao,
+    NULLIF(TRIM(regexp_replace(parte, corta, '', 'i')), '') AS descricao,
     GREATEST(
-      COALESCE(NULLIF(substring(parte FROM '^\s*([0-9]{1,3})\s*(?:X|UN|UND|UNID|PC|PCS)?\s'), '')::INTEGER, 1),
-      1
-    ) AS quantidade
-  FROM util
-  WHERE NULLIF(TRIM(regexp_replace(parte, '^\s*[0-9]+\s*(X|UN|UND|UNID|PC|PCS)?\s*[-–:]?\s*', '', 'i')), '') IS NOT NULL;
+      COALESCE(
+        NULLIF(substring(parte FROM '^\s*([0-9]{1,3})\s*(?:X|UN|UND|UNID|PC|PCS)?\s'), '')::INTEGER,
+        1),
+      1) AS quantidade
+  FROM partes
+  WHERE parte <> ''
+    AND parte ~* kw
+    AND NULLIF(TRIM(regexp_replace(parte, corta, '', 'i')), '') IS NOT NULL;
+END;
 $$;
 
 COMMENT ON FUNCTION public.comodato_split_itens(TEXT) IS
-  'Quebra o texto livre de comodato em itens (descricao, quantidade). Vírgula seguida de dígito não separa, para preservar medidas como "1,20M".';
+  'Quebra o texto livre de comodato em itens (descricao, quantidade), ancorando a separação em nomes de equipamento conhecidos. Texto sem nenhum equipamento reconhecido não produz itens e cai na fila de revisão.';
 
 -- ---------------------------------------------------------------------
 -- 2. A migração propriamente dita
