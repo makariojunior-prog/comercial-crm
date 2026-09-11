@@ -671,3 +671,21 @@ REVOKE ALL ON public.comodato_resumo_cliente    FROM anon;
 GRANT SELECT ON public.comodato_equipamentos_view TO authenticated;
 GRANT SELECT ON public.comodato_resumo_cliente    TO authenticated;
 
+
+-- ---------------------------------------------------------------------
+-- Hardening: fixa search_path nas funções do módulo (lint 0011 do Supabase).
+-- Idempotente — roda sobre as funções comodato_% que existirem no banco.
+-- ---------------------------------------------------------------------
+DO $harden$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN
+    SELECT p.oid::regprocedure AS assinatura
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname LIKE 'comodato_%'
+  LOOP
+    EXECUTE format('ALTER FUNCTION %s SET search_path = public, pg_temp', r.assinatura);
+  END LOOP;
+END
+$harden$;

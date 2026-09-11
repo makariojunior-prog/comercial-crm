@@ -417,3 +417,22 @@ BEGIN
   RAISE NOTICE 'Comodato — migração do legado: % clientes, % contratos, % modelos, % equipamentos, % textos não interpretados.',
     r.clientes_migrados, r.contratos_criados, r.modelos_criados, r.equipamentos_criados, r.clientes_sem_parse;
 END $$;
+
+
+-- ---------------------------------------------------------------------
+-- Hardening: fixa search_path nas funções do módulo (lint 0011 do Supabase).
+-- Idempotente — roda sobre as funções comodato_% que existirem no banco.
+-- ---------------------------------------------------------------------
+DO $harden$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN
+    SELECT p.oid::regprocedure AS assinatura
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname LIKE 'comodato_%'
+  LOOP
+    EXECUTE format('ALTER FUNCTION %s SET search_path = public, pg_temp', r.assinatura);
+  END LOOP;
+END
+$harden$;

@@ -7,6 +7,22 @@ O racional do desenho está em [`BENCHMARK_COMODATO.md`](./BENCHMARK_COMODATO.md
 
 ---
 
+## Estado atual
+
+**Aplicado em produção em 2026-09-11** (projeto `taicaxtjtikdajmhtsxc`). Resultado da conversão dos
+14 cadastros que tinham texto livre:
+
+| | |
+|---|---|
+| Clientes convertidos | 13 |
+| Unidades criadas | 22 (`FRZ-0001`…`FRZ-0011`, `ARM-0001`…`ARM-0007`, `FOR-0001`…`FOR-0004`) |
+| Contratos criados | 13, todos `pendente_assinatura` |
+| Modelos no catálogo | 17 |
+| Fila de revisão | 23 (22 unidades a conferir + 1 texto não interpretado) |
+
+Retrato pré-migração em `crm_clients_backup_comodato` (RLS ligada, sem policies — só o
+`service_role` lê). Pode ser removido depois que a conferência terminar.
+
 ## Como aplicar
 
 Duas migrations, nesta ordem:
