@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   RefreshCw, Search, ChevronUp, ChevronDown, ChevronsUpDown,
-  AlertTriangle, TrendingDown, Ban, History, Users, Package, Wallet, HelpCircle,
+  AlertTriangle, TrendingDown, Ban, History, Users, Package, Wallet, HelpCircle, Link2,
 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { Client } from '../types'
 import ClientHistoryModal from './ClientHistoryModal'
+import VincularClientesModal from './VincularClientesModal'
+import type { OrphanGroup } from './VincularClientesModal'
 
 interface Props {
   clients: Client[]
@@ -18,6 +20,30 @@ interface PedidoAgg {
   crm_client_id: string
   valor: number
   data_emissao: string
+}
+
+interface PedidoOrfao {
+  cliente_id: number | null
+  cliente_nome: string | null
+  valor: number
+}
+
+// PostgREST corta a resposta no limite de linhas configurado no servidor. A
+// janela de 12 meses da Revenda passa fácil desse limite e o corte silencioso
+// aparecia na tela como cliente "sem compra" e total do mês menor do que é.
+const PAGE_SIZE = 1000
+
+async function fetchAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const out: T[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1)
+    if (error || !data?.length) break
+    out.push(...data)
+    if (data.length < PAGE_SIZE) break
+  }
+  return out
 }
 
 interface MesValor { qtd: number; valor: number }
@@ -112,13 +138,13 @@ export default function RevendaComprasTab({ clients, loading: loadingClients }: 
   const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('desc')
 
   const [pedidos, setPedidos]         = useState<PedidoAgg[]>([])
-  const [orphanValue, setOrphanValue] = useState(0)
-  const [orphanCount, setOrphanCount] = useState(0)
+  const [orfaos, setOrfaos]           = useState<PedidoOrfao[]>([])
   const [loading, setLoading]         = useState(true)
   const [historyClient, setHistoryClient] = useState<{ id: string; nome: string } | null>(null)
+  const [showVincular, setShowVincular]   = useState(false)
 
   const load = useCallback(async () => {
-    if (clients.length === 0) { setPedidos([]); setLoading(false); return }
+    if (clients.length === 0) { setPedidos([]); setOrfaos([]); setLoading(false); return }
     setLoading(true)
 
     const refDate     = new Date(refYear, refMonth, 1)
@@ -126,8 +152,8 @@ export default function RevendaComprasTab({ clients, loading: loadingClients }: 
     const windowEnd    = endOfMonth(refDate)
     const ids = clients.map(c => c.id)
 
-    const [{ data: pData }, { data: orphanData }] = await Promise.all([
-      supabase
+    const [pData, orphanData] = await Promise.all([
+      fetchAllPages<PedidoAgg>((from, to) => supabase
         .from('atacado_pedidos')
         .select('crm_client_id, valor, data_emissao')
         .in('crm_client_id', ids)
@@ -136,24 +162,42 @@ export default function RevendaComprasTab({ clients, loading: loadingClients }: 
         .neq('tipo', 'CANCELADO')
         .gte('data_emissao', windowStart.toISOString())
         .lte('data_emissao', windowEnd.toISOString())
-        .limit(20000),
-      supabase
+        .order('id', { ascending: true })
+        .range(from, to)),
+      fetchAllPages<PedidoOrfao>((from, to) => supabase
         .from('atacado_pedidos')
-        .select('valor')
+        .select('cliente_id, cliente_nome, valor')
         .is('crm_client_id', null)
         .eq('ignorado', false)
         .neq('tipo', 'BONIFICACAO')
         .neq('tipo', 'CANCELADO')
         .gte('data_emissao', startOfMonth(refDate).toISOString())
         .lte('data_emissao', endOfMonth(refDate).toISOString())
-        .limit(5000),
+        .order('id', { ascending: true })
+        .range(from, to)),
     ])
 
-    setPedidos((pData ?? []) as PedidoAgg[])
-    setOrphanValue((orphanData ?? []).reduce((s, r) => s + (r.valor ?? 0), 0))
-    setOrphanCount((orphanData ?? []).length)
+    setPedidos(pData)
+    setOrfaos(orphanData)
     setLoading(false)
   }, [clients, refMonth, refYear])
+
+  // Pedidos sem vínculo agrupados pelo cliente do ERP — é esta lista que a
+  // tela de vinculação usa para consertar o de-para.
+  const orphanGroups = useMemo(() => {
+    const map = new Map<string, OrphanGroup>()
+    for (const o of orfaos) {
+      const nome = (o.cliente_nome ?? '').trim() || 'Sem nome no ERP'
+      const key  = o.cliente_id != null ? `id:${o.cliente_id}` : `nome:${nome}`
+      const cur  = map.get(key)
+      if (cur) { cur.qtd++; cur.valor += o.valor ?? 0; cur.nome = nome }
+      else map.set(key, { key, clienteId: o.cliente_id ?? null, nome, qtd: 1, valor: o.valor ?? 0 })
+    }
+    return [...map.values()]
+  }, [orfaos])
+
+  const orphanValue = useMemo(() => orfaos.reduce((s, o) => s + (o.valor ?? 0), 0), [orfaos])
+  const orphanCount = orfaos.length
 
   useEffect(() => { load() }, [load])
 
@@ -336,15 +380,28 @@ export default function RevendaComprasTab({ clients, loading: loadingClients }: 
           </p>
           <p className="text-[10px] text-slate-400 mt-0.5">por pedido, no mês</p>
         </div>
-        <div className="card p-4 border-amber-200 dark:border-amber-700/40 bg-amber-50/50 dark:bg-amber-900/10" title="Pedidos do Atacado no mês que não puderam ser vinculados automaticamente a nenhum cliente cadastrado — pode incluir clientes de Revenda ainda não conectados">
+        <button
+          type="button"
+          onClick={() => { if (orphanGroups.length) setShowVincular(true) }}
+          disabled={isLoading || orphanGroups.length === 0}
+          className="card p-4 text-left border-amber-200 dark:border-amber-700/40 bg-amber-50/50 dark:bg-amber-900/10 enabled:hover:border-amber-300 enabled:hover:bg-amber-50 dark:enabled:hover:bg-amber-900/20 transition-colors disabled:cursor-default"
+          title="Pedidos do Atacado no mês que não puderam ser vinculados automaticamente a nenhum cliente cadastrado — clique para fazer o de-para com o cadastro do CRM"
+        >
           <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
             <HelpCircle size={12} /> Não vinculados (mês)
           </p>
           <p className="text-lg font-bold text-amber-700 dark:text-amber-400 mt-1 tabular-nums">
             {isLoading ? <span className="animate-pulse text-amber-200">—</span> : fmtBRL(orphanValue)}
           </p>
-          <p className="text-[10px] text-amber-500 mt-0.5">{orphanCount} pedido{orphanCount !== 1 ? 's' : ''} sem cliente no Atacado</p>
-        </div>
+          <p className="text-[10px] text-amber-500 mt-0.5">
+            {orphanCount} pedido{orphanCount !== 1 ? 's' : ''} sem cliente no Atacado
+          </p>
+          {!isLoading && orphanGroups.length > 0 && (
+            <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+              <Link2 size={10} /> Vincular {orphanGroups.length} cliente{orphanGroups.length !== 1 ? 's' : ''} do ERP
+            </p>
+          )}
+        </button>
       </div>
 
       {/* Alertas */}
@@ -522,6 +579,16 @@ export default function RevendaComprasTab({ clients, loading: loadingClients }: 
           clientId={historyClient.id}
           clienteName={historyClient.nome}
           onClose={() => setHistoryClient(null)}
+        />
+      )}
+
+      {showVincular && (
+        <VincularClientesModal
+          groups={orphanGroups}
+          clients={clients}
+          periodo={`${MESES[refMonth]}/${refYear}`}
+          onClose={() => setShowVincular(false)}
+          onSaved={() => { setShowVincular(false); load() }}
         />
       )}
     </div>
