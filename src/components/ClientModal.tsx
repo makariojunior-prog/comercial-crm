@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { Client, ClientStatus } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
+import ComodatoClientePanel from './ComodatoClientePanel'
 
 interface ClientModalProps {
   client?: Client | null
@@ -40,8 +41,6 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
   const [frequencia, setFrequencia]   = useState(client?.frequencia ?? '')
   const [mensagem, setMensagem]       = useState(client?.mensagem ?? 'NÃO')
   const [restricao, setRestricao]     = useState(client?.restricao ?? '')
-  const [comodato, setComodato]       = useState(client?.comodato ?? '')
-  const [valor, setValor]             = useState(client?.valor ?? '')
 
   const [indicador, setIndicador]               = useState(client?.indicador ?? '')
 
@@ -127,8 +126,8 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
       frequencia:    frequencia || null,
       mensagem:      mensagem || null,
       restricao:     restricao.trim() || null,
-      comodato:      comodato.trim() || null,
-      valor:         valor.trim() || null,
+      // comodato e valor são mantidos pelo módulo Comodato (trigger de alocação);
+      // não são gravados aqui para não sobrescrever o espelho estruturado.
       indicador:     indicador.trim().toUpperCase() || null,
     }
 
@@ -378,17 +377,26 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
 
           {/* ── Comodato ───────────────────────────────── */}
           <section className="space-y-4">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1">
               Comodato / Equipamentos
             </h3>
-            <div>
-              <label className="label text-xs font-black uppercase text-slate-400">Equipamentos em Comodato</label>
-              <textarea className="input min-h-[60px]" value={comodato} onChange={e => setComodato(e.target.value)} placeholder="Ex: FREEZER FRICON 450LT, ARMÁRIO VAZIO 58X70..." />
-            </div>
-            <div>
-              <label className="label text-xs font-black uppercase text-slate-400">Valor do Comodato</label>
-              <input className="input" value={valor} onChange={e => setValor(e.target.value)} placeholder="Ex: R$ 1.900,00" />
-            </div>
+            {client?.id ? (
+              <ComodatoClientePanel
+                clientId={client.id}
+                clientNome={client.nome}
+                textoLegado={client.comodato_legado ?? null}
+                valorLegado={client.comodato_valor_legado ?? null}
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-4 text-center">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Salve o cliente para alocar equipamentos em comodato.
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Os equipamentos passam a ser controlados por patrimônio no módulo Comodato.
+                </p>
+              </div>
+            )}
           </section>
 
           {/* ── Observações ────────────────────────────── */}
