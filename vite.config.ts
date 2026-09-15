@@ -3,5 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/comercial-crm/',
+  // GitHub Pages serves this app under /comercial-crm/; Vercel serves it at
+  // the domain root, so the base path must differ per platform.
+  base: process.env.VERCEL ? '/' : '/comercial-crm/',
 })
