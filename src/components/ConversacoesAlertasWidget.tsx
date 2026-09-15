@@ -46,13 +46,13 @@ export default function ConversacoesAlertasWidget() {
     setLoading(true)
     const { data } = await supabase
       .from('crm_conversations')
-      .select('*')
+      .select('id,telefone,nome,conexao,texto,resumo,categoria,visto,archived,received_at')
       .in('categoria', CRITICAS)
       .eq('visto', false)
       .eq('archived', false)
       .order('received_at', { ascending: false })
       .limit(10)
-    setItems(data ?? [])
+    setItems((data ?? []) as CrmConversation[])
     setLoading(false)
   }, [])
 
@@ -61,7 +61,7 @@ export default function ConversacoesAlertasWidget() {
   useEffect(() => {
     const channel = supabase
       .channel('conv-alertas-widget')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crm_conversations' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crm_conversations', filter: 'archived=eq.false' }, (payload) => {
         const nova = payload.new as CrmConversation
         if (CRITICAS.includes(nova.categoria ?? '')) {
           setItems(prev => [nova, ...prev.slice(0, 9)])

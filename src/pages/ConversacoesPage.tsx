@@ -47,12 +47,12 @@ export default function ConversacoesPage() {
     setLoadError(null)
     const { data, error } = await supabase
       .from('crm_conversations')
-      .select('*')
+      .select('id,telefone,nome,conexao,texto,resumo,categoria,status_ia,visto,archived,received_at,confianca')
       .eq('archived', false)
       .order('received_at', { ascending: false })
       .limit(200)
     if (error) { setLoadError(error.message); setLoading(false); return }
-    setConversas(data ?? [])
+    setConversas((data ?? []) as CrmConversation[])
     setLoading(false)
   }, [])
 
@@ -62,12 +62,12 @@ export default function ConversacoesPage() {
   useEffect(() => {
     const channel = supabase
       .channel('crm-conversas-rt')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crm_conversations' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'crm_conversations', filter: 'archived=eq.false' }, (payload) => {
         const msg = payload.new as CrmConversation
         if (msg.archived) return
         setConversas(prev => [msg, ...prev])
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'crm_conversations' }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'crm_conversations', filter: 'archived=eq.false' }, (payload) => {
         const updated = payload.new as CrmConversation
         setConversas(prev => prev.map(c => c.id === updated.id ? updated : c))
       })

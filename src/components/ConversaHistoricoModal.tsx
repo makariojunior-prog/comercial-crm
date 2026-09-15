@@ -41,13 +41,13 @@ export default function ConversaHistoricoModal({ conversa, onClose, onMarcarVist
     setLoading(true)
     supabase
       .from('crm_conversations')
-      .select('*')
+      .select('id,telefone,nome,conexao,texto,resumo,categoria,confianca,visto,received_at')
       .eq('telefone', conversa.telefone)
       .neq('id', conversa.id)
       .order('received_at', { ascending: false })
       .limit(15)
       .then(({ data }) => {
-        setHistorico((data ?? []).reverse())
+        setHistorico(((data ?? []) as CrmConversation[]).reverse())
         setLoading(false)
       })
   }, [conversa.id, conversa.telefone])
