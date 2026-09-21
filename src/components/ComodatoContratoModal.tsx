@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { X, AlertCircle, FileSignature, Search, ExternalLink } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { X, AlertCircle, FileSignature, Search, ExternalLink, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useEscKey } from '../hooks/useEscKey'
+import { useAuth } from '../contexts/AuthContext'
+import ComodatoContratoItens from './ComodatoContratoItens'
 import {
   COMODATO_CONTRATO_LABELS,
   type ComodatoContrato, type ComodatoContratoStatus,
@@ -24,8 +26,13 @@ const RESPONSAVEIS = [
 
 export default function ComodatoContratoModal({ contrato, clientId, clientNome, onClose, onSaved }: Props) {
   useEscKey(useCallback(onClose, [onClose]))
+  const { canEdit, isAdmin } = useAuth()
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
+  // Contrato em edição. Após criar, o modal continua aberto neste estado para vincular equipamentos.
+  const [atual, setAtual]     = useState<ComodatoContrato | null>(contrato ?? null)
+  const [recemCriado, setRecemCriado] = useState(false)
+  const itensRef = useRef<HTMLDivElement>(null)
 
   const [clientes, setClientes] = useState<{ id: string; nome: string; rota: string | null }[]>([])
   const [buscaCli, setBuscaCli] = useState('')
@@ -62,6 +69,13 @@ export default function ComodatoContratoModal({ contrato, clientId, clientNome, 
     return base.slice(0, 50)
   }, [clientes, buscaCli])
 
+  const nomeCliente =
+    atual?.client?.nome ?? clientNome ?? clientes.find(c => c.id === cliId)?.nome ?? '—'
+
+  useEffect(() => {
+    if (recemCriado) itensRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [recemCriado])
+
   // prévia do vencimento — o banco recalcula na gravação
   const fimPrevisto = useMemo(() => {
     if (dtFim) return dtFim
@@ -97,13 +111,22 @@ export default function ComodatoContratoModal({ contrato, clientId, clientNome, 
       observacoes: observacoes.trim() || null,
     }
 
-    const { error: err } = contrato?.id
-      ? await supabase.from('comodato_contratos').update(payload).eq('id', contrato.id)
-      : await supabase.from('comodato_contratos').insert(payload)
+    if (atual?.id) {
+      const { error: err } = await supabase.from('comodato_contratos').update(payload).eq('id', atual.id)
+      setSaving(false)
+      if (err) return setError(err.message)
+      onSaved(); onClose()
+      return
+    }
 
+    const { data, error: err } = await supabase.from('comodato_contratos')
+      .insert(payload).select('*').single()
     setSaving(false)
-    if (err) return setError(err.message)
-    onSaved(); onClose()
+    if (err || !data) return setError(err?.message ?? 'Não foi possível criar o contrato')
+    // segue aberto: o equipamento só pode ser vinculado a um contrato já gravado
+    setAtual({ ...(data as ComodatoContrato), client: { id: cliId, nome: nomeCliente, rota: null, status: 'ATIVO' } })
+    setRecemCriado(true)
+    onSaved()
   }
 
   return (
@@ -113,18 +136,18 @@ export default function ComodatoContratoModal({ contrato, clientId, clientNome, 
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <h2 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <FileSignature size={18} className="text-orange-500" />
-            {contrato ? 'Editar Contrato' : 'Novo Contrato de Comodato'}
+            {atual ? 'Editar Contrato' : 'Novo Contrato de Comodato'}
           </h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400"><X size={20} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
           {/* Cliente */}
-          {contrato || clientId ? (
+          {atual || clientId ? (
             <div className="rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 px-3 py-2.5">
               <p className="text-[10px] font-black uppercase text-orange-500 tracking-widest">Comodatário</p>
               <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                {contrato?.client?.nome ?? clientNome ?? '—'}
+                {nomeCliente}
               </p>
             </div>
           ) : (
@@ -304,6 +327,31 @@ export default function ComodatoContratoModal({ contrato, clientId, clientNome, 
               <textarea className="input min-h-[60px]" value={observacoes} onChange={e => setObs(e.target.value)} />
             </div>
           </section>
+
+          {recemCriado && (
+            <div className="flex items-start gap-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2 text-xs text-green-700 dark:text-green-300">
+              <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
+              Contrato criado. Agora vincule os equipamentos abaixo (opcional) e feche quando terminar.
+            </div>
+          )}
+
+          <div ref={itensRef} className="space-y-5">
+            {atual ? (
+              <ComodatoContratoItens
+                contratoId={atual.id}
+                clientId={atual.client_id}
+                contratoStatus={atual.status}
+                dataInicio={atual.data_inicio}
+                canEdit={canEdit}
+                isAdmin={isAdmin}
+                onChanged={onSaved}
+              />
+            ) : (
+              <p className="text-xs text-slate-400 rounded-xl border border-dashed border-slate-200 dark:border-slate-600 px-3 py-3">
+                Salve o contrato para vincular equipamentos e cadastrar aditivos.
+              </p>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -313,9 +361,9 @@ export default function ComodatoContratoModal({ contrato, clientId, clientNome, 
         )}
 
         <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
-          <button onClick={onClose} className="btn-secondary flex-1 justify-center">Cancelar</button>
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center">{recemCriado ? 'Fechar' : 'Cancelar'}</button>
           <button onClick={save} disabled={saving} className="btn-primary flex-1 justify-center">
-            {saving ? 'Salvando...' : 'Salvar Contrato'}
+            {saving ? 'Salvando...' : atual ? 'Salvar alterações' : 'Salvar Contrato'}
           </button>
         </div>
       </div>

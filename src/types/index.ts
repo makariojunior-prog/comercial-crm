@@ -846,6 +846,8 @@ export interface ComodatoAlocacao {
   id: string
   equipamento_id: string
   contrato_id: string | null
+  /** Aditivo sob o qual entrou no contrato; null = contrato original. */
+  aditivo_id: string | null
   client_id: string
   status: ComodatoAlocacaoStatus
   data_entrega: string
@@ -862,6 +864,54 @@ export interface ComodatoAlocacao {
   origem: 'manual' | 'legado' | 'importacao'
   created_at: string
   updated_at: string
+}
+
+export type ComodatoAditivoTipo =
+  'inclusao_equipamento' | 'retirada_equipamento' | 'prorrogacao' | 'alteracao_condicoes' | 'outros'
+
+export interface ComodatoAditivo {
+  id: string
+  contrato_id: string
+  numero: string | null
+  tipo: ComodatoAditivoTipo
+  data_aditivo: string
+  descricao: string | null
+  assinado: boolean
+  data_assinatura: string | null
+  arquivo_url: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Alocação com equipamento e aditivo embutidos — usada na aba de itens do contrato. */
+export interface ComodatoContratoItem extends ComodatoAlocacao {
+  equipamento: {
+    id: string
+    codigo_patrimonio: string
+    numero_serie: string | null
+    modelo: { nome: string; categoria: ComodatoCategoria } | null
+  } | null
+}
+
+export type ComodatoAuditoriaOperacao = 'INSERT' | 'UPDATE' | 'DELETE'
+
+export interface ComodatoAuditoria {
+  id: number
+  ocorrido_em: string
+  tabela: string
+  registro_id: string | null
+  operacao: ComodatoAuditoriaOperacao
+  resumo: string | null
+  usuario_id: string | null
+  usuario_nome: string | null
+  usuario_email: string | null
+  contrato_id: string | null
+  equipamento_id: string | null
+  client_id: string | null
+  campos_alterados: string[] | null
+  dados_antigos: Record<string, unknown> | null
+  dados_novos: Record<string, unknown> | null
 }
 
 export interface ComodatoManutencao {
@@ -921,6 +971,23 @@ export const COMODATO_CONTRATO_LABELS: Record<ComodatoContratoStatus, string> = 
   vigente:             'Vigente',
   encerrado:           'Encerrado',
   cancelado:           'Cancelado',
+}
+
+export const COMODATO_ADITIVO_TIPO_LABELS: Record<ComodatoAditivoTipo, string> = {
+  inclusao_equipamento: 'Inclusão de equipamento',
+  retirada_equipamento: 'Retirada de equipamento',
+  prorrogacao:          'Prorrogação',
+  alteracao_condicoes:  'Alteração de condições',
+  outros:               'Outros',
+}
+
+export const COMODATO_AUDITORIA_TABELA_LABELS: Record<string, string> = {
+  comodato_contratos:         'Contrato',
+  comodato_contrato_aditivos: 'Aditivo',
+  comodato_alocacoes:         'Vínculo / alocação',
+  comodato_equipamentos:      'Equipamento',
+  comodato_modelos:           'Modelo (catálogo)',
+  comodato_manutencoes:       'Manutenção',
 }
 
 export const COMODATO_MANUT_TIPO_LABELS: Record<ComodatoManutTipo, string> = {
