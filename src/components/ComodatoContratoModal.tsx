@@ -134,11 +134,24 @@ export default function ComodatoContratoModal({ contrato, clientId, clientNome, 
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input className="input pl-9" placeholder="Buscar cliente…" value={buscaCli} onChange={e => setBuscaCli(e.target.value)} />
               </div>
-              <select className="input" size={5} value={cliId} onChange={e => setCliId(e.target.value)}>
+              {/* Lista de botões em vez de <select size>: o React pré-seleciona visualmente a 1ª
+                  option quando o value não bate, e clicar nela não dispara onChange (cliId ficava vazio). */}
+              <div className="input h-32 overflow-y-auto p-1 space-y-0.5" role="listbox" aria-label="Clientes">
+                {clientesFiltrados.length === 0 && (
+                  <p className="px-2 py-1.5 text-sm text-slate-400">Nenhum cliente encontrado</p>
+                )}
                 {clientesFiltrados.map(c => (
-                  <option key={c.id} value={c.id}>{c.nome}{c.rota ? ` — ${c.rota}` : ''}</option>
+                  <button key={c.id} type="button" role="option" aria-selected={c.id === cliId}
+                    onClick={() => { setCliId(c.id); setError(null) }}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg text-sm transition-colors ${
+                      c.id === cliId
+                        ? 'bg-orange-500 text-white font-bold'
+                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}>
+                    {c.nome}{c.rota ? ` — ${c.rota}` : ''}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           )}
 
