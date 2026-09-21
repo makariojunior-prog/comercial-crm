@@ -177,6 +177,8 @@ O módulo registra o número — a emissão continua no ERP.
 | `comodato_contratos` | O acordo com o cliente (assinatura, prazo, contrapartida) |
 | `comodato_alocacoes` | Livro-razão de custódia, append-only |
 | `comodato_manutencoes` | Ordens de serviço |
+| `comodato_contrato_aditivos` | Aditivos do contrato (inclusão/retirada de equipamento, prorrogação…) |
+| `comodato_auditoria` | Log append-only de quem criou/alterou/excluiu o quê (só admin lê) |
 
 | View | Para quê |
 |---|---|
@@ -184,4 +186,23 @@ O módulo registra o número — a emissão continua no ERP.
 | `comodato_resumo_cliente` | Uma linha por cliente que detém equipamento hoje |
 | `comodato_revisao_importacao` | Fila de conferência pós-migração |
 
-RLS segue o padrão do CRM: `FOR ALL TO authenticated`, sem acesso anônimo.
+RLS: leitura, inclusão e alteração para `authenticated`, sem acesso anônimo. **Exclusão só para
+`crm_users.role = 'admin'`** (função `comodato_is_admin()`), em todas as tabelas do módulo.
+
+## Equipamentos no contrato, aditivos e auditoria
+
+Migration `20260921120000_comodato_itens_aditivos_auditoria.sql`.
+
+- **Vínculo contrato ↔ equipamento:** é a própria `comodato_alocacoes` (`contrato_id`). Um contrato
+  cobre N equipamentos; um equipamento só tem **uma alocação ativa**, logo só pode estar em **um
+  contrato por vez** (índice `comodato_alocacoes_uma_ativa_por_equip`). Após a devolução ele pode
+  entrar em outro contrato e o histórico fica preservado.
+- **Quando entrou:** `data_entrega` (data de inclusão informada) + `created_at` (instante do lançamento).
+- **Aditivo:** `comodato_alocacoes.aditivo_id` — vazio = contrato original.
+- **Validações no banco:** o contrato precisa ser do mesmo cliente da alocação; o aditivo precisa ser
+  do mesmo contrato; contrato encerrado/cancelado não recebe novos equipamentos; contrato ou
+  equipamento com alocação ativa não pode ser excluído (devolva/desvincule antes).
+- **Auditoria:** triggers em todas as tabelas gravam operação, usuário (`auth.uid()` → `crm_users`),
+  horário, campos alterados e valores antes/depois. Alterações em cascata (caches mantidos por
+  trigger) não geram linha própria. Ações feitas fora do app aparecem como “Sistema / acesso direto
+  ao banco”. Consulta na aba **Auditoria** (admin).

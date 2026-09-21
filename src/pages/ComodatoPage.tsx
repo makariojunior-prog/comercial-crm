@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Package, Plus, RefreshCw, Search, Wrench, FileSignature, Boxes, AlertTriangle,
   Pencil, Undo2, ArrowRightLeft, ClipboardCheck, CheckCircle2, ExternalLink,
-  TrendingUp, Warehouse, DollarSign,
+  TrendingUp, Warehouse, DollarSign, Trash2, ScrollText, X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -10,6 +10,7 @@ import { fmtCurrency, fmtDate } from '../lib/format'
 import {
   SITUACAO_COLORS, ESTADO_COLORS, CONTRATO_COLORS,
   MANUT_STATUS_COLORS, PRIORIDADE_COLORS, CATEGORIA_LABELS,
+  excluirComodato, mensagemErroComodato, type TabelaComodato,
 } from '../lib/comodato'
 import {
   COMODATO_SITUACAO_LABELS, COMODATO_ESTADO_LABELS, COMODATO_CONTRATO_LABELS,
@@ -23,8 +24,10 @@ import ComodatoAlocarModal from '../components/ComodatoAlocarModal'
 import ComodatoContratoModal from '../components/ComodatoContratoModal'
 import ComodatoManutencaoModal from '../components/ComodatoManutencaoModal'
 import ComodatoModeloModal from '../components/ComodatoModeloModal'
+import ComodatoAuditoriaTab from '../components/ComodatoAuditoriaTab'
+import ConfirmDialog from '../components/ConfirmDialog'
 
-type Tab = 'painel' | 'equipamentos' | 'disponiveis' | 'contratos' | 'manutencoes' | 'catalogo' | 'revisao'
+type Tab = 'painel' | 'equipamentos' | 'disponiveis' | 'contratos' | 'manutencoes' | 'catalogo' | 'revisao' | 'auditoria'
 
 interface RevisaoRow {
   tipo_pendencia: 'equipamento_a_revisar' | 'texto_nao_interpretado' | 'cliente_ausente_no_crm'
@@ -63,10 +66,10 @@ function Kpi({ icon: Icon, label, value, hint, tone = 'slate' }: {
 
 // ─── Card de equipamento ──────────────────────────────────────────
 
-function EquipCard({ e, onEdit, onAlocar, onDevolver, onOS, canEdit }: {
+function EquipCard({ e, onEdit, onAlocar, onDevolver, onOS, onDelete, canEdit, isAdmin }: {
   e: ComodatoEquipamentoView
-  onEdit: () => void; onAlocar: () => void; onDevolver: () => void; onOS: () => void
-  canEdit: boolean
+  onEdit: () => void; onAlocar: () => void; onDevolver: () => void; onOS: () => void; onDelete: () => void
+  canEdit: boolean; isAdmin: boolean
 }) {
   return (
     <div className={`card overflow-hidden ${!e.ativo ? 'opacity-60' : ''}`}>
@@ -150,6 +153,9 @@ function EquipCard({ e, onEdit, onAlocar, onDevolver, onOS, canEdit }: {
               <button onClick={onAlocar} className="btn-ghost p-2 text-orange-500" title="Alocar em cliente"><ArrowRightLeft size={14} /></button>
             ) : null}
             <button onClick={onEdit} className="btn-ghost p-2 text-slate-500" title="Editar"><Pencil size={14} /></button>
+            {isAdmin && (
+              <button onClick={onDelete} className="btn-ghost p-2 text-red-500" title="Excluir (administrador)"><Trash2 size={14} /></button>
+            )}
           </div>
         )}
       </div>
@@ -160,7 +166,7 @@ function EquipCard({ e, onEdit, onAlocar, onDevolver, onOS, canEdit }: {
 // ─── Página ───────────────────────────────────────────────────────
 
 export default function ComodatoPage() {
-  const { canEdit } = useAuth()
+  const { canEdit, isAdmin } = useAuth()
   const [tab, setTab] = useState<Tab>('painel')
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
@@ -182,6 +188,11 @@ export default function ComodatoPage() {
   const [alocarEquip, setAlocarEquip]   = useState<ComodatoEquipamentoView | null | undefined>(undefined)
   const [devolverEquip, setDevolver]    = useState<ComodatoEquipamentoView | null>(null)
   const [osEquip, setOsEquip]           = useState<ComodatoEquipamentoView | null>(null)
+
+  // exclusão: só administrador (o banco também barra — RLS)
+  const [excluir, setExcluir] = useState<{ tabela: TabelaComodato; id: string; titulo: string; aviso: string } | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
+  const [erroAcao, setErroAcao] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -205,6 +216,20 @@ export default function ComodatoPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function confirmarExclusao() {
+    if (!excluir) return
+    setExcluindo(true); setErroAcao(null)
+    try {
+      await excluirComodato(excluir.tabela, excluir.id)
+      setExcluir(null)
+      await load()
+    } catch (e: any) {
+      setErroAcao(mensagemErroComodato(e))
+      setExcluir(null)
+    }
+    setExcluindo(false)
+  }
 
   // ── KPIs ──
   const kpis = useMemo(() => {
@@ -288,9 +313,12 @@ export default function ComodatoPage() {
     ...(kpis.aRevisar > 0
       ? [{ id: 'revisao' as Tab, label: 'Revisão', icon: ClipboardCheck, count: kpis.aRevisar }]
       : []),
+    ...(isAdmin
+      ? [{ id: 'auditoria' as Tab, label: 'Auditoria', icon: ScrollText, count: null }]
+      : []),
   ]
 
-  const mostraBusca = tab !== 'painel' && tab !== 'revisao'
+  const mostraBusca = tab !== 'painel' && tab !== 'revisao' && tab !== 'auditoria'
 
   return (
     <div className="space-y-4">
@@ -326,6 +354,14 @@ export default function ComodatoPage() {
           )}
         </div>
       </div>
+
+      {erroAcao && (
+        <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2 text-sm text-red-700 dark:text-red-300">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <span className="flex-1">{erroAcao}</span>
+          <button onClick={() => setErroAcao(null)} className="shrink-0 hover:opacity-70"><X size={16} /></button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
@@ -487,7 +523,12 @@ export default function ComodatoPage() {
               </p>
             )}
             {(tab === 'equipamentos' ? equipFiltrados : disponiveis).map(e => (
-              <EquipCard key={e.id} e={e} canEdit={canEdit}
+              <EquipCard key={e.id} e={e} canEdit={canEdit} isAdmin={isAdmin}
+                onDelete={() => setExcluir({
+                  tabela: 'comodato_equipamentos', id: e.id,
+                  titulo: `Excluir equipamento ${e.codigo_patrimonio}`,
+                  aviso: 'O histórico de alocações e as ordens de serviço deste equipamento também serão apagados. Se ele só saiu de uso, prefira dar baixa. A exclusão fica registrada na auditoria.',
+                })}
                 onEdit={() => setEditEquip(e)}
                 onAlocar={() => setAlocarEquip(e)}
                 onDevolver={() => setDevolver(e)}
@@ -555,6 +596,15 @@ export default function ComodatoPage() {
                     {canEdit && (
                       <button onClick={() => setEditContrato(c)} className="btn-ghost p-2 text-slate-500" title="Editar">
                         <Pencil size={14} />
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => setExcluir({
+                        tabela: 'comodato_contratos', id: c.id,
+                        titulo: `Excluir contrato ${c.numero ?? ''} de ${c.client?.nome ?? 'cliente'}`.replace('  ', ' '),
+                        aviso: 'Os aditivos do contrato serão apagados. Se o contrato só terminou, prefira alterar o status para encerrado ou cancelado. A exclusão fica registrada na auditoria.',
+                      })} className="btn-ghost p-2 text-red-500" title="Excluir (administrador)">
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>
@@ -639,6 +689,15 @@ export default function ComodatoPage() {
                       <Pencil size={14} />
                     </button>
                   )}
+                  {isAdmin && (
+                    <button onClick={() => setExcluir({
+                      tabela: 'comodato_manutencoes', id: m.id,
+                      titulo: `Excluir OS de ${m.equipamento?.codigo_patrimonio ?? 'equipamento'}`,
+                      aviso: 'A exclusão fica registrada na auditoria.',
+                    })} className="btn-ghost p-2 text-red-500 shrink-0" title="Excluir (administrador)">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -682,6 +741,17 @@ export default function ComodatoPage() {
                     {canEdit && (
                       <button onClick={() => setEditModelo(m)} className="btn-ghost p-2 text-slate-500 shrink-0" title="Editar">
                         <Pencil size={14} />
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => setExcluir({
+                        tabela: 'comodato_modelos', id: m.id,
+                        titulo: `Excluir modelo ${m.nome}`,
+                        aviso: unidades.length > 0
+                          ? 'Este modelo possui unidades cadastradas e o banco vai recusar a exclusão. Inative o modelo em vez de excluir.'
+                          : 'A exclusão fica registrada na auditoria.',
+                      })} className="btn-ghost p-2 text-red-500 shrink-0" title="Excluir (administrador)">
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>
@@ -745,6 +815,19 @@ export default function ComodatoPage() {
           )}
         </div>
       )}
+
+      {/* ── Auditoria (só administrador) ── */}
+      {tab === 'auditoria' && isAdmin && <ComodatoAuditoriaTab />}
+
+      <ConfirmDialog
+        open={!!excluir}
+        title={excluir?.titulo}
+        message={excluir?.aviso ?? ''}
+        confirmLabel="Excluir"
+        loading={excluindo}
+        onConfirm={confirmarExclusao}
+        onCancel={() => setExcluir(null)}
+      />
 
       {/* Modais */}
       {editEquip !== undefined && (

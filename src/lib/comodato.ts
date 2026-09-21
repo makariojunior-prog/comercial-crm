@@ -62,6 +62,7 @@ export interface AlocarParams {
   equipamentoId: string
   clientId: string
   contratoId?: string | null
+  aditivoId?: string | null
   dataEntrega: string
   estadoEntrega?: string | null
   nfRemessa?: string | null
@@ -75,6 +76,7 @@ export async function alocarEquipamento(p: AlocarParams) {
     equipamento_id: p.equipamentoId,
     client_id:      p.clientId,
     contrato_id:    p.contratoId || null,
+    aditivo_id:     p.contratoId ? (p.aditivoId || null) : null,
     status:         'ativa',
     data_entrega:   p.dataEntrega,
     estado_entrega: p.estadoEntrega || null,
@@ -127,4 +129,49 @@ export async function contratoVigenteDoCliente(clientId: string): Promise<string
     .order('created_at', { ascending: false })
     .limit(1)
   return data?.[0]?.id ?? null
+}
+
+/** Vincula a alocação ativa (que já está com o cliente, sem contrato) a um contrato. */
+export async function vincularAlocacaoAoContrato(
+  alocacaoId: string, contratoId: string, aditivoId: string | null, dataEntrega?: string,
+) {
+  const { error } = await supabase.from('comodato_alocacoes').update({
+    contrato_id: contratoId,
+    aditivo_id:  aditivoId,
+    ...(dataEntrega ? { data_entrega: dataEntrega } : {}),
+  }).eq('id', alocacaoId)
+  if (error) throw error
+}
+
+/** Tira o equipamento do contrato sem devolvê-lo: ele segue com o cliente, sem contrato. */
+export async function desvincularAlocacaoDoContrato(alocacaoId: string) {
+  const { error } = await supabase.from('comodato_alocacoes')
+    .update({ contrato_id: null, aditivo_id: null }).eq('id', alocacaoId)
+  if (error) throw error
+}
+
+/** Mensagem amigável para erros do banco (constraints e triggers do módulo). */
+export function mensagemErroComodato(e: any): string {
+  if (e?.code === '23505') {
+    return 'Este equipamento já possui uma alocação ativa (talvez em outro contrato). Desvincule ou registre a devolução antes.'
+  }
+  if (e?.code === '42501') return 'Sem permissão para esta ação. Exclusões são exclusivas de administradores.'
+  return e?.message ?? 'Erro inesperado'
+}
+
+export type TabelaComodato =
+  | 'comodato_contratos' | 'comodato_equipamentos' | 'comodato_modelos'
+  | 'comodato_manutencoes' | 'comodato_contrato_aditivos' | 'comodato_alocacoes'
+
+/**
+ * Exclui um registro do módulo. O banco só permite a administradores (RLS) e,
+ * quando a policy nega, o PostgREST responde sem erro e sem linhas — por isso
+ * conferimos as linhas removidas em vez de confiar só em `error`.
+ */
+export async function excluirComodato(tabela: TabelaComodato, id: string) {
+  const { data, error } = await supabase.from(tabela).delete().eq('id', id).select('id')
+  if (error) throw error
+  if (!data || data.length === 0) {
+    throw new Error('Exclusão não realizada: apenas administradores podem excluir registros do comodato.')
+  }
 }

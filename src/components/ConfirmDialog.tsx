@@ -9,6 +9,8 @@ interface Props {
   cancelLabel?: string
   danger?: boolean
   loading?: boolean
+  /** Classe de z-index do overlay; use maior que a do modal quando abrir por cima dele. */
+  zClass?: string
   onConfirm: () => void
   onCancel: () => void
 }
@@ -16,7 +18,7 @@ interface Props {
 export default function ConfirmDialog({
   open, title = 'Confirmar', message,
   confirmLabel = 'Confirmar', cancelLabel = 'Cancelar',
-  danger = true, loading = false,
+  danger = true, loading = false, zClass = 'z-50',
   onConfirm, onCancel,
 }: Props) {
   useEffect(() => {
@@ -29,7 +31,7 @@ export default function ConfirmDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+    <div className={`fixed inset-0 ${zClass} flex items-center justify-center p-4 bg-black/40`}>
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6 max-w-sm w-full space-y-4">
         <div className="flex items-start gap-3">
           {danger && <AlertTriangle size={20} className="text-red-500 shrink-0 mt-0.5" />}
