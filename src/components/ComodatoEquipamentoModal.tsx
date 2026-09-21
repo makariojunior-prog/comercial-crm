@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, AlertCircle, Wrench, Info } from 'lucide-react'
+import { X, AlertCircle, Wrench, Info, FileSignature, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useEscKey } from '../hooks/useEscKey'
+import { fmtDate } from '../lib/format'
 import {
-  COMODATO_ESTADO_LABELS, COMODATO_SITUACAO_LABELS,
+  COMODATO_ESTADO_LABELS, COMODATO_SITUACAO_LABELS, COMODATO_CONTRATO_LABELS,
+  type ComodatoContratoStatus,
   type ComodatoEquipamentoView, type ComodatoModelo, type ComodatoEstado,
 } from '../types'
 import { CATEGORIA_LABELS } from '../lib/comodato'
@@ -12,6 +14,16 @@ interface Props {
   equipamento?: ComodatoEquipamentoView | null
   onClose: () => void
   onSaved: () => void
+}
+
+interface VinculoContrato {
+  data_entrega: string
+  contrato: {
+    id: string; numero: string | null; status: ComodatoContratoStatus
+    contrato_assinado: boolean; data_fim: string | null
+  } | null
+  aditivo: { numero: string | null; data_aditivo: string } | null
+  client: { nome: string } | null
 }
 
 export default function ComodatoEquipamentoModal({ equipamento, onClose, onSaved }: Props) {
@@ -35,6 +47,21 @@ export default function ComodatoEquipamentoModal({ equipamento, onClose, onSaved
   const [observacoes, setObs]       = useState(equipamento?.observacoes ?? '')
   const [revisar, setRevisar]       = useState(equipamento?.revisar ?? false)
   const [ativo, setAtivo]           = useState(equipamento?.ativo ?? true)
+
+  // contrato ao qual o equipamento está vinculado hoje (via alocação ativa)
+  const [vinculo, setVinculo] = useState<VinculoContrato | null>(null)
+  const [vinculoCarregado, setVinculoCarregado] = useState(!equipamento?.alocacao_id)
+
+  useEffect(() => {
+    if (!equipamento?.alocacao_id) return
+    supabase.from('comodato_alocacoes')
+      .select(`data_entrega,
+               contrato:comodato_contratos(id, numero, status, contrato_assinado, data_fim),
+               aditivo:comodato_contrato_aditivos(numero, data_aditivo),
+               client:crm_clients(nome)`)
+      .eq('id', equipamento.alocacao_id).maybeSingle()
+      .then(({ data }) => { setVinculo((data as unknown as VinculoContrato) ?? null); setVinculoCarregado(true) })
+  }, [equipamento?.alocacao_id])
 
   useEffect(() => {
     supabase.from('comodato_modelos').select('*').eq('ativo', true).order('nome')
@@ -113,6 +140,53 @@ export default function ComodatoEquipamentoModal({ equipamento, onClose, onSaved
                 depois desmarque “Pendente de revisão”.
               </span>
             </div>
+          )}
+
+          {equipamento && (
+            <section className="space-y-2">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1">
+                Contrato vinculado
+              </h3>
+              {!vinculoCarregado ? (
+                <p className="text-xs text-slate-400">Carregando…</p>
+              ) : vinculo?.contrato ? (
+                <div className="rounded-xl border border-orange-100 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 px-3 py-2.5 flex items-start gap-2.5">
+                  <FileSignature size={16} className="text-orange-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 flex-wrap">
+                      {vinculo.contrato.numero ? `Contrato ${vinculo.contrato.numero}` : 'Contrato sem número'}
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                        {COMODATO_CONTRATO_LABELS[vinculo.contrato.status]}
+                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        vinculo.contrato.contrato_assinado
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>
+                        {vinculo.contrato.contrato_assinado ? 'Assinado' : 'Não assinado'}
+                      </span>
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {vinculo.client?.nome ? `${vinculo.client.nome} · ` : ''}
+                      incluído em {fmtDate(vinculo.data_entrega)}
+                      {' · '}{vinculo.aditivo ? `aditivo ${vinculo.aditivo.numero ?? fmtDate(vinculo.aditivo.data_aditivo)}` : 'contrato original'}
+                      {vinculo.contrato.data_fim ? ` · vence ${fmtDate(vinculo.contrato.data_fim)}` : ''}
+                    </p>
+                  </div>
+                </div>
+              ) : equipamento.alocacao_id ? (
+                <div className="flex gap-2 items-start rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2.5 text-xs text-red-700 dark:text-red-300">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span>
+                    Em comodato{vinculo?.client?.nome ? ` com ${vinculo.client.nome}` : ''}, <b>sem contrato vinculado</b>.
+                    Abra o contrato do cliente e use “Vincular equipamento”.
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400 rounded-xl border border-dashed border-slate-200 dark:border-slate-600 px-3 py-2.5">
+                  Sem contrato — o equipamento não está alocado a nenhum cliente.
+                </p>
+              )}
+            </section>
           )}
 
           <section className="space-y-3">

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
-  AlertCircle, Plus, Link2, Unlink, Search, FilePlus2, Pencil, Trash2, ExternalLink, Package, CheckCircle2,
+  AlertCircle, Plus, Link2, Unlink, Search, FilePlus2, Pencil, Trash2, ExternalLink, Package, CheckCircle2, X, ChevronDown, Lock,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { fmtDate } from '../lib/format'
@@ -43,6 +43,9 @@ export default function ComodatoContratoItens({
   // ── vincular equipamentos ──
   const [pickerOpen, setPickerOpen] = useState(false)
   const [candidatos, setCandidatos] = useState<ComodatoEquipamentoView[]>([])
+  const [numeroContrato, setNumeroContrato] = useState<Record<string, string>>({})
+  const [listaAberta, setListaAberta] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
   const [busca, setBusca]           = useState('')
   const [marcados, setMarcados]     = useState<Set<string>>(new Set())
   const [dataInclusao, setDataInclusao] = useState(hoje())
@@ -77,20 +80,58 @@ export default function ComodatoContratoItens({
   async function abrirPicker() {
     setError(null)
     setPickerOpen(true)
-    // depósito + o que já está com este cliente sem contrato
+    setListaAberta(true)
+    // todos os equipamentos ativos: o que não pode ser vinculado aparece desabilitado, com o motivo
     const { data, error: e } = await supabase.from('comodato_equipamentos_view')
-      .select('*')
-      .or(`and(situacao.eq.disponivel,ativo.eq.true),and(client_id.eq.${clientId},sem_contrato.eq.true)`)
-      .order('codigo_patrimonio')
+      .select('*').eq('ativo', true).order('codigo_patrimonio').limit(2000)
     if (e) setError(e.message)
-    setCandidatos((data ?? []) as ComodatoEquipamentoView[])
+    const lista = (data ?? []) as ComodatoEquipamentoView[]
+    setCandidatos(lista)
+
+    const ids = [...new Set(lista.map(x => x.contrato_id).filter((x): x is string => !!x))]
+    if (ids.length) {
+      const { data: cts } = await supabase.from('comodato_contratos').select('id, numero').in('id', ids)
+      setNumeroContrato(Object.fromEntries((cts ?? []).map(c => [c.id, c.numero ?? 's/nº'])))
+    }
   }
 
-  const candidatosFiltrados = useMemo(() => {
+  // fecha a lista suspensa ao clicar fora
+  useEffect(() => {
+    if (!listaAberta) return
+    const h = (ev: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(ev.target as Node)) setListaAberta(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [listaAberta])
+
+  /** Por que um equipamento não pode ser vinculado a este contrato (null = pode). */
+  function motivoIndisponivel(e: ComodatoEquipamentoView): string | null {
+    if (e.situacao === 'disponivel') return null
+    if (e.client_id === clientId && e.sem_contrato) return null
+    if (e.situacao === 'baixado') return 'Baixado'
+    if (e.situacao === 'manutencao' && !e.client_id) return 'Em manutenção'
+    if (e.situacao === 'reservado') return 'Reservado'
+    if (e.contrato_id) return `No contrato ${numeroContrato[e.contrato_id] ?? '…'}${e.client_nome ? ` — ${e.client_nome}` : ''}`
+    if (e.client_nome) return `Com ${e.client_nome}, sem contrato — registre a devolução antes`
+    return 'Indisponível'
+  }
+
+  const opcoes = useMemo(() => {
     const q = busca.trim().toUpperCase()
-    return candidatos.filter(e =>
-      !q || e.codigo_patrimonio.includes(q) || (e.modelo_nome ?? '').toUpperCase().includes(q))
-  }, [candidatos, busca])
+    return candidatos
+      .filter(e => e.contrato_id !== contratoId)   // já está neste contrato
+      .filter(e => !q
+        || e.codigo_patrimonio.includes(q)
+        || (e.modelo_nome ?? '').toUpperCase().includes(q)
+        || (e.categoria ? (CATEGORIA_LABELS[e.categoria] ?? e.categoria).toUpperCase().includes(q) : false)
+        || (e.client_nome ?? '').toUpperCase().includes(q))
+      .map(e => ({ e, motivo: motivoIndisponivel(e) }))
+      .sort((a, b) => Number(!!a.motivo) - Number(!!b.motivo))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidatos, busca, contratoId, clientId, numeroContrato])
+
+  const qtdDisponiveis = useMemo(() => opcoes.filter(o => !o.motivo).length, [opcoes])
 
   function alternar(id: string) {
     setMarcados(prev => {
@@ -283,30 +324,74 @@ export default function ComodatoContratoItens({
         {/* seletor */}
         {pickerOpen && (
           <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10 p-3 space-y-3">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input className="input pl-9" placeholder="Buscar por patrimônio ou modelo…"
-                     value={busca} onChange={e => setBusca(e.target.value)} />
+            <div ref={pickerRef} className="relative">
+              <label className="label">Equipamento</label>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input className="input pl-9 pr-9" placeholder="Clique para listar ou digite patrimônio, modelo, categoria…"
+                       value={busca} onFocus={() => setListaAberta(true)}
+                       onChange={e => { setBusca(e.target.value); setListaAberta(true) }} />
+                <button type="button" tabIndex={-1} onClick={() => setListaAberta(v => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                        aria-label="Abrir lista de equipamentos">
+                  <ChevronDown size={16} className={`transition-transform ${listaAberta ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+
+              {listaAberta && (
+                <div role="listbox" aria-multiselectable="true"
+                     className="absolute z-20 left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl p-1">
+                  {opcoes.length === 0 && (
+                    <p className="px-3 py-3 text-xs text-slate-400">Nenhum equipamento encontrado para esta busca.</p>
+                  )}
+                  {opcoes.length > 0 && qtdDisponiveis === 0 && (
+                    <p className="px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                      Nenhum equipamento livre. Cadastre um novo ou registre uma devolução; os demais aparecem abaixo com o motivo.
+                    </p>
+                  )}
+                  {opcoes.map(({ e, motivo }) => {
+                    const marcado = marcados.has(e.id)
+                    return motivo ? (
+                      <div key={e.id} role="option" aria-disabled="true" aria-selected="false"
+                           className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm opacity-60 cursor-not-allowed">
+                        <Lock size={12} className="text-slate-400 shrink-0" />
+                        <span className="font-mono text-xs font-black">{e.codigo_patrimonio}</span>
+                        <span className="truncate text-slate-600 dark:text-slate-300">{e.modelo_nome ?? 'sem modelo'}</span>
+                        <span className="ml-auto text-[10px] text-slate-500 dark:text-slate-400 text-right shrink-0 max-w-[55%] truncate">{motivo}</span>
+                      </div>
+                    ) : (
+                      <button key={e.id} type="button" role="option" aria-selected={marcado} onClick={() => alternar(e.id)}
+                        className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
+                          marcado ? 'bg-orange-100 dark:bg-orange-900/30' : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}>
+                        <input type="checkbox" readOnly checked={marcado} tabIndex={-1} className="pointer-events-none" />
+                        <span className="font-mono text-xs font-black">{e.codigo_patrimonio}</span>
+                        <span className="truncate text-slate-800 dark:text-slate-100">{e.modelo_nome ?? 'sem modelo'}</span>
+                        <span className="ml-auto text-[10px] font-bold shrink-0 text-green-600 dark:text-green-400">
+                          {e.alocacao_id ? 'já está com o cliente' : 'depósito'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
-            <div className="max-h-44 overflow-y-auto space-y-0.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-1">
-              {candidatosFiltrados.length === 0 && (
-                <p className="px-2 py-2 text-xs text-slate-400">
-                  Nenhum equipamento disponível. Cadastre um equipamento ou registre uma devolução.
-                </p>
-              )}
-              {candidatosFiltrados.map(e => (
-                <label key={e.id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700">
-                  <input type="checkbox" checked={marcados.has(e.id)} onChange={() => alternar(e.id)} />
-                  <span className="font-mono text-xs font-black">{e.codigo_patrimonio}</span>
-                  <span className="truncate text-slate-700 dark:text-slate-200">{e.modelo_nome ?? 'sem modelo'}</span>
-                  <span className="ml-auto text-[10px] font-bold shrink-0 text-slate-400">
-                    {e.alocacao_id ? 'já está com o cliente' : 'depósito'}
-                  </span>
-                </label>
-              ))}
-            </div>
+            {marcados.size > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {[...marcados].map(id => {
+                  const e = candidatos.find(c => c.id === id)
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-orange-500 text-white text-xs font-bold pl-2.5 pr-1 py-0.5">
+                      {e?.codigo_patrimonio ?? id}
+                      <button type="button" onClick={() => alternar(id)} className="p-0.5 rounded-full hover:bg-orange-600" aria-label="Remover">
+                        <X size={11} />
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -330,7 +415,7 @@ export default function ComodatoContratoItens({
             )}
 
             <div className="flex gap-2 justify-end">
-              <button type="button" className="btn-secondary" onClick={() => { setPickerOpen(false); setMarcados(new Set()) }}>
+              <button type="button" className="btn-secondary" onClick={() => { setPickerOpen(false); setListaAberta(false); setMarcados(new Set()) }}>
                 Cancelar
               </button>
               <button type="button" className="btn-primary" disabled={busy || marcados.size === 0} onClick={vincular}>
