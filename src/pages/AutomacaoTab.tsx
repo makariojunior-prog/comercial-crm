@@ -184,6 +184,7 @@ export default function AutomacaoTab() {
       pausa_entre_msgs_ms: config.pausa_entre_msgs_ms,
       pausa_min_ms: config.pausa_min_ms,
       pausa_max_ms: config.pausa_max_ms,
+      numero_whatsapp: config.numero_whatsapp,
       updated_at: new Date().toISOString(),
       updated_by: profile?.nome ?? profile?.email ?? null,
     }).eq('id', config.id)
@@ -331,9 +332,10 @@ export default function AutomacaoTab() {
               {config.ativo ? 'ATIVO' : 'INATIVO'}
             </span>
             <div>
-              <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">Automação Lumar</p>
+              <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">Automação Lumar — Whatsapp</p>
               <p className="text-[11px] text-slate-400">
                 Envio diário às {config.hora_envio.slice(0, 5)} · seg a sex
+                {config.numero_whatsapp ? ` · ${config.numero_whatsapp}` : ''}
               </p>
             </div>
           </div>
@@ -554,6 +556,17 @@ export default function AutomacaoTab() {
                 🔒 Somente administradores podem alterar as configurações.
               </p>
             )}
+            <div>
+              <label className="label">Número do WhatsApp (exibido para os usuários)</label>
+              <input
+                type="text"
+                value={config.numero_whatsapp ?? ''}
+                onChange={e => isAdmin && setConfig({ ...config, numero_whatsapp: e.target.value })}
+                className="input"
+                placeholder="(62) 90000-0000"
+                disabled={!isAdmin}
+              />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="label">Hora de envio</label>

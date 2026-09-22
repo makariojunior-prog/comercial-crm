@@ -604,6 +604,7 @@ export interface AutomacaoConfig {
   pausa_min_ms: number
   pausa_max_ms: number
   limite_diario: number
+  numero_whatsapp: string | null
   updated_at: string | null
   updated_by: string | null
 }
