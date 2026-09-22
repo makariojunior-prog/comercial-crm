@@ -1,29 +1,27 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Plus, Search, Pencil, Trash2, Download, RefreshCw, History, AlertCircle } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { Plus, Search, Download, RefreshCw, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { exportDeals } from '../lib/export'
 import type { Deal, DealStatus } from '../types'
-import { getResponsaveis } from '../types'
-import { StatusBadge, PriorityBadge, TypeBadge } from '../components/StatusBadge'
 import DealModal from '../components/DealModal'
-import QuickUpdateModal from '../components/QuickUpdateModal'
-import DealHistoryTimeline from '../components/DealHistory'
+import DealHistoryModal from '../components/DealHistoryModal'
+import KanbanBoard from '../components/KanbanBoard'
+import { usePreferences } from '../contexts/PreferencesContext'
 
 const ALL = 'TODOS'
 
 export default function RegistroNegocios() {
+  const { prefs, updateNegociosOcultarFechados } = usePreferences()
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState<string>('EM ANDAMENTO')
   const [filterResp, setFilterResp] = useState<string>(ALL)
   const [filterType, setFilterType] = useState<string>(ALL)
-  const [editDeal, setEditDeal] = useState<Deal | null | undefined>(undefined)
-  const [quickDeal, setQuickDeal] = useState<Deal | null>(null)
   const [sortBy, setSortBy] = useState<'date' | 'client' | 'contact' | 'priority'>('date')
+  const [editDeal, setEditDeal] = useState<Deal | null | undefined>(undefined)
+  const [historyDeal, setHistoryDeal] = useState<Deal | null>(null)
 
   async function load() {
     setLoading(true)
@@ -46,11 +44,30 @@ export default function RegistroNegocios() {
     setDeals(d => d.filter(x => x.id !== id))
   }
 
+  async function moveDeal(deal: Deal, newStatus: DealStatus) {
+    if (deal.status === newStatus) return
+    const previous = deals
+    setDeals(ds => ds.map(d => d.id === deal.id ? { ...d, status: newStatus } : d))
+    const { error } = await supabase.from('deals').update({ status: newStatus }).eq('id', deal.id)
+    if (error) {
+      setDeals(previous)
+      toast.error('Não foi possível mover o negócio. Tente novamente.')
+      return
+    }
+    await supabase.from('crm_deal_history').insert({
+      deal_id: deal.id,
+      client_name: deal.client_name,
+      status_before: deal.status,
+      status_after: newStatus,
+      follow_up: null,
+      last_contact_date: null,
+    })
+  }
+
   const responsaveis = useMemo(() => [ALL, ...Array.from(new Set(
     deals.flatMap(d => d.responsaveis?.length ? d.responsaveis : (d.responsible ? [d.responsible] : []))
   ))], [deals])
   const types = useMemo(() => [ALL, ...Array.from(new Set(deals.map(d => d.deal_type).filter(Boolean) as string[]))], [deals])
-  const statuses = [ALL, 'NOVO', 'EM ANDAMENTO', 'SUCESSO', 'DESISTIU', 'CANCELADO']
 
   const PRIORITY_ORDER: Record<string, number> = { 'ALTA': 0, 'MÉDIA': 1, 'BAIXA': 2 }
 
@@ -62,22 +79,20 @@ export default function RegistroNegocios() {
         (d.contact_name ?? '').toLowerCase().includes(q) ||
         (d.follow_up ?? '').toLowerCase().includes(q) ||
         (d.interest ?? '').toLowerCase().includes(q)
-      const matchStatus = filterStatus === ALL || d.status === filterStatus
       const respArr = d.responsaveis?.length ? d.responsaveis : (d.responsible ? [d.responsible] : [])
       const matchResp = filterResp === ALL || respArr.includes(filterResp)
       const matchType = filterType === ALL || d.deal_type === filterType
-      return matchSearch && matchStatus && matchResp && matchType
+      return matchSearch && matchResp && matchType
     })
     return result.sort((a, b) => {
       if (sortBy === 'client')   return a.client_name.localeCompare(b.client_name, 'pt')
       if (sortBy === 'contact')  return (a.last_contact_date ?? '').localeCompare(b.last_contact_date ?? '')
       if (sortBy === 'priority') return (PRIORITY_ORDER[a.priority ?? ''] ?? 9) - (PRIORITY_ORDER[b.priority ?? ''] ?? 9)
-      // Sort by most recent activity: last follow-up, falling back to start_date
       const dateA = a.last_contact_date ?? a.start_date ?? ''
       const dateB = b.last_contact_date ?? b.start_date ?? ''
       return dateB.localeCompare(dateA)
     })
-  }, [deals, search, filterStatus, filterResp, filterType, sortBy])
+  }, [deals, search, filterResp, filterType, sortBy])
 
   return (
     <div className="space-y-4">
@@ -85,6 +100,14 @@ export default function RegistroNegocios() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-bold text-slate-800">Negócios</h1>
         <div className="flex gap-2">
+          <button
+            onClick={() => updateNegociosOcultarFechados(!prefs.negociosOcultarFechados)}
+            className={`btn-secondary text-xs py-1.5 ${prefs.negociosOcultarFechados ? 'text-orange-600' : ''}`}
+            title={prefs.negociosOcultarFechados ? 'Mostrar colunas fechadas' : 'Ocultar colunas fechadas'}
+          >
+            {prefs.negociosOcultarFechados ? <Eye size={14} /> : <EyeOff size={14} />}
+            <span className="hidden sm:inline">{prefs.negociosOcultarFechados ? 'Mostrar fechados' : 'Ocultar fechados'}</span>
+          </button>
           <button onClick={() => { try { exportDeals(filtered) } catch { alert('Erro ao exportar Excel') } }} className="btn-secondary text-xs py-1.5" title="Exportar para Excel">
             <Download size={14} /> Excel
           </button>
@@ -109,9 +132,6 @@ export default function RegistroNegocios() {
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
-          <select className="input shrink-0 w-auto text-xs" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            {statuses.map(s => <option key={s}>{s}</option>)}
-          </select>
           <select className="input shrink-0 w-auto text-xs" value={filterType} onChange={e => setFilterType(e.target.value)}>
             {types.map(t => <option key={t}>{t}</option>)}
           </select>
@@ -135,134 +155,25 @@ export default function RegistroNegocios() {
         </div>
       )}
 
-      {/* Lista */}
+      {/* Board */}
       {loading ? (
         <div className="flex justify-center py-12 text-slate-400">Carregando...</div>
-      ) : filtered.length === 0 ? (
-        <div className="card p-8 text-center text-slate-400">Nenhum negócio encontrado</div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map(deal => (
-            <DealRow
-              key={deal.id}
-              deal={deal}
-              onEdit={() => setEditDeal(deal)}
-              onQuickUpdate={() => setQuickDeal(deal)}
-              onDelete={() => deleteDeal(deal.id)}
-            />
-          ))}
-        </div>
+        <KanbanBoard
+          deals={filtered}
+          hideClosed={prefs.negociosOcultarFechados}
+          onOpenEdit={deal => setEditDeal(deal)}
+          onMove={moveDeal}
+          onDelete={deal => deleteDeal(deal.id)}
+          onShowHistory={deal => setHistoryDeal(deal)}
+        />
       )}
 
       {editDeal !== undefined && (
         <DealModal deal={editDeal} onClose={() => setEditDeal(undefined)} onSaved={load} />
       )}
-      {quickDeal && (
-        <QuickUpdateModal deal={quickDeal} onClose={() => setQuickDeal(null)} onSaved={load} />
-      )}
-    </div>
-  )
-}
-
-function DealRow({
-  deal, onEdit, onQuickUpdate, onDelete,
-}: {
-  deal: Deal; onEdit: () => void; onQuickUpdate: () => void; onDelete: () => void
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const [showHistory, setShowHistory] = useState(false)
-  const startDate = deal.start_date ? format(parseISO(deal.start_date), 'dd/MM/yy', { locale: ptBR }) : '-'
-  const lastContact = deal.last_contact_date ? format(parseISO(deal.last_contact_date), 'dd/MM/yy', { locale: ptBR }) : '-'
-  const isActive = deal.status === 'NOVO' || deal.status === 'EM ANDAMENTO'
-
-  return (
-    <div className={`card overflow-hidden ${!isActive ? 'opacity-75' : ''}`}>
-      {/* Main row */}
-      <div
-        className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50"
-        onClick={() => { setExpanded(!expanded); setShowHistory(false) }}
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <StatusBadge status={deal.status} />
-            <TypeBadge type={deal.deal_type} />
-            <PriorityBadge priority={deal.priority} />
-          </div>
-          <p className="font-semibold text-slate-800">{deal.client_name}</p>
-          <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
-            {getResponsaveis(deal) && <span>{getResponsaveis(deal)}</span>}
-            <span>Início: {startDate}</span>
-            <span>Contato: {lastContact}</span>
-          </div>
-        </div>
-        <div className="text-slate-400 text-lg select-none">{expanded ? '▲' : '▼'}</div>
-      </div>
-
-      {/* Expanded */}
-      {expanded && (
-        <div className="border-t border-slate-100 px-4 py-3 bg-slate-50 space-y-3">
-          {deal.contact_name && (
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Contato</p>
-              {deal.contact_phone ? (() => {
-                  const digits = deal.contact_phone.replace(/\D/g, '')
-                  const waNum  = digits.length >= 10 ? (digits.startsWith('55') ? digits : '55' + digits) : null
-                  return waNum ? (
-                    <a href={`https://wa.me/${waNum}`} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-sm text-green-600 hover:underline">
-                      📱 {deal.contact_name} · {deal.contact_phone}
-                    </a>
-                  ) : (
-                    <p className="text-sm text-slate-700">📱 {deal.contact_name} · {deal.contact_phone}</p>
-                  )
-                })() : null}
-            </div>
-          )}
-          {deal.interest && (
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Interesse</p>
-              <p className="text-sm text-slate-700">{deal.interest}</p>
-            </div>
-          )}
-          {deal.follow_up && (
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Acompanhamento</p>
-              <p className="text-sm text-slate-700">{deal.follow_up}</p>
-            </div>
-          )}
-          {deal.potential_notes && (
-            <div>
-              <p className="text-xs font-semibold text-amber-500 uppercase tracking-wide">⚠️ Potencial não atendido</p>
-              <p className="text-sm text-slate-700">{deal.potential_notes}</p>
-            </div>
-          )}
-
-          <div className="flex gap-2 flex-wrap pt-1">
-            {isActive && (
-              <button onClick={e => { e.stopPropagation(); onQuickUpdate() }} className="btn-primary text-xs py-1.5">
-                ✏️ Atualizar
-              </button>
-            )}
-            <button onClick={e => { e.stopPropagation(); onEdit() }} className="btn-secondary text-xs py-1.5">
-              <Pencil size={12} /> Editar
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); setShowHistory(!showHistory) }}
-              className="btn-ghost text-xs py-1.5"
-            >
-              <History size={12} /> Histórico
-            </button>
-            <button onClick={e => { e.stopPropagation(); onDelete() }} className="btn-danger text-xs py-1.5">
-              <Trash2 size={12} />
-            </button>
-          </div>
-
-          {showHistory && (
-            <div className="pt-2 border-t border-slate-200">
-              <DealHistoryTimeline dealId={deal.id} />
-            </div>
-          )}
-        </div>
+      {historyDeal && (
+        <DealHistoryModal deal={historyDeal} onClose={() => setHistoryDeal(null)} />
       )}
     </div>
   )
