@@ -218,6 +218,16 @@ async function enviarAlertas(dest: string[], nome: string, tel: string, resumo: 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
+  // Monitoramento de conversas desativado (fase 2 da desativação de módulos,
+  // 2026-09-22) — o cron que chamava esta function a cada 5 min foi
+  // desagendado (cron.unschedule('reprocess-conversations-auto')) e o botão
+  // "Reprocessar" na UI foi removido. Este retorno neutro é defesa adicional
+  // caso algo mais volte a chamá-la. Será redesenhado; lógica abaixo intacta.
+  return new Response(JSON.stringify({ disabled: true }), {
+    status: 200,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  })
+
   const start = Date.now()
 
   try {
