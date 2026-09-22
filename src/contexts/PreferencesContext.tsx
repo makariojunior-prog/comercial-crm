@@ -12,6 +12,7 @@ export interface UserPreferences {
   navOrder: string[]
   dashboardWidgets: DashboardWidget[]
   sidebarMode: SidebarMode
+  negociosOcultarFechados: boolean
 }
 
 export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
@@ -49,6 +50,7 @@ const DEFAULT_PREFS: UserPreferences = {
   navOrder: [],
   dashboardWidgets: DEFAULT_DASHBOARD_WIDGETS,
   sidebarMode: 'full',
+  negociosOcultarFechados: false,
 }
 
 function storageKey(userId: string) {
@@ -85,6 +87,7 @@ function loadPrefs(userId: string): UserPreferences {
       navOrder: parsed.navOrder ?? [],
       dashboardWidgets: widgets,
       sidebarMode: (parsed.sidebarMode as SidebarMode | undefined) ?? 'full',
+      negociosOcultarFechados: parsed.negociosOcultarFechados ?? false,
     }
   } catch {
     return DEFAULT_PREFS
@@ -96,6 +99,7 @@ interface PreferencesContextValue {
   updateNavOrder: (order: string[]) => void
   updateDashboardWidgets: (widgets: DashboardWidget[]) => void
   updateSidebarMode: (mode: SidebarMode) => void
+  updateNegociosOcultarFechados: (value: boolean) => void
   resetNavOrder: () => void
   resetDashboardWidgets: () => void
 }
@@ -138,6 +142,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     })
   }, [userId])
 
+  const updateNegociosOcultarFechados = useCallback((negociosOcultarFechados: boolean) => {
+    setPrefs(prev => {
+      const next = { ...prev, negociosOcultarFechados }
+      if (userId) localStorage.setItem(storageKey(userId), JSON.stringify(next))
+      return next
+    })
+  }, [userId])
+
   const resetNavOrder = useCallback(() => {
     setPrefs(prev => {
       const next = { ...prev, navOrder: [] }
@@ -155,7 +167,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   }, [userId])
 
   return (
-    <PreferencesContext.Provider value={{ prefs, updateNavOrder, updateDashboardWidgets, updateSidebarMode, resetNavOrder, resetDashboardWidgets }}>
+    <PreferencesContext.Provider value={{ prefs, updateNavOrder, updateDashboardWidgets, updateSidebarMode, updateNegociosOcultarFechados, resetNavOrder, resetDashboardWidgets }}>
       {children}
     </PreferencesContext.Provider>
   )
