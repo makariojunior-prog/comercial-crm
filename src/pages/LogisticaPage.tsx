@@ -10,12 +10,11 @@ import RotasEntregaTab from '../components/RotasEntregaTab'
 import CustosTab from '../components/CustosTab'
 import ConciliacaoTab from '../components/ConciliacaoTab'
 import TiposOcorrenciaConfig from '../components/TiposOcorrenciaConfig'
-import MapaEntregasTab from '../components/MapaEntregasTab'
-import { fetchPositions, loadCredentials, saveCredentials, clearCredentials } from '../lib/velotrack'
+import { fetchPositions } from '../lib/velotrack'
 import type { VelotrackPosition } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 
-type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas' | 'mapa' | 'custos' | 'conciliacao' | 'config_ocorrencias'
+type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas' | 'custos' | 'conciliacao' | 'config_ocorrencias'
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -59,11 +58,9 @@ function CnhBadge({ date }: { date: string | null }) {
 // ─── Rastreamento ─────────────────────────────────────────────────
 
 function TrackingTab() {
-  const [creds, setCreds] = useState({ login: '', password: '' })
   const [positions, setPositions] = useState<VelotrackPosition[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showConfig, setShowConfig] = useState(false)
 
   useEffect(() => { load() }, [])
 
@@ -82,55 +79,9 @@ function TrackingTab() {
     } finally { setLoading(false) }
   }
 
-  function saveCreds() {
-    if (!creds.login || !creds.password) return
-    saveCredentials(creds)
-    setShowConfig(false)
-    load()
-  }
-
-  function resetCreds() {
-    clearCredentials()
-    setPositions([])
-    load()
-  }
-
-  const moving  = positions.filter(p => p.connected)
-  const stopped = positions.filter(p => !p.connected)
+  const moving  = positions.filter(p => p.connected && p.offline_hours <= 1)
+  const stopped = positions.filter(p => !p.connected && p.offline_hours <= 1)
   const offline = positions.filter(p => p.offline_hours > 1)
-
-  if (showConfig) return (
-    <div className="max-w-md mx-auto mt-8">
-      <div className="card p-6 text-center space-y-4">
-        <div className="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center mx-auto">
-          <Radio size={28} className="text-orange-500" />
-        </div>
-        <div>
-          <h3 className="font-bold text-slate-800 dark:text-slate-100">Credenciais Velotrack</h3>
-          <p className="text-sm text-slate-500 mt-1">Preencha apenas para usar uma conta diferente da padrão.</p>
-        </div>
-        <div className="space-y-3 text-left">
-          <div>
-            <label className="label">Login (usuário)</label>
-            <input className="input" value={creds.login} onChange={e => setCreds(p => ({ ...p, login: e.target.value }))} placeholder="login@cantina.com.br" />
-          </div>
-          <div>
-            <label className="label">Senha</label>
-            <input type="password" className="input" value={creds.password} onChange={e => setCreds(p => ({ ...p, password: e.target.value }))} />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowConfig(false)} className="btn-secondary flex-1">Cancelar</button>
-          <button onClick={saveCreds} disabled={!creds.login || !creds.password} className="btn-primary flex-1">
-            Salvar e Reconectar
-          </button>
-        </div>
-        <button onClick={() => { resetCreds(); setShowConfig(false) }} className="text-xs text-slate-400 hover:text-slate-600 underline">
-          Restaurar credencial padrão
-        </button>
-      </div>
-    </div>
-  )
 
   return (
     <div className="space-y-4">
@@ -153,12 +104,6 @@ function TrackingTab() {
           )}
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowConfig(true)} className="btn-ghost p-2" title="Configurar credenciais">
-            <Settings size={16} />
-          </button>
-          <button onClick={resetCreds} className="btn-ghost p-2 text-red-400" title="Restaurar credencial padrão">
-            <WifiOff size={16} />
-          </button>
           <button onClick={load} disabled={loading} className="btn-ghost p-2">
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -177,7 +122,7 @@ function TrackingTab() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {positions.map(p => {
-          const isMoving = p.connected
+          const isMoving = p.connected && p.offline_hours <= 1
           const isOffline = p.offline_hours > 1
           const lat = parseFloat(p.latitude)
           const lng = parseFloat(p.longitude)
@@ -325,7 +270,6 @@ export default function LogisticaPage() {
     { id: 'romaneio'     as Tab, label: 'Romaneio',          icon: FileText,    count: null },
     { id: 'conciliacao'  as Tab, label: 'Conciliação',       icon: ClipboardCheck, count: null },
     { id: 'rotas'        as Tab, label: 'Rotas de Entrega',  icon: Truck,       count: null },
-    { id: 'mapa'         as Tab, label: 'Mapa de Entregas',  icon: MapPin,      count: null },
     { id: 'rastreamento' as Tab, label: 'Rastreamento',      icon: Radio,       count: null },
     { id: 'veiculos'     as Tab, label: 'Veículos',          icon: Truck,       count: vehicles.filter(v => v.ativo).length },
     { id: 'motoristas'   as Tab, label: 'Motoristas',        icon: Users,       count: drivers.filter(d => d.ativo).length },
@@ -385,7 +329,7 @@ export default function LogisticaPage() {
       </div>
 
       {/* Search (veiculos/motoristas) */}
-      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && tab !== 'mapa' && tab !== 'custos' && (
+      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && tab !== 'custos' && (
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -409,8 +353,6 @@ export default function LogisticaPage() {
         <TiposOcorrenciaConfig />
       ) : tab === 'rotas' ? (
         <RotasEntregaTab />
-      ) : tab === 'mapa' ? (
-        <MapaEntregasTab />
       ) : tab === 'custos' ? (
         <CustosTab
           vehicles={vehicles}
