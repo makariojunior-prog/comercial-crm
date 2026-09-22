@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Radio, Wifi, WifiOff, RefreshCw, MapPin, Gauge } from 'lucide-react'
-import { fetchPositions, loadCredentials } from '../lib/velotrack'
+import { fetchPositions } from '../lib/velotrack'
 import type { VelotrackPosition } from '../types'
 
 const REFRESH_MS = 60_000
@@ -10,7 +10,6 @@ export default function TrackingWidget() {
   const [loading, setLoading] = useState(false)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [error, setError] = useState(false)
-  const [hasCreds, setHasCreds] = useState(() => !!loadCredentials())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const activeRef = useRef(true)
 
@@ -32,16 +31,14 @@ export default function TrackingWidget() {
 
   useEffect(() => {
     activeRef.current = true
-    if (!hasCreds) return
     load()
     timerRef.current = setInterval(load, REFRESH_MS)
     return () => {
       activeRef.current = false
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [hasCreds])
+  }, [])
 
-  if (!hasCreds) return null
   if (!loading && positions.length === 0 && !error) return null
 
   const moving  = positions.filter(p => p.connected && p.offline_hours <= 1)
