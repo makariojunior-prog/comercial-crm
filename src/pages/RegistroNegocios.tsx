@@ -46,11 +46,12 @@ export default function RegistroNegocios() {
 
   async function moveDeal(deal: Deal, newStatus: DealStatus) {
     if (deal.status === newStatus) return
-    const previous = deals
     setDeals(ds => ds.map(d => d.id === deal.id ? { ...d, status: newStatus } : d))
     const { error } = await supabase.from('deals').update({ status: newStatus }).eq('id', deal.id)
     if (error) {
-      setDeals(previous)
+      // Reverte só este negócio, não o array inteiro — outro card pode ter
+      // sido movido com sucesso entre a atualização otimista e este erro.
+      setDeals(ds => ds.map(d => d.id === deal.id ? { ...d, status: deal.status } : d))
       toast.error('Não foi possível mover o negócio. Tente novamente.')
       return
     }

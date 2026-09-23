@@ -23,7 +23,10 @@ export default function KanbanBoard({ deals, hideClosed, onOpenEdit, onMove, onD
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  const byStatus = (status: DealStatus) => deals.filter(d => d.status === status)
+  // status é nullable no banco (sem NOT NULL) — trata negócio sem status como
+  // NOVO pra nunca ficar invisível no board (a lista antiga tinha um filtro
+  // "TODOS" que cobria esse caso; o board não tem catch-all equivalente).
+  const byStatus = (status: DealStatus) => deals.filter(d => (d.status ?? 'NOVO') === status)
   const visibleStatuses = hideClosed
     ? STATUS_ORDER.filter(s => !CLOSED_STATUSES.includes(s))
     : STATUS_ORDER
