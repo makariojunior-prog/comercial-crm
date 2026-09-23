@@ -1,6 +1,6 @@
 import type { DealStatus, DealPriority } from '../types'
 
-const statusConfig: Record<DealStatus, { label: string; classes: string }> = {
+export const statusConfig: Record<DealStatus, { label: string; classes: string }> = {
   'NOVO': { label: 'Novo', classes: 'bg-blue-100 text-blue-700' },
   'EM ANDAMENTO': { label: 'Em Andamento', classes: 'bg-amber-100 text-amber-700' },
   'SUCESSO': { label: 'Sucesso', classes: 'bg-green-100 text-green-700' },
