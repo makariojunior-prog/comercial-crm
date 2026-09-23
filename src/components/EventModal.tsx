@@ -94,7 +94,11 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
           status,
           cliente_nome: clientId ? clientSearch : null,
           descricao: notes.trim() || null,
-          responsaveis: [],
+          // responsaveis não entra aqui de propósito: o compromisso pode já
+          // ter responsáveis atribuídos manualmente na Agenda (agora que
+          // "Cadastrar Promotoria" vincula compromissos existentes via
+          // crm_event_id) — sobrescrever com [] apagaria isso a cada edição
+          // do evento por aqui. Omitir a chave preserva o que já está salvo.
         },
         { onConflict: 'crm_event_id' }
       )
