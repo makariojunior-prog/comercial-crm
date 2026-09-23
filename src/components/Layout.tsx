@@ -230,7 +230,7 @@ export default function Layout() {
       )}
 
       {/* ── Main content column ── */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
 
         {/* Mobile header */}
         <header className="lg:hidden bg-slate-800 text-white px-4 py-3 flex items-center gap-2.5">
@@ -335,7 +335,7 @@ export default function Layout() {
         )}
 
         {/* Page content */}
-        <main className={`flex-1 p-4 lg:p-6 pb-24 ${isBottomMode ? 'lg:pb-24' : 'lg:pb-6'}`}>
+        <main className={`flex-1 min-w-0 p-4 lg:p-6 pb-24 ${isBottomMode ? 'lg:pb-24' : 'lg:pb-6'}`}>
           <Outlet />
         </main>
 
