@@ -5,4 +5,14 @@
 -- esse cron continuaria rodando à toa. Desativa a recorrência; a function
 -- em si também foi atualizada para responder de forma neutra (defesa
 -- adicional), e não é apagada.
-select cron.unschedule('reprocess-conversations-auto');
+--
+-- cron.unschedule() lança erro se o job não existir — esse job foi criado
+-- fora de uma migration rastreada, então um banco novo (restauração, ambiente
+-- de staging, etc.) nunca teria esse job agendado. Checa a existência antes
+-- de desagendar, pra esta migration rodar sem erro em qualquer ambiente.
+do $$
+begin
+  if exists (select 1 from cron.job where jobname = 'reprocess-conversations-auto') then
+    perform cron.unschedule('reprocess-conversations-auto');
+  end if;
+end $$;
