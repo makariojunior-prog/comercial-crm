@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Pencil, Trash2, RefreshCw, Eye, EyeOff, AlertCircle, Download, Star } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Eye, EyeOff, AlertCircle, Download, Star } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { exportPriceItems } from '../lib/export'
 import type { PriceItem } from '../types'
 import PriceItemModal from '../components/PriceItemModal'
+import { useAuth } from '../contexts/AuthContext'
 
 type Empresa = 'lumar' | 'cantina'
 
@@ -26,20 +27,23 @@ function margemColor(preco: number | null, custo: number | null): string {
 }
 
 export default function TabelasPreco() {
+  const { isAdmin } = useAuth()
   const [items, setItems]       = useState<PriceItem[]>([])
   const [loading, setLoading]   = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [empresa, setEmpresa]   = useState<Empresa>('lumar')
   const [search, setSearch]     = useState('')
   const [somenteAtivos, setSomenteAtivos] = useState(true)
-  const [modoTabela, setModoTabela] = useState(false)
+  const [modoTabelaAdmin, setModoTabelaAdmin] = useState(false)
   const [editItem, setEditItem] = useState<PriceItem | null | undefined>(undefined)
+
+  const modoTabela = isAdmin ? modoTabelaAdmin : true
 
   async function load() {
     setLoading(true)
     setLoadError(null)
     const { data, error } = await supabase
-      .from('crm_price_items')
+      .from('crm_price_items_view')
       .select('*')
       .order('nome', { ascending: true })
     if (error) { setLoadError(error.message); setLoading(false); return }
@@ -80,19 +84,18 @@ export default function TabelasPreco() {
           <p className="text-xs text-slate-400">Gerencie os preços de venda Lumar e Cantina em Casa</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setModoTabela(m => !m)}
-            className={`btn text-xs py-1.5 ${modoTabela ? 'btn-primary' : 'btn-secondary'}`}
-            title="Modo Tabela — visualização para cliente"
-          >
-            {modoTabela ? <EyeOff size={14} /> : <Eye size={14} />}
-            {modoTabela ? 'Ver custos' : 'Modo Tabela'}
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setModoTabelaAdmin(m => !m)}
+              className={`btn text-xs py-1.5 ${modoTabela ? 'btn-primary' : 'btn-secondary'}`}
+              title="Modo Tabela — visualização para cliente"
+            >
+              {modoTabela ? <EyeOff size={14} /> : <Eye size={14} />}
+              {modoTabela ? 'Ver custos' : 'Modo Tabela'}
+            </button>
+          )}
           <button onClick={() => { try { exportPriceItems(filtered, empresa, modoTabela) } catch { alert('Erro ao exportar') } }} className="btn-secondary text-xs py-1.5">
             <Download size={14} /> Excel
-          </button>
-          <button onClick={load} className="btn-ghost p-2">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
           <button onClick={() => setEditItem(null)} className="btn-primary">
             <Plus size={16} /> <span className="hidden sm:inline">Produto</span>

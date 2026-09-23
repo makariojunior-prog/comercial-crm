@@ -3,6 +3,7 @@ import { X, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { PriceItem } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
+import { useAuth } from '../contexts/AuthContext'
 
 interface Props {
   item?: PriceItem | null
@@ -23,6 +24,7 @@ const empty = (empresa: 'lumar' | 'cantina') => ({
 })
 
 export default function PriceItemModal({ item, defaultEmpresa = 'lumar', onClose, onSaved }: Props) {
+  const { isAdmin } = useAuth()
   useEscKey(useCallback(onClose, [onClose]))
   const [form, setForm] = useState(
     item
@@ -55,16 +57,18 @@ export default function PriceItemModal({ item, defaultEmpresa = 'lumar', onClose
     setSaving(true)
     setError(null)
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       empresa: form.empresa,
       nome: form.nome.trim(),
-      custo: toNum(form.custo),
       preco_lumar:   form.empresa === 'lumar'   ? toNum(form.preco_lumar) : null,
       preco_varejo:  form.empresa === 'cantina' ? toNum(form.preco_varejo) : null,
       preco_revenda: form.empresa === 'cantina' ? toNum(form.preco_revenda) : null,
       pf: form.pf,
       ativo: form.ativo,
     }
+    // Não-admin nunca vê/edita custo — omitir a chave preserva o valor já
+    // salvo em vez de sobrescrever com null.
+    if (isAdmin) payload.custo = toNum(form.custo)
 
     const { error: err } = item
       ? await supabase.from('crm_price_items').update(payload).eq('id', item.id)
@@ -113,11 +117,13 @@ export default function PriceItemModal({ item, defaultEmpresa = 'lumar', onClose
               <input className="input" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: Pão Francês 12h (60g)" autoFocus />
             </div>
 
-            {/* Custo */}
-            <div>
-              <label className="label">Custo (R$)</label>
-              <input type="number" step="0.01" className="input" value={form.custo} onChange={e => set('custo', e.target.value)} placeholder="0,00" />
-            </div>
+            {/* Custo — visível só para Administrador */}
+            {isAdmin && (
+              <div>
+                <label className="label">Custo (R$)</label>
+                <input type="number" step="0.01" className="input" value={form.custo} onChange={e => set('custo', e.target.value)} placeholder="0,00" />
+              </div>
+            )}
 
             {/* Preços conforme empresa */}
             {isLumar && (

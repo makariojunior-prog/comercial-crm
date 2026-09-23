@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, ClipboardList, MapPin, Sparkles, DollarSign, ShieldCheck, LogOut,
-  CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Gift, Calculator, Truck,
+  LayoutDashboard, ClipboardList, MapPin, DollarSign, ShieldCheck, LogOut,
+  CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Truck,
   ShoppingBag, MessageSquare, Instagram, Package2, Store, Banknote, TrendingUp,
   Building2, CalendarDays, PanelLeft, PanelBottom, Search, ChevronsLeft, ChevronsRight,
   PackageOpen, LayoutGrid,
@@ -28,10 +28,8 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/notas',          icon: StickyNote,      label: 'Notas',            module: 'notas'           },
   { to: '/promotoria',     icon: Calendar,        label: 'Promotoria',       module: 'promotoria'      },
   { to: '/tabelas',        icon: DollarSign,      label: 'Tabelas',          module: 'tabelas'         },
-  { to: '/amostras',       icon: Gift,            label: 'Amostras',         module: 'amostras'        },
-  { to: '/simulador',      icon: Calculator,      label: 'Simular',          module: 'simulador'       },
   { to: '/varejo',         icon: ShoppingBag,     label: 'Varejo',           module: 'varejo'          },
-  { to: '/conversas',      icon: MessageSquare,   label: 'Conversas',        module: 'conversas'       },
+  { to: '/conversas',      icon: MessageSquare,   label: 'Automações',       module: 'conversas'       },
   { to: '/social',         icon: Instagram,       label: 'Social',           module: 'social'          },
   { to: '/atacado',        icon: Package2,        label: 'Atacado',          module: 'atacado'         },
   { to: '/clientes-varejo',icon: Store,           label: 'Cli. Varejo',      module: 'varejo_clientes' },
@@ -41,7 +39,6 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/agenda',         icon: CalendarDays,    label: 'Agenda',           module: 'agenda'          },
   { to: '/comodato',       icon: PackageOpen,     label: 'Comodato',         module: 'comodato'        },
   { to: '/logistica',      icon: Truck,           label: 'Logística',        module: 'logistica'       },
-  { to: '/briefing',       icon: Sparkles,        label: 'IA',               module: 'briefing'        },
   { to: '/usuarios',       icon: ShieldCheck,     label: 'Usuários',         module: 'admin'           },
   { to: '/configuracoes',  icon: Settings,        label: 'Configurações',    module: 'personal'        },
 ]

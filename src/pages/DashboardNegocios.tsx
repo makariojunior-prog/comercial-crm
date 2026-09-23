@@ -14,7 +14,6 @@ import DashboardNotesWidget from '../components/DashboardNotesWidget'
 import VehicleAlertsWidget from '../components/VehicleAlertsWidget'
 import TrackingWidget from '../components/TrackingWidget'
 import VarejoFilaWidget from '../components/VarejoFilaWidget'
-import ConversacoesAlertasWidget from '../components/ConversacoesAlertasWidget'
 import SocialWidget from '../components/SocialWidget'
 import PosVendaWidget from '../components/PosVendaWidget'
 import ResumoPedidosWidget from '../components/ResumoPedidosWidget'
@@ -72,16 +71,12 @@ export default function DashboardNegocios() {
 
 
   // Merge saved prefs with defaults (in case new widgets were added)
-  // conversas_alertas is always pinned first regardless of saved order
   const orderedWidgets = useMemo(() => {
     const saved = prefs.dashboardWidgets
     if (!saved.length) return DEFAULT_DASHBOARD_WIDGETS
     const savedIds = new Set(saved.map(w => w.id))
     const extra = DEFAULT_DASHBOARD_WIDGETS.filter(w => !savedIds.has(w.id))
-    const all = [...saved, ...extra].filter(w => w.visible)
-    const conversas = all.find(w => w.id === 'conversas_alertas')
-    const rest = all.filter(w => w.id !== 'conversas_alertas')
-    return conversas ? [conversas, ...rest] : all
+    return [...saved, ...extra].filter(w => w.visible)
   }, [prefs.dashboardWidgets])
 
   // Fixed widgets take priority — removed from the personalized section
@@ -147,8 +142,6 @@ export default function DashboardNegocios() {
         return <div className="card p-5"><ResumoPedidosWidget /></div>
       case 'agenda_widget':
         return <div className="card p-5"><AgendaWidget /></div>
-      case 'conversas_alertas':
-        return <div className="card p-5"><ConversacoesAlertasWidget /></div>
       case 'social_comentarios':
         return <div className="card p-5"><SocialWidget /></div>
       case 'frota':

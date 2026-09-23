@@ -123,6 +123,12 @@ const EMOJI_ONLY = /^[\p{Emoji}\s\p{P}]+$/u;
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } });
 
+  // Monitoramento de conversas desativado (fase 2 da desativação de módulos,
+  // 2026-09-22) — desliga o consumo de créditos de IA e a gravação em
+  // crm_conversations sem depender de reconfiguração no painel do Digisac.
+  // Será redesenhado; toda a lógica abaixo permanece intacta e sem uso.
+  return new Response('disabled', { status: 200 });
+
   try {
     const body = await req.json();
     const msg  = body.data || body;

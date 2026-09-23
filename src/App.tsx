@@ -11,7 +11,6 @@ import LoginPage from './pages/LoginPage'
 const DashboardNegocios  = lazy(() => import('./pages/DashboardNegocios'))
 const RegistroNegocios   = lazy(() => import('./pages/RegistroNegocios'))
 const DashboardVisitas   = lazy(() => import('./pages/DashboardVisitas'))
-const BriefingBI         = lazy(() => import('./pages/BriefingBI'))
 const TabelasPreco       = lazy(() => import('./pages/TabelasPreco'))
 const GestaoUsuarios     = lazy(() => import('./pages/GestaoUsuarios'))
 const TasksPage          = lazy(() => import('./pages/TasksPage'))
@@ -20,8 +19,6 @@ const EventsPage         = lazy(() => import('./pages/EventsPage'))
 const SettingsPage       = lazy(() => import('./pages/SettingsPage'))
 const RoutesPage         = lazy(() => import('./pages/RoutesPage'))
 const NotesPage          = lazy(() => import('./pages/NotesPage'))
-const SolicitarAmostras  = lazy(() => import('./pages/SolicitarAmostras'))
-const SimularVendas      = lazy(() => import('./pages/SimularVendas'))
 const LogisticaPage      = lazy(() => import('./pages/LogisticaPage'))
 const VarejoPage         = lazy(() => import('./pages/VarejoPage'))
 const ConversacoesPage   = lazy(() => import('./pages/ConversacoesPage'))
@@ -70,9 +67,6 @@ export default function App() {
                 <Route path="/notas"         element={<NotesPage />} />
                 <Route path="/promotoria"    element={<EventsPage />} />
                 <Route path="/tabelas"       element={<TabelasPreco />} />
-                <Route path="/amostras"      element={<SolicitarAmostras />} />
-                <Route path="/simulador"     element={<SimularVendas />} />
-                <Route path="/briefing"      element={<BriefingBI />} />
                 <Route path="/usuarios"      element={<GestaoUsuarios />} />
                 <Route path="/configuracoes" element={<SettingsPage />} />
                 <Route path="/logistica"     element={<LogisticaPage />} />
@@ -86,6 +80,7 @@ export default function App() {
                 <Route path="/revenda"         element={<RevendaPage />} />
                 <Route path="/agenda"          element={<AgendaPage />} />
                 <Route path="/comodato"        element={<ComodatoPage />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Route>
             </Route>
           </Routes>

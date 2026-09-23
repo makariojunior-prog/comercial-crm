@@ -23,7 +23,6 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
   visitas:             'Visitas Recentes',
   negocios:            'Negócios Ativos',
   notas:               'Notas',
-  conversas_alertas:   'Alertas de Conversas',
   social_comentarios:  'Comentários Instagram',
   frota:               'Alertas de Frota & Rastreamento',
   varejo_fila:         'Fila Varejo',
@@ -33,7 +32,6 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
 }
 
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
-  { id: 'conversas_alertas',  visible: true },  // sempre primeiro
   { id: 'tarefas',            visible: true },
   { id: 'agenda_widget',      visible: true },
   { id: 'visitas',            visible: true },
