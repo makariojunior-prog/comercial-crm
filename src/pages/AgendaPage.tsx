@@ -8,6 +8,7 @@ import { DEAL_TYPES } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 import { useSearchParams } from 'react-router-dom'
 import ClientSearchInput from '../components/ClientSearchInput'
+import ResponsaveisPicker from '../components/ResponsaveisPicker'
 
 const TIPOS = ['Visita', 'Reunião', 'Ligação', 'Entrega', 'Outros'] as const
 
@@ -673,32 +674,12 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
 
           <div>
             <label className="label flex items-center gap-1"><Users size={12} /> Responsáveis</label>
-            {staffOptions.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Carregando equipe…</p>
-            ) : (
-              <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-600 divide-y divide-slate-100 dark:divide-slate-700">
-                {staffOptions.map(name => {
-                  const sel = responsaveis.includes(name)
-                  return (
-                    <label
-                      key={name}
-                      className={`flex items-center gap-2 px-2.5 py-1.5 text-xs ${
-                        hasVisitReport ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={sel}
-                        onChange={() => !hasVisitReport && toggleResp(name)}
-                        disabled={hasVisitReport}
-                        className="w-3.5 h-3.5 accent-orange-500"
-                      />
-                      {name}
-                    </label>
-                  )
-                })}
-              </div>
-            )}
+            <ResponsaveisPicker
+              options={staffOptions}
+              selected={responsaveis}
+              onToggle={toggleResp}
+              disabled={hasVisitReport}
+            />
             {responsaveis.length > 0 && (
               <p className="text-[10px] text-slate-400 mt-1">{responsaveis.join(', ')}</p>
             )}

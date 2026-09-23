@@ -5,6 +5,7 @@ import type { Deal, DealStatus, DealPriority, DealOrigem } from '../types'
 import { DEAL_TYPES, STATUS_ORDER } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
 import ClientSearchInput from './ClientSearchInput'
+import ResponsaveisPicker from './ResponsaveisPicker'
 
 interface Props {
   deal?: Deal | null
@@ -72,12 +73,12 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
 
   useEffect(() => {
     supabase
-      .from('crm_staff')
-      .select('name')
-      .eq('active', true)
-      .order('name')
+      .from('crm_users')
+      .select('nome')
+      .eq('ativo', true)
+      .order('nome')
       .then(({ data }) => {
-        if (data) setStaffOptions(data.map((s: any) => s.name as string))
+        if (data) setStaffOptions(data.map((u: any) => u.nome as string))
       })
   }, [])
 
@@ -205,31 +206,11 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
             <label className="label flex items-center gap-1.5">
               <Users size={13} /> Responsáveis
             </label>
-            {staffOptions.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">
-                Carregando equipe… Cadastre membros em Usuários &gt; Equipe.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {staffOptions.map(name => {
-                  const sel = responsaveis.includes(name)
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => toggleResp(name)}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
-                        sel
-                          ? 'bg-orange-500 border-orange-600 text-white shadow-sm'
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
-                      }`}
-                    >
-                      {sel ? '✓ ' : ''}{name}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+            <ResponsaveisPicker
+              options={staffOptions}
+              selected={responsaveis}
+              onToggle={toggleResp}
+            />
             {responsaveis.length > 0 && (
               <p className="text-[10px] text-slate-400 mt-1.5">
                 {responsaveis.length} selecionado(s): {responsaveis.join(', ')}
