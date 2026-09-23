@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText, Search, ThumbsUp, ThumbsDown, CalendarClock, CheckCircle2, Lock } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, CalendarDays, CalendarPlus, X, Clock, Users, Copy, Trash2, AlertCircle, FileText, Search, ThumbsUp, ThumbsDown, CalendarClock, CheckCircle2, Lock, Briefcase, PartyPopper, ExternalLink } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import type { AgendaCompromisso } from '../types'
+import { DEAL_TYPES } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 import { useSearchParams } from 'react-router-dom'
+import ClientSearchInput from '../components/ClientSearchInput'
 
 const TIPOS = ['Visita', 'Reunião', 'Ligação', 'Entrega', 'Outros'] as const
 
@@ -437,6 +439,21 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
     descricao:   '',
   })
 
+  // Converter em Negócio (só para edição sem negócio já vinculado)
+  const [convertDeal, setConvertDeal] = useState(false)
+  const [dealOrigem, setDealOrigem] = useState<'NOVO' | 'INCREMENTAL'>('NOVO')
+  const [dealClientId, setDealClientId] = useState<string | null>(null)
+  const [dealClientSearch, setDealClientSearch] = useState('')
+  const [dealClientName, setDealClientName] = useState(item?.cliente_nome ?? '')
+  const [dealType, setDealType] = useState<string>(DEAL_TYPES[0])
+
+  // Cadastrar Promotoria (só para edição sem evento já vinculado)
+  const [convertEvent, setConvertEvent] = useState(false)
+  const [eventType, setEventType] = useState('Degustação')
+  const [eventClientId, setEventClientId] = useState<string | null>(null)
+  const [eventClientSearch, setEventClientSearch] = useState('')
+  const [eventNotes, setEventNotes] = useState(item?.descricao ?? '')
+
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
   }
@@ -507,7 +524,43 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
       }
     }
 
-    // 3. Schedule next appointment
+    // 3. Convert to Negócio
+    const dealClientNameResolved = dealOrigem === 'INCREMENTAL' ? dealClientSearch.trim() : dealClientName.trim()
+    if (convertDeal && apptId && dealClientNameResolved) {
+      const { data: dealData, error: dealErr } = await supabase.from('deals').insert({
+        client_name:     dealClientNameResolved,
+        client_id:       dealOrigem === 'INCREMENTAL' ? dealClientId : null,
+        origem_negocio:  dealOrigem,
+        deal_type:       dealType,
+        responsaveis,
+        responsible:     responsaveis[0] ?? null,
+      }).select('id').single()
+      if (!dealErr && dealData?.id) {
+        await supabase.from('agenda_compromissos')
+          .update({ deal_id: dealData.id, updated_at: new Date().toISOString() })
+          .eq('id', apptId)
+      }
+    }
+
+    // 4. Cadastrar Promotoria
+    if (convertEvent && apptId) {
+      const eventDateTime = form.data + 'T' + (form.hora_inicio || '00:00')
+      const { data: eventData, error: eventErr } = await supabase.from('crm_events').insert({
+        title:      titulo,
+        client_id:  eventClientId,
+        event_type: eventType,
+        event_date: eventDateTime,
+        status:     'AGENDADO',
+        notes:      eventNotes.trim() || null,
+      }).select('id').single()
+      if (!eventErr && eventData?.id) {
+        await supabase.from('agenda_compromissos')
+          .update({ crm_event_id: eventData.id, updated_at: new Date().toISOString() })
+          .eq('id', apptId)
+      }
+    }
+
+    // 5. Schedule next appointment
     if (scheduleNext) {
       const nextTitulo = ['Visita', form.cliente_nome].filter(Boolean).join(' — ')
       await supabase.from('agenda_compromissos').insert({
@@ -714,6 +767,130 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Converter em Negócio ── */}
+          {item && !item.deal_id && (
+            <div className={`rounded-xl border transition-all overflow-hidden ${convertDeal ? 'border-purple-300 dark:border-purple-700' : 'border-slate-200 dark:border-slate-600'}`}>
+              <button
+                type="button"
+                onClick={() => setConvertDeal(v => !v)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium transition-colors ${convertDeal ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+              >
+                <span className="flex items-center gap-2">
+                  <Briefcase size={14} className={convertDeal ? 'text-purple-600' : 'text-slate-400'} />
+                  <span className={convertDeal ? 'text-purple-700 dark:text-purple-300 font-semibold' : 'text-slate-600 dark:text-slate-300'}>
+                    Converter em Negócio
+                  </span>
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${convertDeal ? 'rotate-180' : ''}`} />
+              </button>
+              {convertDeal && (
+                <div className="px-3 pb-3 pt-2 space-y-2 bg-purple-50 dark:bg-purple-900/10 border-t border-purple-200 dark:border-purple-800">
+                  <div>
+                    <label className="label">Origem</label>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setDealOrigem('NOVO')} className={`flex-1 py-2 rounded-lg border text-xs font-medium ${dealOrigem === 'NOVO' ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-400 text-purple-700 dark:text-purple-300 border-2' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-500'}`}>Negócio Novo</button>
+                      <button type="button" onClick={() => setDealOrigem('INCREMENTAL')} className={`flex-1 py-2 rounded-lg border text-xs font-medium ${dealOrigem === 'INCREMENTAL' ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-400 text-purple-700 dark:text-purple-300 border-2' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-500'}`}>Negócio Incremental</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Cliente</label>
+                    {dealOrigem === 'INCREMENTAL' ? (
+                      <ClientSearchInput
+                        clientId={dealClientId}
+                        search={dealClientSearch}
+                        onChange={(id, search) => { setDealClientId(id); setDealClientSearch(search) }}
+                        placeholder="Buscar cliente já cadastrado..."
+                      />
+                    ) : (
+                      <input className="input" value={dealClientName} onChange={e => setDealClientName(e.target.value)} placeholder="Nome do cliente (ainda não cadastrado)" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="label">Tipo</label>
+                    <select className="input" value={dealType} onChange={e => setDealType(e.target.value)}>
+                      {DEAL_TYPES.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">
+                    Um negócio será criado a partir deste compromisso — prioridade e acompanhamento você preenche depois, editando o negócio.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          {item && item.deal_id && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700">
+              <Briefcase size={14} className="text-purple-600 dark:text-purple-400 shrink-0" />
+              <p className="text-xs text-purple-700 dark:text-purple-300 font-medium flex-1">Negócio já criado a partir deste compromisso.</p>
+              <a href="#/negocios" className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 font-semibold shrink-0">
+                Ver <ExternalLink size={11} />
+              </a>
+            </div>
+          )}
+
+          {/* ── Cadastrar Promotoria ── */}
+          {item && !item.crm_event_id && (
+            <div className={`rounded-xl border transition-all overflow-hidden ${convertEvent ? 'border-pink-300 dark:border-pink-700' : 'border-slate-200 dark:border-slate-600'}`}>
+              <button
+                type="button"
+                onClick={() => setConvertEvent(v => !v)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium transition-colors ${convertEvent ? 'bg-pink-50 dark:bg-pink-900/20' : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+              >
+                <span className="flex items-center gap-2">
+                  <PartyPopper size={14} className={convertEvent ? 'text-pink-600' : 'text-slate-400'} />
+                  <span className={convertEvent ? 'text-pink-700 dark:text-pink-300 font-semibold' : 'text-slate-600 dark:text-slate-300'}>
+                    Cadastrar Promotoria
+                  </span>
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${convertEvent ? 'rotate-180' : ''}`} />
+              </button>
+              {convertEvent && (
+                <div className="px-3 pb-3 pt-2 space-y-2 bg-pink-50 dark:bg-pink-900/10 border-t border-pink-200 dark:border-pink-800">
+                  <div>
+                    <label className="label">Tipo de evento</label>
+                    <select className="input" value={eventType} onChange={e => setEventType(e.target.value)}>
+                      <option>Degustação</option>
+                      <option>Promoção</option>
+                      <option>Evento Comemorativo</option>
+                      <option>Inauguração</option>
+                      <option>Outro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Cliente</label>
+                    <ClientSearchInput
+                      clientId={eventClientId}
+                      search={eventClientSearch}
+                      onChange={(id, search) => { setEventClientId(id); setEventClientSearch(search) }}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Observações</label>
+                    <textarea
+                      className="input resize-none"
+                      rows={2}
+                      value={eventNotes}
+                      onChange={e => setEventNotes(e.target.value)}
+                      placeholder="Detalhes estratégicos..."
+                    />
+                  </div>
+                  <p className="text-[10px] text-pink-600 dark:text-pink-400 font-medium">
+                    Uma promotoria será criada a partir deste compromisso — materiais e equipe você adiciona depois, na tela de Promotoria.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          {item && item.crm_event_id && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-700">
+              <PartyPopper size={14} className="text-pink-600 dark:text-pink-400 shrink-0" />
+              <p className="text-xs text-pink-700 dark:text-pink-300 font-medium flex-1">Promotoria já criada a partir deste compromisso.</p>
+              <a href="#/promotoria" className="text-xs text-pink-600 dark:text-pink-400 hover:underline flex items-center gap-1 font-semibold shrink-0">
+                Ver <ExternalLink size={11} />
+              </a>
             </div>
           )}
 
