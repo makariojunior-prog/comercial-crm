@@ -1,6 +1,8 @@
 export type DealStatus = 'NOVO' | 'EM ANDAMENTO' | 'SUCESSO' | 'DESISTIU' | 'CANCELADO'
 export type DealPriority = 'BAIXA' | 'MÉDIA' | 'ALTA'
 
+export type DealOrigem = 'NOVO' | 'INCREMENTAL'
+
 export interface Deal {
   id: string
   start_date: string | null
@@ -18,6 +20,8 @@ export interface Deal {
   end_date: string | null
   potential_notes: string | null
   created_at: string
+  origem_negocio: DealOrigem | null
+  client_id: string | null
 }
 
 export interface Visit {
@@ -665,6 +669,8 @@ export interface AgendaCompromisso {
   aprovado_por: string | null
   created_at: string
   updated_at: string
+  crm_event_id: string | null
+  deal_id: string | null
 }
 
 // ─── Conversas WhatsApp ────────────────────────────────────────
