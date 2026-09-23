@@ -46,8 +46,8 @@ export default function AgendaPage() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
   useEffect(() => {
-    supabase.from('crm_staff').select('name').eq('active', true).order('name')
-      .then(({ data }) => { if (data) setStaffOptions(data.map((s: any) => s.name)) })
+    supabase.from('crm_users').select('nome').eq('ativo', true).order('nome')
+      .then(({ data }) => { if (data) setStaffOptions(data.map((u: any) => u.nome)) })
   }, [])
 
   const [searchParams, setSearchParams] = useSearchParams()
@@ -676,23 +676,25 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
             {staffOptions.length === 0 ? (
               <p className="text-xs text-slate-400 italic">Carregando equipe…</p>
             ) : (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-600 divide-y divide-slate-100 dark:divide-slate-700">
                 {staffOptions.map(name => {
                   const sel = responsaveis.includes(name)
                   return (
-                    <button
+                    <label
                       key={name}
-                      type="button"
-                      onClick={() => !hasVisitReport && toggleResp(name)}
-                      disabled={hasVisitReport}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
-                        sel
-                          ? 'bg-orange-500 border-orange-600 text-white shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-600'
-                      } disabled:opacity-60 disabled:cursor-not-allowed`}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 text-xs ${
+                        hasVisitReport ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                      }`}
                     >
-                      {sel ? '✓ ' : ''}{name}
-                    </button>
+                      <input
+                        type="checkbox"
+                        checked={sel}
+                        onChange={() => !hasVisitReport && toggleResp(name)}
+                        disabled={hasVisitReport}
+                        className="w-3.5 h-3.5 accent-orange-500"
+                      />
+                      {name}
+                    </label>
                   )
                 })}
               </div>
