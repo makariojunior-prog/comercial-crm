@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, AlertCircle, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Deal, DealStatus, DealPriority } from '../types'
+import type { Deal, DealStatus, DealPriority, DealOrigem } from '../types'
 import { DEAL_TYPES, STATUS_ORDER } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
+import ClientSearchInput from './ClientSearchInput'
 
 interface Props {
   deal?: Deal | null
@@ -58,9 +59,16 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
   }
   const [responsaveis, setResponsaveis] = useState<string[]>(initResponsaveis)
   const [staffOptions, setStaffOptions] = useState<string[]>([])
+  const [origemNegocio, setOrigemNegocio] = useState<DealOrigem | ''>(deal?.origem_negocio ?? '')
+  const [clientId, setClientId] = useState<string | null>(deal?.client_id ?? null)
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState<string | null>(null)
   useEscKey(useCallback(onClose, [onClose]))
+
+  function setOrigem(value: DealOrigem | '') {
+    setOrigemNegocio(value)
+    if (value !== 'INCREMENTAL') setClientId(null)
+  }
 
   useEffect(() => {
     supabase
@@ -93,6 +101,8 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
       responsaveis:    responsaveis,
       end_date:        form.end_date        || null,
       potential_notes: form.potential_notes || null,
+      origem_negocio:  origemNegocio || null,
+      client_id:       origemNegocio === 'INCREMENTAL' ? clientId : null,
     }
     const { error: err } = deal
       ? await supabase.from('deals').update(payload).eq('id', deal.id)
@@ -119,8 +129,36 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
+              <label className="label">Origem</label>
+              <div className="flex gap-2">
+                {([['', 'Não informado'], ['NOVO', 'Negócio Novo'], ['INCREMENTAL', 'Negócio Incremental']] as [DealOrigem | '', string][]).map(([value, label]) => (
+                  <button
+                    key={value || 'none'}
+                    type="button"
+                    onClick={() => setOrigem(value)}
+                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-all ${
+                      origemNegocio === value
+                        ? 'bg-purple-50 border-purple-400 text-purple-700 border-2'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="col-span-2">
               <label className="label">Cliente *</label>
-              <input className="input" value={form.client_name} onChange={e => set('client_name', e.target.value)} placeholder="Nome do cliente" />
+              {origemNegocio === 'INCREMENTAL' ? (
+                <ClientSearchInput
+                  clientId={clientId}
+                  search={form.client_name}
+                  onChange={(id, search) => { setClientId(id); set('client_name', search) }}
+                  placeholder="Buscar cliente já cadastrado..."
+                />
+              ) : (
+                <input className="input" value={form.client_name} onChange={e => set('client_name', e.target.value)} placeholder="Nome do cliente" />
+              )}
             </div>
             <div>
               <label className="label">Nome do Contato</label>
