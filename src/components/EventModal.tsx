@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, Calendar, MapPin, Package, Users, Save, AlertCircle, Plus, Trash2 } from 'lucide-react'
+import { X, Calendar, Package, Users, Save, AlertCircle, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Event, EventStatus, Client, Staff, EventMaterial } from '../types'
+import type { Event, EventStatus, Staff, EventMaterial } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
+import ClientSearchInput from './ClientSearchInput'
 
 interface EventModalProps {
   event?: Event | null
@@ -13,9 +14,8 @@ interface EventModalProps {
 export default function EventModal({ event, onClose, onSaved }: EventModalProps) {
   useEscKey(useCallback(onClose, [onClose]))
   const [title, setTitle] = useState(event?.title ?? '')
-  const [clientId, setClientId] = useState(event?.client_id ?? '')
+  const [clientId, setClientId] = useState<string | null>(event?.client_id ?? null)
   const [clientSearch, setClientSearch] = useState(event?.client_nome ?? '')
-  const [showClientDropdown, setShowClientDropdown] = useState(false)
   const [eventType, setEventType] = useState(event?.event_type ?? 'Degustação')
   const [eventDate, setEventDate] = useState(event?.event_date ? event.event_date.substring(0, 16) : '')
   const [status, setStatus] = useState<EventStatus>(event?.status ?? 'AGENDADO')
@@ -24,36 +24,14 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
   const [materials, setMaterials] = useState<Partial<EventMaterial>[]>(event?.materials ?? [])
   const [selectedStaff, setSelectedStaff] = useState<string[]>(event?.staff?.map(s => s.staff_id) ?? [])
 
-  const [clients, setClients] = useState<Client[]>([])
   const [allStaff, setAllStaff] = useState<Staff[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'info' | 'materials' | 'staff'>('info')
 
-  const filteredClients = clients.filter(c =>
-    c.nome.toLowerCase().includes(clientSearch.toLowerCase())
-  )
-
-  function selectClient(client: Client) {
-    setClientId(client.id)
-    setClientSearch(client.nome)
-    setShowClientDropdown(false)
-  }
-
-  function clearClient() {
-    setClientId('')
-    setClientSearch('')
-    setShowClientDropdown(false)
-  }
-
   useEffect(() => {
-    async function loadData() {
-      const { data: cData } = await supabase.from('crm_clients').select('id, nome').eq('status', 'ATIVO').order('nome')
-      const { data: sData } = await supabase.from('crm_staff').select('*, role:crm_roles(name)').eq('active', true).order('name')
-      if (cData) setClients(cData as Client[])
-      if (sData) setAllStaff(sData as Staff[])
-    }
-    loadData()
+    supabase.from('crm_staff').select('*, role:crm_roles(name)').eq('active', true).order('name')
+      .then(({ data }) => { if (data) setAllStaff(data as Staff[]) })
   }, [])
 
   async function save() {
@@ -66,7 +44,7 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
     try {
       const eventData = {
         title: title.trim(),
-        client_id: clientId || null,
+        client_id: clientId,
         event_type: eventType,
         event_date: eventDate,
         status,
@@ -172,64 +150,11 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
               </div>
               <div>
                 <label className="label">Cliente</label>
-                <div className="relative">
-                  <input
-                    className="input pr-8"
-                    value={clientSearch}
-                    onChange={e => {
-                      setClientSearch(e.target.value)
-                      setClientId('')
-                      setShowClientDropdown(true)
-                    }}
-                    onFocus={() => setShowClientDropdown(true)}
-                    onBlur={() => setTimeout(() => setShowClientDropdown(false), 150)}
-                    placeholder="Buscar cliente pelo nome..."
-                  />
-                  {clientSearch && (
-                    <button
-                      type="button"
-                      onClick={clearClient}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                  {showClientDropdown && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-                      <button
-                        type="button"
-                        onMouseDown={clearClient}
-                        className="w-full text-left px-3 py-2 text-xs text-slate-400 italic hover:bg-slate-50 border-b border-slate-50"
-                      >
-                        (Sem cliente vinculado)
-                      </button>
-                      {filteredClients.map(c => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onMouseDown={() => selectClient(c)}
-                          className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${
-                            clientId === c.id
-                              ? 'bg-orange-50 text-orange-600 font-bold'
-                              : 'text-slate-700 hover:bg-orange-50'
-                          }`}
-                        >
-                          {c.nome}
-                        </button>
-                      ))}
-                      {filteredClients.length === 0 && (
-                        <p className="px-3 py-3 text-xs text-slate-400 italic">
-                          Nenhum cliente encontrado para "{clientSearch}"
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {clientId && (
-                  <p className="text-[10px] text-green-600 font-medium mt-1 flex items-center gap-1">
-                    <MapPin size={10} /> Cliente selecionado
-                  </p>
-                )}
+                <ClientSearchInput
+                  clientId={clientId}
+                  search={clientSearch}
+                  onChange={(id, search) => { setClientId(id); setClientSearch(search) }}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
