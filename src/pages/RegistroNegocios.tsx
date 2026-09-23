@@ -21,6 +21,7 @@ export default function RegistroNegocios() {
   const [filterStatus, setFilterStatus] = useState<string>('EM ANDAMENTO')
   const [filterResp, setFilterResp] = useState<string>(ALL)
   const [filterType, setFilterType] = useState<string>(ALL)
+  const [filterOrigem, setFilterOrigem] = useState<string>(ALL)
   const [editDeal, setEditDeal] = useState<Deal | null | undefined>(undefined)
   const [quickDeal, setQuickDeal] = useState<Deal | null>(null)
   const [sortBy, setSortBy] = useState<'date' | 'client' | 'contact' | 'priority'>('date')
@@ -66,7 +67,8 @@ export default function RegistroNegocios() {
       const respArr = d.responsaveis?.length ? d.responsaveis : (d.responsible ? [d.responsible] : [])
       const matchResp = filterResp === ALL || respArr.includes(filterResp)
       const matchType = filterType === ALL || d.deal_type === filterType
-      return matchSearch && matchStatus && matchResp && matchType
+      const matchOrigem = filterOrigem === ALL || (d.origem_negocio ?? 'NAO_INFORMADO') === filterOrigem
+      return matchSearch && matchStatus && matchResp && matchType && matchOrigem
     })
     return result.sort((a, b) => {
       if (sortBy === 'client')   return a.client_name.localeCompare(b.client_name, 'pt')
@@ -77,7 +79,7 @@ export default function RegistroNegocios() {
       const dateB = b.last_contact_date ?? b.start_date ?? ''
       return dateB.localeCompare(dateA)
     })
-  }, [deals, search, filterStatus, filterResp, filterType, sortBy])
+  }, [deals, search, filterStatus, filterResp, filterType, filterOrigem, sortBy])
 
   return (
     <div className="space-y-4">
@@ -117,6 +119,12 @@ export default function RegistroNegocios() {
           </select>
           <select className="input shrink-0 w-auto text-xs" value={filterResp} onChange={e => setFilterResp(e.target.value)}>
             {responsaveis.map(r => <option key={r}>{r}</option>)}
+          </select>
+          <select className="input shrink-0 w-auto text-xs" value={filterOrigem} onChange={e => setFilterOrigem(e.target.value)}>
+            <option value={ALL}>Origem: Todos</option>
+            <option value="NOVO">Negócio Novo</option>
+            <option value="INCREMENTAL">Negócio Incremental</option>
+            <option value="NAO_INFORMADO">Não informado</option>
           </select>
           <select className="input shrink-0 w-auto text-xs" value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}>
             <option value="date">Mais recentes</option>
