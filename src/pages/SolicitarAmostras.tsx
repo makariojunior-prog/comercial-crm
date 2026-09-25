@@ -62,7 +62,7 @@ function buildWhatsApp(req: AmoRequest): string {
     return `- ${it.qtd}x ${it.nome} (${it.tipo === 'assado' ? 'Assado' : 'Congelado'}${extra})`
   }).join('\n')
   if (req.observacoes) msg += `\n\n*Obs:* ${req.observacoes}`
-  msg += '\n\n_CRM Comercial_'
+  msg += '\n\n_Comercial_'
   return 'https://api.whatsapp.com/send?text=' + encodeURIComponent(msg)
 }
 
@@ -118,7 +118,7 @@ function PrintOrder({ req }: { req: AmoRequest }) {
           <p style={{ margin: '4px 0 0', fontSize: 13 }}>{req.observacoes}</p>
         </div>
       )}
-      <p style={{ marginTop: 20, fontSize: 11, color: '#aaa', textAlign: 'center' }}>CRM Comercial · Cantina / Lumar</p>
+      <p style={{ marginTop: 20, fontSize: 11, color: '#aaa', textAlign: 'center' }}>Comercial · Cantina / Lumar</p>
     </div>
   )
 }
