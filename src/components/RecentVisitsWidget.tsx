@@ -35,7 +35,7 @@ export default function RecentVisitsWidget() {
       .from('visits')
       .select('id, client_name, visit_date, visit_type, status, report, priority, created_at')
       .order('created_at', { ascending: false })
-      .limit(8)
+      .limit(5)
     setVisits((data || []) as Visit[])
     setLoading(false)
   }
@@ -50,7 +50,7 @@ export default function RecentVisitsWidget() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'visits' },
         (payload) => {
-          setVisits(prev => [payload.new as Visit, ...prev].slice(0, 8))
+          setVisits(prev => [payload.new as Visit, ...prev].slice(0, 5))
         }
       )
       .subscribe()
@@ -60,8 +60,8 @@ export default function RecentVisitsWidget() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold text-slate-700 flex items-center gap-2">
+      <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-700/50">
+        <h2 className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2 text-sm">
           <MapPin size={16} className="text-orange-500" />
           Visitas Recentes
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" title="Tempo real" />
