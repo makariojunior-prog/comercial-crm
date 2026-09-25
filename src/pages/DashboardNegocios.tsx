@@ -314,13 +314,12 @@ function AlertDealRow({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) 
   return (
     <button
       onClick={onUpdate}
-      className="w-full flex items-center justify-between bg-white dark:bg-slate-700 rounded-lg px-3 py-2.5 border border-red-100 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-[.99] transition-all text-left"
+      className="w-full flex items-center justify-between bg-white dark:bg-slate-700/50 rounded-lg px-3 py-2 border border-red-100 dark:border-red-800/30 hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-[.99] transition-all text-left"
     >
-      <div className="min-w-0">
-        <p className="font-medium text-sm text-slate-800 dark:text-slate-100 truncate">{deal.client_name}</p>
-        <p className="text-xs text-red-500 dark:text-red-400">{days} dias sem contato · {getResponsaveis(deal)}</p>
+      <div className="min-w-0 flex-1 flex items-center gap-2">
+        <p className="font-medium text-xs text-slate-800 dark:text-slate-100 truncate">{deal.client_name}</p>
+        <span className="text-[10px] text-red-500 dark:text-red-400 shrink-0 bg-red-50 dark:bg-red-900/20 px-1.5 rounded">{days}d</span>
       </div>
-      <span className="text-xs text-orange-500 font-semibold shrink-0 ml-3">Toque para atualizar →</span>
     </button>
   )
 }
@@ -332,44 +331,39 @@ function DealCard({ deal, onUpdate }: { deal: Deal; onUpdate: () => void }) {
   return (
     <button
       onClick={onUpdate}
-      className={`card p-4 w-full text-left transition-all hover:shadow-md active:scale-[.99] ${stale ? 'border-red-200' : ''}`}
+      className={`card p-3 w-full text-left transition-all hover:shadow-md active:scale-[.99] group ${stale ? 'border-red-200/60 dark:border-red-900/30 bg-red-50/10' : ''}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-start justify-between gap-2">
+          <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">{deal.client_name}</p>
+          <div className="flex items-center gap-1 shrink-0 scale-90 origin-top-right">
             <TypeBadge type={deal.deal_type} />
             <PriorityBadge priority={deal.priority} />
           </div>
-          <p className="font-semibold text-slate-800 dark:text-slate-100">{deal.client_name}</p>
-          {deal.contact_name && (
-            <p className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              <Phone size={11} />
-              {deal.contact_name}
-              {deal.contact_phone && ` · ${deal.contact_phone}`}
-            </p>
-          )}
-          {deal.follow_up && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 line-clamp-2 italic">"{deal.follow_up}"</p>
-          )}
-          <div className="flex items-center justify-between mt-2 gap-2">
+        </div>
+        
+        {deal.follow_up ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 italic">"{deal.follow_up}"</p>
+        ) : deal.contact_name ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
+            <Phone size={10} /> {deal.contact_name}
+          </p>
+        ) : null}
+
+        <div className="flex items-center justify-between mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-700/50">
+          <div className="flex items-center gap-2 truncate">
             {getResponsaveis(deal) && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800 shrink-0">
-                <User size={10} /> {getResponsaveis(deal)}
+              <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400 truncate">
+                {getResponsaveis(deal).split(',')[0]}
               </span>
             )}
-            <div className="flex items-center gap-2 ml-auto">
-              <span className={`text-xs font-medium ${stale ? 'text-red-500' : 'text-slate-400'}`}>
-                {days === 0 ? '🟢 Hoje' : stale ? `⚠️ ${days}d sem contato` : `${days}d`}
-              </span>
-              {deal.last_contact_date && (
-                <span className="text-xs text-slate-400">
-                  {format(parseISO(deal.last_contact_date), 'dd/MM', { locale: ptBR })}
-                </span>
-              )}
-            </div>
+          </div>
+          <div className="flex items-center shrink-0">
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${stale ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+              {days === 0 ? 'Hoje' : stale ? `⚠️ ${days}d sem contato` : `${days}d`}
+            </span>
           </div>
         </div>
-        <span className="text-xs text-orange-400 font-semibold shrink-0 mt-1">Toque →</span>
       </div>
     </button>
   )
