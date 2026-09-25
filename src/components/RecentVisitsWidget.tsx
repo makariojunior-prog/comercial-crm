@@ -91,59 +91,53 @@ export default function RecentVisitsWidget() {
             return (
               <div
                 key={v.id}
-                className={`rounded-xl border p-3 transition-all ${
+                className={`rounded-lg border p-2 transition-all ${
                   isHighPriority
-                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                    : 'bg-white dark:bg-slate-700 border-slate-100 dark:border-slate-600 hover:border-slate-200 dark:hover:border-slate-500 hover:shadow-sm'
+                    ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200/50 dark:border-red-800/30'
+                    : 'bg-white/80 dark:bg-slate-700/50 border-slate-100 dark:border-slate-700/50 hover:shadow-sm'
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                      {isHighPriority && (
-                        <AlertTriangle size={12} className="text-red-500 shrink-0" />
-                      )}
-                      <p className={`font-semibold text-sm truncate ${isHighPriority ? 'text-red-800 dark:text-red-300' : 'text-slate-800 dark:text-slate-100'}`}>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {isHighPriority && <AlertTriangle size={10} className="text-red-500 shrink-0" />}
+                      <p className={`font-medium text-xs truncate ${isHighPriority ? 'text-red-800 dark:text-red-300' : 'text-slate-800 dark:text-slate-100'}`}>
                         {v.client_name}
                       </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
                       {v.visit_type && (
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase shrink-0 ${TYPE_COLORS[v.visit_type] || TYPE_COLORS['Outro']}`}>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${TYPE_COLORS[v.visit_type] || TYPE_COLORS['Outro']}`}>
                           {v.visit_type}
                         </span>
                       )}
                       {(() => {
                         try {
                           const d = parseISO(v.visit_date ?? '')
-                          if (isToday(d)) return (
-                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">
-                              Hoje
-                            </span>
-                          )
-                          if (isYesterday(d)) return (
-                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
-                              Ontem
-                            </span>
-                          )
-                        } catch { /* noop */ }
+                          if (isToday(d)) return <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Hoje</span>
+                          if (isYesterday(d)) return <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Ontem</span>
+                        } catch {}
                         return null
                       })()}
                     </div>
-                    {hasReport && (
-                      <p className={`text-[11px] line-clamp-1 leading-relaxed ${isHighPriority ? 'text-red-700 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                        {v.report}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {getResponsaveis(v).split(', ').filter(Boolean).map(name => (
-                        <span key={name} className="text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded-full border border-orange-100 dark:border-orange-800">
-                          {name}
-                        </span>
-                      ))}
-                    </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0 text-[10px] text-slate-400">
-                    <Clock size={10} />
-                    {formatDate(v.visit_date)}
+                  
+                  {hasReport && (
+                    <p className={`text-[11px] truncate ${isHighPriority ? 'text-red-700/80 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                      "{v.report}"
+                    </p>
+                  )}
+                  
+                  <div className="flex items-center justify-between mt-0.5 pt-1 border-t border-slate-100/50 dark:border-slate-700/30">
+                    {getResponsaveis(v) && (
+                      <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 truncate">
+                        {getResponsaveis(v).split(',')[0]}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-0.5 text-[9px] text-slate-400">
+                      <Clock size={9} />
+                      {formatDate(v.visit_date)}
+                    </div>
                   </div>
                 </div>
               </div>
