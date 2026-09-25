@@ -113,7 +113,7 @@ export default function Layout() {
                 <Link to="/dashboard" className="flex items-center gap-2.5 mb-3">
                   <img src={logoUrl} alt="Cantina" className="w-8 h-8 shrink-0" style={{ filter: 'invert(1)' }} />
                   <div>
-                    <p className="font-bold text-sm leading-tight">CRM Comercial</p>
+                    <p className="font-bold text-sm leading-tight">Comercial</p>
                     <p className="text-xs text-slate-400">Cantina · Lumar</p>
                   </div>
                 </Link>
@@ -236,7 +236,7 @@ export default function Layout() {
         <header className="lg:hidden bg-slate-800 text-white px-4 py-3 flex items-center gap-2.5">
           <Link to="/dashboard" className="flex items-center gap-2.5 flex-1 min-w-0">
             <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0" style={{ filter: 'invert(1)' }} />
-            <p className="font-bold text-sm truncate">CRM Comercial · Cantina Lumar</p>
+            <p className="font-bold text-sm truncate">Comercial · Cantina Lumar</p>
           </Link>
           <button onClick={() => setSearchOpen(true)} className="text-slate-400 hover:text-white p-1 transition-colors">
             <Search size={16} />
@@ -254,7 +254,7 @@ export default function Layout() {
           <header className="hidden lg:flex items-center gap-4 px-5 py-3 bg-white dark:bg-slate-800 shrink-0 border-b border-slate-200 dark:border-slate-700/60">
             <Link to="/dashboard" className="flex items-center gap-2.5 shrink-0">
               <img src={logoUrl} alt="Cantina" className="w-7 h-7 shrink-0 opacity-80" />
-              <p className="font-bold text-sm text-slate-700 dark:text-slate-200 shrink-0">CRM Comercial</p>
+              <p className="font-bold text-sm text-slate-700 dark:text-slate-200 shrink-0">Comercial</p>
             </Link>
             {/* Central search */}
             <button

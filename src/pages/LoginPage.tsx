@@ -30,7 +30,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center mb-8 gap-3">
           <img src={logoUrl} alt="Cantina" className="w-14 h-14" style={{ filter: 'invert(1)' }} />
           <div className="text-center">
-            <p className="text-white font-bold text-xl">CRM Comercial</p>
+            <p className="text-white font-bold text-xl">Comercial</p>
             <p className="text-slate-400 text-sm">Cantina em Casa · Lumar</p>
           </div>
         </div>
