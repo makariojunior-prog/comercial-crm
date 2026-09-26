@@ -64,7 +64,23 @@ export default function DashboardNegocios() {
       .from('dashboard_fixed_widgets')
       .select('widget_id, visible, ordem')
       .order('ordem')
-      .then(({ data }) => setFixedWidgets(data ?? []))
+      .then(async ({ data }) => {
+        const rows = data ?? []
+        setFixedWidgets(rows)
+        // Se ainda não existir 'status_loja' na tabela do banco, tenta inserir no topo
+        if (!rows.some(w => w.widget_id === 'status_loja')) {
+          try {
+            await supabase.from('dashboard_fixed_widgets').insert({
+              widget_id: 'status_loja',
+              visible: true,
+              ordem: -1,
+              updated_at: new Date().toISOString(),
+            })
+          } catch {
+            // Ignora se não for admin
+          }
+        }
+      })
   }, [])
 
   const active = deals.filter(d => d.status === 'NOVO' || d.status === 'EM ANDAMENTO')
@@ -72,7 +88,15 @@ export default function DashboardNegocios() {
   const novo   = active.filter(d => d.status === 'NOVO')
   const emAndamento = active.filter(d => d.status === 'EM ANDAMENTO')
 
-
+  // Garante que 'status_loja' esteja sempre presente no topo da seção fixa para todos os usuários
+  const effectiveFixedWidgets = useMemo(() => {
+    const list = [...fixedWidgets]
+    const exists = list.some(w => w.widget_id === 'status_loja')
+    if (!exists) {
+      list.unshift({ widget_id: 'status_loja', visible: true, ordem: -1 })
+    }
+    return list
+  }, [fixedWidgets])
 
   // Merge saved prefs with defaults (in case new widgets were added)
   const orderedWidgets = useMemo(() => {
@@ -85,8 +109,8 @@ export default function DashboardNegocios() {
 
   // Fixed widgets take priority — removed from the personalized section
   const fixedWidgetIds = useMemo(
-    () => new Set(fixedWidgets.filter(w => w.visible).map(w => w.widget_id)),
-    [fixedWidgets]
+    () => new Set(effectiveFixedWidgets.filter(w => w.visible).map(w => w.widget_id)),
+    [effectiveFixedWidgets]
   )
 
   const personalWidgets = useMemo(
@@ -206,8 +230,8 @@ export default function DashboardNegocios() {
   return (
     <div className="space-y-5">
       <div className="space-y-6">
-        {/* ── Seção Fixa — definida pelo administrador ── */}
-        {fixedWidgets.some(w => w.visible) && (
+        {/* ── Seção Fixa — definida pelo administrador (Visível para todos os usuários) ── */}
+        {effectiveFixedWidgets.some(w => w.visible) && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wide bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
@@ -216,7 +240,7 @@ export default function DashboardNegocios() {
               <div className="h-px flex-1 bg-orange-200 dark:bg-orange-800/40" />
             </div>
             {buildMasonry(
-              fixedWidgets.filter(w => w.visible).map(w => ({ id: w.widget_id, visible: true })),
+              effectiveFixedWidgets.filter(w => w.visible).map(w => ({ id: w.widget_id, visible: true })),
               'fixed'
             )}
           </div>
@@ -225,7 +249,7 @@ export default function DashboardNegocios() {
         {/* ── Seção Personalizada ── */}
         {personalWidgets.length > 0 && (
           <div className="space-y-4">
-            {fixedWidgets.some(w => w.visible) && (
+            {effectiveFixedWidgets.some(w => w.visible) && (
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
                   <User size={9} /> Visão Personalizada
