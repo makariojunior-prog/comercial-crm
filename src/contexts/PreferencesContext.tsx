@@ -29,9 +29,11 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
   posvendas:           'Pós-Venda Pendentes',
   resumo_pedidos:      'Resumo do Dia (Varejo + Atacado)',
   agenda_widget:       'Agenda',
+  status_loja:         'Status das Lojas (99Food & iFood)',
 }
 
 export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
+  { id: 'status_loja',        visible: true },
   { id: 'tarefas',            visible: true },
   { id: 'agenda_widget',      visible: true },
   { id: 'visitas',            visible: true },
@@ -43,6 +45,7 @@ export const DEFAULT_DASHBOARD_WIDGETS: DashboardWidget[] = [
   { id: 'posvendas',          visible: true },
   { id: 'resumo_pedidos',     visible: true },
 ]
+
 
 const DEFAULT_PREFS: UserPreferences = {
   navOrder: [],

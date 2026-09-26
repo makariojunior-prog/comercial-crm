@@ -25,7 +25,9 @@ export const ALL_MODULES = [
   { id: 'revenda',         label: 'Revenda' },
   { id: 'agenda',          label: 'Agenda' },
   { id: 'comodato',        label: 'Comodato' },
+  { id: 'loja',            label: 'Loja' },
 ] as const
+
 
 export type ModuleId = typeof ALL_MODULES[number]['id']
 

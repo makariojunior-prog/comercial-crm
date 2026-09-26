@@ -5,7 +5,7 @@ import {
   CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Truck,
   ShoppingBag, MessageSquare, Instagram, Package2, Store, Banknote, TrendingUp,
   Building2, CalendarDays, PanelLeft, PanelBottom, Search, ChevronsLeft, ChevronsRight,
-  PackageOpen, LayoutGrid,
+  PackageOpen, LayoutGrid, UserCheck,
 } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
@@ -14,6 +14,7 @@ import { usePreferences } from '../contexts/PreferencesContext'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import GlobalSearch from './GlobalSearch'
+import DeliveryStatusWidget from './DeliveryStatusWidget'
 
 // Porta de entrada do grupo: login único e atalho para os outros aplicativos.
 const PORTAL_URL = 'https://portal.cantinaemcasa.com/home'
@@ -29,10 +30,11 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/promotoria',     icon: Calendar,        label: 'Promotoria',       module: 'promotoria'      },
   { to: '/tabelas',        icon: DollarSign,      label: 'Tabelas',          module: 'tabelas'         },
   { to: '/varejo',         icon: ShoppingBag,     label: 'Varejo',           module: 'varejo'          },
+  { to: '/loja',           icon: Store,           label: 'Loja',            module: 'loja'            },
   { to: '/conversas',      icon: MessageSquare,   label: 'Automações',       module: 'conversas'       },
   { to: '/social',         icon: Instagram,       label: 'Social',           module: 'social'          },
   { to: '/atacado',        icon: Package2,        label: 'Atacado',          module: 'atacado'         },
-  { to: '/clientes-varejo',icon: Store,           label: 'Cli. Varejo',      module: 'varejo_clientes' },
+  { to: '/clientes-varejo',icon: UserCheck,       label: 'Cli. Varejo',      module: 'varejo_clientes' },
   { to: '/cobranca',       icon: Banknote,        label: 'Cobrança',         module: 'cobranca'        },
   { to: '/comissao',       icon: TrendingUp,      label: 'Comissões',        module: 'comissao'        },
   { to: '/revenda',        icon: Building2,       label: 'Revenda',          module: 'revenda'         },
@@ -42,6 +44,7 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/usuarios',       icon: ShieldCheck,     label: 'Usuários',         module: 'admin'           },
   { to: '/configuracoes',  icon: Settings,        label: 'Configurações',    module: 'personal'        },
 ]
+
 
 export default function Layout() {
   const { profile, isAdmin, canAccess, signOut } = useAuth()
@@ -267,6 +270,7 @@ export default function Layout() {
             </button>
             {profile && (
               <div className="flex items-center gap-2.5 shrink-0">
+                <DeliveryStatusWidget />
                 <div className="text-right hidden xl:block">
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
                   <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
@@ -308,29 +312,32 @@ export default function Layout() {
               </button>
             )}
 
-            {/* User info + logout */}
-            {profile && (
-              <div className="flex items-center gap-2.5 shrink-0 ml-auto">
-                <div className="text-right hidden xl:block">
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
-                  <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
-                </div>
-                <a
-                  href={PORTAL_URL}
-                  title="Voltar ao Portal"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                >
-                  <LayoutGrid size={14} /> <span className="hidden xl:inline">Portal</span>
-                </a>
-                <button
-                  onClick={signOut}
-                  title="Sair"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                >
-                  <LogOut size={14} /> <span className="hidden xl:inline">Sair</span>
-                </button>
-              </div>
-            )}
+            {/* Delivery status widget + User info + logout */}
+            <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+              <DeliveryStatusWidget />
+              {profile && (
+                <>
+                  <div className="text-right hidden xl:block">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
+                    <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
+                  </div>
+                  <a
+                    href={PORTAL_URL}
+                    title="Voltar ao Portal"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                  >
+                    <LayoutGrid size={14} /> <span className="hidden xl:inline">Portal</span>
+                  </a>
+                  <button
+                    onClick={signOut}
+                    title="Sair"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                  >
+                    <LogOut size={14} /> <span className="hidden xl:inline">Sair</span>
+                  </button>
+                </>
+              )}
+            </div>
           </header>
         )}
 

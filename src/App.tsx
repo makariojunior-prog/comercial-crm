@@ -30,8 +30,10 @@ const ComissaoPage       = lazy(() => import('./pages/ComissaoPage'))
 const RevendaPage        = lazy(() => import('./pages/RevendaPage'))
 const AgendaPage         = lazy(() => import('./pages/AgendaPage'))
 const ComodatoPage       = lazy(() => import('./pages/ComodatoPage'))
+const LojaPage           = lazy(() => import('./pages/LojaPage'))
 
 function PageLoader() {
+
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -80,7 +82,9 @@ export default function App() {
                 <Route path="/revenda"         element={<RevendaPage />} />
                 <Route path="/agenda"          element={<AgendaPage />} />
                 <Route path="/comodato"        element={<ComodatoPage />} />
+                <Route path="/loja"            element={<LojaPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
               </Route>
             </Route>
           </Routes>

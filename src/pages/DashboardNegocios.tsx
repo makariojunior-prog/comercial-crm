@@ -18,8 +18,10 @@ import SocialWidget from '../components/SocialWidget'
 import PosVendaWidget from '../components/PosVendaWidget'
 import ResumoPedidosWidget from '../components/ResumoPedidosWidget'
 import AgendaWidget from '../components/AgendaWidget'
+import DeliveryDashboardCard from '../components/DeliveryDashboardCard'
 import { usePreferences, DEFAULT_DASHBOARD_WIDGETS } from '../contexts/PreferencesContext'
 import { useSearchParams, Link } from 'react-router-dom'
+
 
 export default function DashboardNegocios() {
   const [deals, setDeals] = useState<Deal[]>([])
@@ -91,10 +93,12 @@ export default function DashboardNegocios() {
   )
 
   // Widgets that always span both columns (full width)
-  const FULL_WIDTH = new Set(['frota', 'tarefas_eventos', 'visitas_negocios'])
+  const FULL_WIDTH = new Set(['frota', 'tarefas_eventos', 'visitas_negocios', 'status_loja'])
 
   function renderWidget(id: string) {
     switch (id) {
+      case 'status_loja':
+        return <DeliveryDashboardCard />
       case 'tarefas_eventos':  // legado
         return <DashboardTasks />
       case 'visitas_negocios':  // legado
@@ -155,6 +159,7 @@ export default function DashboardNegocios() {
         return null
     }
   }
+
 
   // Reutilizável: gera layout masonry de 2 colunas para um grupo de widgets
   function buildMasonry(widgets: { id: string; visible: boolean }[], prefix: string) {

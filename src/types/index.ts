@@ -1020,3 +1020,20 @@ export function comodatoContratoAlerta(dataFim: string | null | undefined): 'ven
   if (dias <= 60) return 'vencendo'
   return null
 }
+
+export type DeliveryCanal = 'IFOOD' | '99FOOD'
+export type DeliveryStatus = 'OPEN' | 'CLOSED' | 'PAUSED'
+
+export interface LojaDeliveryStatus {
+  id: string
+  canal: DeliveryCanal
+  status: DeliveryStatus
+  motivo_pausa: string | null
+  tempo_entrega_min: number | null
+  reputacao_score: number | null
+  ultima_verificacao: string | null
+  alerta_ativo: boolean
+  mensagem_alerta: string | null
+  updated_at: string
+}
+
