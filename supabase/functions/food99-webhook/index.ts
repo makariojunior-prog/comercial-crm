@@ -115,12 +115,44 @@ Deno.serve(async (req) => {
 // o status independente do formato, e será refinada conforme os logs reais.
 
 function inferStoreStatus(payload: any): { status: string; reason: string | null } | null {
+  const data = payload?.data ?? payload
+
+  // 99Food oficial: biz_status e store_status numéricos
+  // biz_status: 1 (Online/Aberta), 2 (Offline/Fechada)
+  // store_status: 1 (Open), 2 (Paused), 3 (Closed)
+  // sub_biz_status: 1 (Normal), 2 (Pausa manual), 3 (Sobrecarga), 4 (Atraso/falha aceite), 5 (Fora do horário)
+  if (data?.biz_status !== undefined || data?.store_status !== undefined) {
+    const bizStatus = Number(data.biz_status)
+    const storeStatus = Number(data.store_status)
+    const subBizStatus = Number(data.sub_biz_status)
+
+    let reason: string | null = payload?.reason ?? payload?.motivo ?? null
+    if (!reason) {
+      if (subBizStatus === 2) reason = 'Pausa manual'
+      else if (subBizStatus === 3) reason = 'Sobrecarga de pedidos'
+      else if (subBizStatus === 4) reason = 'Pausa por pedidos não aceitos'
+      else if (subBizStatus === 5) reason = 'Fora do horário de funcionamento'
+    }
+
+    if (storeStatus === 2 || subBizStatus === 2 || subBizStatus === 3 || subBizStatus === 4) {
+      return { status: 'PAUSED', reason: reason ?? 'Loja pausada na 99Food' }
+    }
+
+    if (bizStatus === 2 || storeStatus === 3 || subBizStatus === 5) {
+      return { status: 'CLOSED', reason: reason ?? 'Loja fechada na 99Food' }
+    }
+
+    if (bizStatus === 1 || storeStatus === 1) {
+      return { status: 'OPEN', reason: null }
+    }
+  }
+
   // Tenta extrair de campos comuns
   const rawStatus = (
+    data?.status ??
     payload?.status ??
     payload?.store_status ??
     payload?.shop_status ??
-    payload?.data?.status ??
     ''
   ).toString().toUpperCase()
 
@@ -142,3 +174,4 @@ function inferStoreStatus(payload: any): { status: string; reason: string | null
   log('⚠️', `Status desconhecido: ${rawStatus}`)
   return null
 }
+

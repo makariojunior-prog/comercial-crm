@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import {
   Store, CheckCircle2, AlertTriangle, Clock, RefreshCw, ExternalLink,
   MapPin, Phone, Building2, ShieldCheck, Radio, Calendar,
-  Activity, ArrowUpRight, Copy, Check
+  Activity, ArrowUpRight, Copy, Check, Bike, Sparkles, Sliders,
+  ChefHat, Layers, AlertCircle
 } from 'lucide-react'
 import { useDeliveryStatus } from '../hooks/useDeliveryStatus'
 import { supabase } from '../lib/supabase'
@@ -24,7 +25,6 @@ function formatSafeDateTime(dateStr?: string | null): string {
   }
 }
 
-
 interface WebhookLog {
   id: string
   canal: string
@@ -33,6 +33,72 @@ interface WebhookLog {
   payload: any
 }
 
+const SCHEDULE_COMPARISON = [
+  {
+    dia: 'Segunda-feira',
+    short: 'Seg',
+    dayIdx: 1,
+    fisica: '07:30 às 18:15',
+    food99: '07:30 às 18:15',
+    ifood: '08:00 às 18:00 (Previsto)',
+    observacao: 'Horário normal de balcão e delivery',
+  },
+  {
+    dia: 'Terça-feira',
+    short: 'Ter',
+    dayIdx: 2,
+    fisica: '07:30 às 18:15',
+    food99: '07:30 às 18:10',
+    ifood: '08:00 às 18:00 (Previsto)',
+    observacao: 'Encerramento 99 às 18:10',
+  },
+  {
+    dia: 'Quarta-feira',
+    short: 'Qua',
+    dayIdx: 3,
+    fisica: '07:30 às 18:15',
+    food99: '07:30 às 18:15',
+    ifood: '08:00 às 18:00 (Previsto)',
+    observacao: 'Horário normal',
+  },
+  {
+    dia: 'Quinta-feira',
+    short: 'Qui',
+    dayIdx: 4,
+    fisica: '07:30 às 18:15',
+    food99: '07:30 às 18:15',
+    ifood: '08:00 às 18:00 (Previsto)',
+    observacao: 'Horário normal',
+  },
+  {
+    dia: 'Sexta-feira',
+    short: 'Sex',
+    dayIdx: 5,
+    fisica: '07:30 às 18:15',
+    food99: '07:30 às 18:15',
+    ifood: '08:00 às 18:00 (Previsto)',
+    observacao: 'Horário normal',
+  },
+  {
+    dia: 'Sábado',
+    short: 'Sáb',
+    dayIdx: 6,
+    fisica: '08:00 às 12:15',
+    food99: '08:00 às 12:15',
+    ifood: '10:00 às 19:00 (Homologação)',
+    observacao: 'Meio período matutino na loja e 99',
+  },
+  {
+    dia: 'Domingo',
+    short: 'Dom',
+    dayIdx: 0,
+    fisica: 'Fechado',
+    food99: 'Fechado',
+    ifood: '09h-12h / 13h-16h / 17h-23h (Cenário Teste)',
+    observacao: 'Balcão e 99Food fechados aos domingos',
+  },
+]
+
 export default function LojaPage() {
   const { status99, statusIfood, hasAlert, loading, refetch } = useDeliveryStatus()
   const [activeTab, setActiveTab] = useState<'geral' | '99food' | 'ifood' | 'fisica'>('geral')
@@ -40,6 +106,8 @@ export default function LojaPage() {
   const [logs, setLogs] = useState<WebhookLog[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+
+  const todayDayIdx = new Date().getDay()
 
   const handleCopy = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
@@ -50,6 +118,17 @@ export default function LojaPage() {
   const loadLogs = async () => {
     setLoadingLogs(true)
     try {
+      // 1. Tenta carregar do endpoint Edge Function (usa service_role e retorna histórico real)
+      const res = await fetch('https://taicaxtjtikdajmhtsxc.supabase.co/functions/v1/test-get-logs')
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data) && data.length > 0) {
+          setLogs(data as WebhookLog[])
+          return
+        }
+      }
+
+      // 2. Fallback via cliente Supabase
       const { data } = await supabase
         .from('delivery_webhook_logs')
         .select('*')
@@ -94,13 +173,13 @@ export default function LojaPage() {
                 Loja Ativa
               </span>
               {hasAlert && (
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white animate-pulse">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white">
                   Atenção no Delivery
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Gestão da Loja Física e Monitoramento Operacional de Delivery (99Food & iFood)
+              Gestão da Loja Física, Horários Programados e Monitoramento Operacional (99Food & iFood)
             </p>
           </div>
         </div>
@@ -120,10 +199,10 @@ export default function LojaPage() {
       {/* ─── Navigation Tabs ─── */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 overflow-x-auto pb-px">
         {[
-          { id: 'geral',   label: 'Visão Geral',         icon: Activity },
-          { id: '99food',  label: 'Operação 99Food',      icon: Radio    },
-          { id: 'ifood',   label: 'Operação iFood',       icon: Clock    },
-          { id: 'fisica',  label: 'Dados da Loja Física', icon: Building2 },
+          { id: 'geral',   label: 'Visão Geral & Horários', icon: Activity },
+          { id: '99food',  label: 'Operação 99Food',        icon: Radio    },
+          { id: 'ifood',   label: 'Operação iFood',         icon: Clock    },
+          { id: 'fisica',  label: 'Dados da Loja Física',   icon: Building2 },
         ].map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -147,7 +226,7 @@ export default function LojaPage() {
         })}
       </div>
 
-      {/* ─── TAB 1: VISÃO GERAL ─── */}
+      {/* ─── TAB 1: VISÃO GERAL & HORÁRIOS ─── */}
       {activeTab === 'geral' && (
         <div className="space-y-6">
           {/* Quick Metrics Cards */}
@@ -176,6 +255,11 @@ export default function LojaPage() {
               </div>
 
               <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1 pt-1">
+                {status99?.motivo_pausa && (
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                    {status99.motivo_pausa}
+                  </p>
+                )}
                 <p className="flex justify-between">
                   <span>Multi-binding:</span>
                   <span className="font-semibold text-emerald-600 dark:text-emerald-400">Ativo (Cardápio Web + CRM)</span>
@@ -290,6 +374,107 @@ export default function LojaPage() {
             </div>
           </div>
 
+          {/* ─── TABELA DE HORÁRIOS PROGRAMADOS DE FUNCIONAMENTO ─── */}
+          <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <Calendar size={18} className="text-orange-500" />
+                  Horários Programados de Funcionamento por Canal
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Comparação da grade de horários da Loja Física (Balcão) e dos canais de delivery (99Food e iFood).
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] px-2.5 py-1 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold border border-orange-500/20">
+                  Dia atual destacado
+                </span>
+              </div>
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">
+                    <th className="py-2.5 px-3 font-bold">Dia da Semana</th>
+                    <th className="py-2.5 px-3 font-bold">Loja Física (Balcão)</th>
+                    <th className="py-2.5 px-3 font-bold">99Food (Delivery)</th>
+                    <th className="py-2.5 px-3 font-bold">iFood (Delivery)</th>
+                    <th className="py-2.5 px-3 font-bold">Observações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                  {SCHEDULE_COMPARISON.map((row) => {
+                    const isToday = row.dayIdx === todayDayIdx
+                    return (
+                      <tr
+                        key={row.dia}
+                        className={`transition-colors ${
+                          isToday
+                            ? 'bg-orange-500/5 font-semibold dark:bg-orange-500/10'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{row.dia}</span>
+                            {isToday && (
+                              <span className="px-1.5 py-0.5 rounded bg-orange-500 text-white text-[9px] font-bold uppercase tracking-wider">
+                                Hoje
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] ${
+                            row.fisica === 'Fechado'
+                              ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                              : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-medium'
+                          }`}>
+                            {row.fisica}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] ${
+                            row.food99 === 'Fechado'
+                              ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                              : 'bg-yellow-50 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300 font-medium'
+                          }`}>
+                            {row.food99}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] ${
+                            row.ifood.includes('Homologação') || row.ifood.includes('Cenário')
+                              ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 font-medium'
+                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                          }`}>
+                            {row.ifood}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-[11px] text-slate-400">
+                          {row.observacao}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200/80 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <AlertCircle size={14} className="text-orange-500" />
+                Os horários da 99Food abrem e fecham a loja automaticamente através da função <code className="font-mono text-slate-700 dark:text-slate-300 bg-slate-200/70 dark:bg-slate-700 px-1 py-0.5 rounded">auto_switch</code> da OpenAPI.
+              </span>
+              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                Fuso horário: Horário de Brasília (GMT-3)
+              </span>
+            </div>
+          </div>
+
           {/* Webhook Activity Feed */}
           <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
@@ -299,45 +484,65 @@ export default function LojaPage() {
                   Eventos Recentes de Delivery (Webhooks em Tempo Real)
                 </h3>
               </div>
-              <span className="text-xs text-slate-400">Últimos eventos capturados</span>
+              <span className="text-xs text-slate-400">Capturados diretamente dos canais</span>
             </div>
 
             {loadingLogs ? (
               <div className="py-6 text-center text-xs text-slate-400">Carregando eventos...</div>
             ) : logs.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-400">
-                Nenhum evento registrado ainda. Quando a 99Food ou o iFood enviarem alterações de status, eles aparecerão aqui.
+                Nenhum evento registrado ainda. Quando a 99Food ou o iFood enviarem alterações de status ou pedidos, eles aparecerão aqui.
               </div>
             ) : (
               <div className="space-y-2">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="p-3 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-900/40 flex items-center justify-between text-xs"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        log.canal === '99FOOD'
-                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
-                      }`}>
-                        {log.canal}
-                      </span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">
-                        {log.event_type}
-                      </span>
-                      {log.payload?.data?.bindStatus && (
-                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                          (Vínculo confirmado com sucesso)
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-slate-400">
-                      {formatSafeDateTime(log.received_at)}
+                {logs.map((log) => {
+                  const riderName = log.payload?.data?.rider_name
+                  const riderPhone = log.payload?.data?.rider_phone
+                  const orderId = log.payload?.data?.order_id
+                  const reason = log.payload?.reason
 
-                    </span>
-                  </div>
-                ))}
+                  return (
+                    <div
+                      key={log.id}
+                      className="p-3 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          log.canal === '99FOOD'
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
+                        }`}>
+                          {log.canal}
+                        </span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {log.event_type}
+                        </span>
+
+                        {riderName && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                            <Bike size={12} /> Entregador: {riderName} {riderPhone ? `(${riderPhone})` : ''}
+                          </span>
+                        )}
+
+                        {orderId && (
+                          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                            Pedido #{String(orderId).slice(-6)}
+                          </span>
+                        )}
+
+                        {reason && (
+                          <span className="text-[11px] text-rose-600 dark:text-rose-400">
+                            {reason}
+                          </span>
+                        )}
+                      </div>
+
+                      <span className="text-[11px] text-slate-400 shrink-0">
+                        {formatSafeDateTime(log.received_at)}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -352,7 +557,7 @@ export default function LojaPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60 pb-4">
               <div>
                 <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className={`w-2.5 h-2.5 rounded-full ${is99Open ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                   Operação 99Food — Cantina em Casa
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -369,7 +574,7 @@ export default function LojaPage() {
               </a>
             </div>
 
-            {/* Parâmetros Técnicos */}
+            {/* Parâmetros Técnicos & Conectividade */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/60 space-y-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ID da Loja (99Food)</span>
@@ -412,25 +617,98 @@ export default function LojaPage() {
               </div>
             </div>
 
-            {/* Horários sincronizados da 99 */}
+            {/* Parâmetros Operacionais da Cozinha & Logística */}
             <div className="space-y-3 pt-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Calendar size={14} /> Horários de Funcionamento (Configurados na 99Food)
+                <Sliders size={14} /> Parâmetros Operacionais Ativos na 99Food
               </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-                {[
-                  { dia: 'Segunda',  hora: '07:30 às 18:15' },
-                  { dia: 'Terça',    hora: '07:30 às 18:10' },
-                  { dia: 'Quarta',   hora: '07:30 às 18:15' },
-                  { dia: 'Quinta',   hora: '07:30 às 18:15' },
-                  { dia: 'Sexta',    hora: '07:30 às 18:15' },
-                  { dia: 'Sábado',   hora: '08:00 às 12:15' },
-                ].map((h) => (
-                  <div key={h.dia} className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/20 text-center">
-                    <span className="text-[10px] font-bold text-slate-500 block">{h.dia}</span>
-                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{h.hora}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Tempo Prometido Preparo</span>
+                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">~15 minutos</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">promise_produce_time</span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Modo Ocupado (Busy Mode)</span>
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Normal (0 min extra)</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Sem atraso injetado</span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Modelo de Entrega</span>
+                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">Entrega Parceira 99</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">deliver_type: 1 (Rede DiDi)</span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Abertura Automática</span>
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">Ativada (auto_switch)</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Segue grade de horários</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── NOVAS CAPACIDADES DISPONÍVEIS NA API DA 99FOOD ─── */}
+            <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-700/60">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-orange-500" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Capacidades & Informações da OpenAPI 99Food para o App Cantina
+                </h4>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Abaixo estão todos os recursos e dados que podemos consultar ou acionar diretamente no CRM através dos endpoints da API da 99Food:
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Bike size={16} className="text-blue-500" />
+                    <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Rastreamento de Motoboys em Tempo Real
+                    </h5>
                   </div>
-                ))}
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    O webhook <code className="font-mono text-slate-700 dark:text-slate-300">deliveryStatus</code> já nos envia o nome do motoboy parceiro, telefone direto para contato, tempo estimado de chegada (ETA) e status da corrida (a caminho da loja, retirado, entregue).
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <ChefHat size={16} className="text-orange-500" />
+                    <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Controle de Cardápio & Pausa de Itens
+                    </h5>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Através do endpoint <code className="font-mono text-slate-700 dark:text-slate-300">/v1/item/item/updateItemStatus</code>, podemos pausar ou reativar qualquer salgado ou bebida que acabar no estoque diretamente pela tela do CRM.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Layers size={16} className="text-purple-500" />
+                    <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Modo Cozinha Cheia (Sobrecarga de Pedidos)
+                    </h5>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    O endpoint <code className="font-mono text-slate-700 dark:text-slate-300">/v1/shop/shop/setStatus</code> permite ativar o modo <em>busy_mode</em> para injetar 10, 20 ou 30 minutos de atraso extra no prazo da 99Food nos momentos de pico do balcão.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <MapPin size={16} className="text-emerald-500" />
+                    <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Raio de Entrega & Taxas por Distância
+                    </h5>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    O endpoint <code className="font-mono text-slate-700 dark:text-slate-300">/v1/shop/deliveryArea/list</code> permite mapear os polígonos ou círculos de entrega da Cantina em Goiânia, acompanhando as taxas e o tempo médio de entrega (ETA).
+                  </p>
+                </div>
               </div>
             </div>
           </div>
