@@ -26,9 +26,10 @@ export function useDeliveryStatus() {
   useEffect(() => {
     fetchStatuses()
 
-    // Inscreve no Supabase Realtime para updates instantâneos
+    // Inscreve no Supabase Realtime para updates instantâneos com canal único por componente
+    const channelName = `delivery_status_rt_${Math.random().toString(36).slice(2)}`
     const channel = supabase
-      .channel('delivery_status_realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'lojas_delivery_status' },
@@ -52,12 +53,22 @@ export function useDeliveryStatus() {
           }
         }
       )
-      .subscribe()
+
+    try {
+      channel.subscribe()
+    } catch (err) {
+      console.error('Erro ao subscrever ao canal realtime de delivery:', err)
+    }
 
     return () => {
-      supabase.removeChannel(channel)
+      try {
+        supabase.removeChannel(channel)
+      } catch {
+        // Ignora erro no teardown
+      }
     }
   }, [fetchStatuses])
+
 
   const status99 = statuses.find((s) => s.canal === '99FOOD') ?? null
   const statusIfood = statuses.find((s) => s.canal === 'IFOOD') ?? null

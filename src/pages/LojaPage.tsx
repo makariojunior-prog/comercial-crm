@@ -6,8 +6,24 @@ import {
 } from 'lucide-react'
 import { useDeliveryStatus } from '../hooks/useDeliveryStatus'
 import { supabase } from '../lib/supabase'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+
+function formatSafeDateTime(dateStr?: string | null): string {
+  if (!dateStr) return '—'
+  try {
+    const d = parseISO(dateStr)
+    if (isNaN(d.getTime())) {
+      const d2 = new Date(dateStr)
+      if (isNaN(d2.getTime())) return '—'
+      return format(d2, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })
+    }
+    return format(d, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })
+  } catch {
+    return dateStr || '—'
+  }
+}
+
 
 interface WebhookLog {
   id: string
@@ -317,7 +333,8 @@ export default function LojaPage() {
                       )}
                     </div>
                     <span className="text-[11px] text-slate-400">
-                      {format(new Date(log.received_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
+                      {formatSafeDateTime(log.received_at)}
+
                     </span>
                   </div>
                 ))}

@@ -1,8 +1,24 @@
 import { useState } from 'react'
 import { Store, AlertTriangle, CheckCircle2, Clock, X, RefreshCw, ExternalLink } from 'lucide-react'
 import { useDeliveryStatus } from '../hooks/useDeliveryStatus'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+
+function formatSafeDate(dateStr?: string | null): string {
+  if (!dateStr) return 'Hoje, conectado'
+  try {
+    const d = parseISO(dateStr)
+    if (isNaN(d.getTime())) {
+      const d2 = new Date(dateStr)
+      if (isNaN(d2.getTime())) return 'Hoje, conectado'
+      return format(d2, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+    }
+    return format(d, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+  } catch {
+    return 'Hoje, conectado'
+  }
+}
+
 
 export default function DeliveryStatusWidget() {
   const { status99, statusIfood, hasAlert, loading, refetch } = useDeliveryStatus()
@@ -153,11 +169,8 @@ export default function DeliveryStatusWidget() {
                   </div>
                   <div className="flex justify-between">
                     <span>Última Sincronização:</span>
-                    <span>
-                      {status99?.ultima_verificacao
-                        ? format(new Date(status99.ultima_verificacao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                        : 'Hoje, conectado'}
-                    </span>
+                      {formatSafeDate(status99?.ultima_verificacao)}
+
                   </div>
                   {status99?.motivo_pausa && (
                     <div className="flex justify-between text-amber-600 dark:text-amber-400 font-medium">

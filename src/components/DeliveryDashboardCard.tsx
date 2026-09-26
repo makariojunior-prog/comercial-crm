@@ -2,8 +2,24 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Store, CheckCircle2, AlertTriangle, Clock, RefreshCw, ArrowRight, ExternalLink } from 'lucide-react'
 import { useDeliveryStatus } from '../hooks/useDeliveryStatus'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+
+function formatSafeDate(dateStr?: string | null): string {
+  if (!dateStr) return 'Conectado'
+  try {
+    const d = parseISO(dateStr)
+    if (isNaN(d.getTime())) {
+      const d2 = new Date(dateStr)
+      if (isNaN(d2.getTime())) return 'Conectado'
+      return format(d2, 'HH:mm (dd/MM)', { locale: ptBR })
+    }
+    return format(d, 'HH:mm (dd/MM)', { locale: ptBR })
+  } catch {
+    return 'Conectado'
+  }
+}
+
 
 export default function DeliveryDashboardCard() {
   const { status99, statusIfood, hasAlert, loading, refetch } = useDeliveryStatus()
@@ -102,9 +118,8 @@ export default function DeliveryDashboardCard() {
               <p className="flex justify-between">
                 <span>Sincronização:</span>
                 <span>
-                  {status99?.ultima_verificacao
-                    ? format(new Date(status99.ultima_verificacao), 'HH:mm (dd/MM)', { locale: ptBR })
-                    : 'Conectado'}
+                  {formatSafeDate(status99?.ultima_verificacao)}
+
                 </span>
               </p>
               {status99?.motivo_pausa && (

@@ -19,8 +19,10 @@ import PosVendaWidget from '../components/PosVendaWidget'
 import ResumoPedidosWidget from '../components/ResumoPedidosWidget'
 import AgendaWidget from '../components/AgendaWidget'
 import DeliveryDashboardCard from '../components/DeliveryDashboardCard'
+import ErrorBoundary from '../components/ErrorBoundary'
 import { usePreferences, DEFAULT_DASHBOARD_WIDGETS } from '../contexts/PreferencesContext'
 import { useSearchParams, Link } from 'react-router-dom'
+
 
 
 export default function DashboardNegocios() {
@@ -98,7 +100,12 @@ export default function DashboardNegocios() {
   function renderWidget(id: string) {
     switch (id) {
       case 'status_loja':
-        return <DeliveryDashboardCard />
+        return (
+          <ErrorBoundary>
+            <DeliveryDashboardCard />
+          </ErrorBoundary>
+        )
+
       case 'tarefas_eventos':  // legado
         return <DashboardTasks />
       case 'visitas_negocios':  // legado

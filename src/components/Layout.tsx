@@ -15,8 +15,10 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import GlobalSearch from './GlobalSearch'
 import DeliveryStatusWidget from './DeliveryStatusWidget'
+import ErrorBoundary from './ErrorBoundary'
 
 // Porta de entrada do grupo: login único e atalho para os outros aplicativos.
+
 const PORTAL_URL = 'https://portal.cantinaemcasa.com/home'
 
 const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'admin' | 'personal' }[] = [
@@ -270,8 +272,11 @@ export default function Layout() {
             </button>
             {profile && (
               <div className="flex items-center gap-2.5 shrink-0">
-                <DeliveryStatusWidget />
+                <ErrorBoundary>
+                  <DeliveryStatusWidget />
+                </ErrorBoundary>
                 <div className="text-right hidden xl:block">
+
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
                   <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
                 </div>
@@ -313,31 +318,33 @@ export default function Layout() {
             )}
 
             {/* Delivery status widget + User info + logout */}
-            <div className="flex items-center gap-2.5 shrink-0 ml-auto">
-              <DeliveryStatusWidget />
-              {profile && (
-                <>
-                  <div className="text-right hidden xl:block">
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
-                    <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
-                  </div>
-                  <a
-                    href={PORTAL_URL}
-                    title="Voltar ao Portal"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                  >
-                    <LayoutGrid size={14} /> <span className="hidden xl:inline">Portal</span>
-                  </a>
-                  <button
-                    onClick={signOut}
-                    title="Sair"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                  >
-                    <LogOut size={14} /> <span className="hidden xl:inline">Sair</span>
-                  </button>
-                </>
-              )}
-            </div>
+            {profile && (
+              <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+                <ErrorBoundary>
+                  <DeliveryStatusWidget />
+                </ErrorBoundary>
+                <div className="text-right hidden xl:block">
+
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
+                  <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
+                </div>
+                <a
+                  href={PORTAL_URL}
+                  title="Voltar ao Portal"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                >
+                  <LayoutGrid size={14} /> <span className="hidden xl:inline">Portal</span>
+                </a>
+                <button
+                  onClick={signOut}
+                  title="Sair"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                >
+                  <LogOut size={14} /> <span className="hidden xl:inline">Sair</span>
+                </button>
+              </div>
+            )}
+
           </header>
         )}
 
