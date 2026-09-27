@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDeliveryStatus } from '../hooks/useDeliveryStatus'
+import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -102,13 +103,45 @@ const SCHEDULE_COMPARISON = [
   },
 ]
 
+function ProductThumbnail({ src, alt }: { src: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false)
+
+  if (!src || failed) {
+    return (
+      <div className="w-16 h-16 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0">
+        <ChefHat size={22} />
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      crossOrigin="anonymous"
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="w-16 h-16 rounded-xl object-cover border border-slate-100 dark:border-slate-700 shrink-0 bg-slate-50 dark:bg-slate-900"
+    />
+  )
+}
+
 export default function LojaPage() {
+  const { isAdmin } = useAuth()
   const { status99, statusIfood, hasAlert, loading, refetch } = useDeliveryStatus()
   const [activeTab, setActiveTab] = useState<'geral' | 'cardapio' | 'cozinha' | 'entregadores' | '99food' | 'ifood' | 'fisica'>('geral')
   const [refreshing, setRefreshing] = useState(false)
   const [logs, setLogs] = useState<WebhookLog[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+
+  // Redireciona usuário não-administrador caso tente acessar aba restrita
+  useEffect(() => {
+    if (!isAdmin && (activeTab === '99food' || activeTab === 'ifood' || activeTab === 'fisica')) {
+      setActiveTab('geral')
+    }
+  }, [isAdmin, activeTab])
 
   // ─── Cardápio State ───
   const [searchTerm, setSearchTerm] = useState('')
@@ -414,9 +447,11 @@ export default function LojaPage() {
           { id: 'cardapio',     label: 'Cardápio 99Food (61 itens)', icon: ChefHat, badge: pausedItemIds.length > 0 ? `${pausedItemIds.length} pausados` : undefined },
           { id: 'cozinha',      label: 'Cozinha & Despacho',     icon: Sliders, badge: busyMode.active ? `+${busyMode.delayMinutes}m` : undefined },
           { id: 'entregadores', label: 'Entregadores & Corridas', icon: Bike, badge: deliveryEvents.length > 0 ? `${deliveryEvents.length}` : undefined },
-          { id: '99food',       label: 'Conexão 99Food',         icon: Radio    },
-          { id: 'ifood',        label: 'Operação iFood',         icon: Clock    },
-          { id: 'fisica',       label: 'Dados da Loja Física',   icon: Building2 },
+          ...(isAdmin ? [
+            { id: '99food',       label: 'Conexão 99Food',         icon: Radio    },
+            { id: 'ifood',        label: 'Operação iFood',         icon: Clock    },
+            { id: 'fisica',       label: 'Dados da Loja Física',   icon: Building2 },
+          ] : []),
         ].map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
@@ -539,20 +574,26 @@ export default function LojaPage() {
               </div>
 
               <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                <button
-                  onClick={() => setActiveTab('ifood')}
-                  className="text-xs text-red-600 hover:text-red-700 font-semibold"
-                >
-                  Ver homologação →
-                </button>
-                <a
-                  href="https://portal.ifood.com.br"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1"
-                >
-                  Portal Parceiro <ExternalLink size={11} />
-                </a>
+                {isAdmin ? (
+                  <button
+                    onClick={() => setActiveTab('ifood')}
+                    className="text-xs text-red-600 hover:text-red-700 font-semibold"
+                  >
+                    Ver homologação →
+                  </button>
+                ) : (
+                  <span className="text-xs text-slate-400 font-medium">Canal Integrado</span>
+                )}
+                {isAdmin ? (
+                  <a
+                    href="https://portal.ifood.com.br"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1"
+                  >
+                    Portal Parceiro <ExternalLink size={11} />
+                  </a>
+                ) : null}
               </div>
             </div>
 
@@ -585,12 +626,16 @@ export default function LojaPage() {
               </div>
 
               <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                <button
-                  onClick={() => setActiveTab('fisica')}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
-                >
-                  Ver dados cadastrais →
-                </button>
+                {isAdmin ? (
+                  <button
+                    onClick={() => setActiveTab('fisica')}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold"
+                  >
+                    Ver dados cadastrais →
+                  </button>
+                ) : (
+                  <span className="text-xs text-slate-400 font-medium">Unidade Principal</span>
+                )}
                 <span className="text-[11px] text-slate-400">Jardim Santo Antônio</span>
               </div>
             </div>
@@ -783,18 +828,7 @@ export default function LojaPage() {
                     }`}
                   >
                     <div className="flex gap-3">
-                      {item.image ? (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-16 h-16 rounded-xl object-cover border border-slate-100 dark:border-slate-700 shrink-0"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0">
-                          <ChefHat size={22} />
-                        </div>
-                      )}
+                      <ProductThumbnail src={item.image} alt={item.name} />
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-1.5">
@@ -1125,7 +1159,7 @@ export default function LojaPage() {
       )}
 
       {/* ─── TAB 5: OPERAÇÃO 99FOOD (CONEXÃO E CREDENCIAIS TÉCNICAS) ─── */}
-      {activeTab === '99food' && (
+      {activeTab === '99food' && isAdmin && (
         <div className="space-y-6">
           <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60 pb-4">
@@ -1231,7 +1265,7 @@ export default function LojaPage() {
       )}
 
       {/* ─── TAB 6: IFOOD ─── */}
-      {activeTab === 'ifood' && (
+      {activeTab === 'ifood' && isAdmin && (
         <div className="space-y-6">
           <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60 pb-4">
@@ -1313,7 +1347,7 @@ export default function LojaPage() {
       )}
 
       {/* ─── TAB 7: LOJA FÍSICA ─── */}
-      {activeTab === 'fisica' && (
+      {activeTab === 'fisica' && isAdmin && (
         <div className="space-y-6">
           <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm space-y-5">
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-4">
