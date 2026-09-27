@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Store, AlertTriangle, CheckCircle2, Clock, X, RefreshCw, ExternalLink } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Store, AlertTriangle, CheckCircle2, Clock, X, RefreshCw, ExternalLink, ArrowRight } from 'lucide-react'
 import { useDeliveryStatus } from '../hooks/useDeliveryStatus'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -21,6 +22,7 @@ function formatSafeDate(dateStr?: string | null): string {
 
 
 export default function DeliveryStatusWidget() {
+  const navigate = useNavigate()
   const { status99, statusIfood, hasAlert, loading, refetch } = useDeliveryStatus()
   const [modalOpen, setModalOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -164,13 +166,8 @@ export default function DeliveryStatusWidget() {
 
                 <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
                   <div className="flex justify-between">
-                    <span>ID da Loja na 99:</span>
-                    <span className="font-mono text-slate-800 dark:text-slate-300">5764608576400918038</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span>Última Sincronização:</span>
-                      {formatSafeDate(status99?.ultima_verificacao)}
-
+                    <span>{formatSafeDate(status99?.ultima_verificacao)}</span>
                   </div>
                   {status99?.motivo_pausa && (
                     <div className="flex justify-between text-amber-600 dark:text-amber-400 font-medium">
@@ -216,8 +213,7 @@ export default function DeliveryStatusWidget() {
                   Aguardando resposta do suporte do iFood para validação do módulo <strong>Merchant</strong> (Status da loja, pausas emergenciais e horários).
                 </p>
 
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Client ID: 5d0df11b...</span>
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-end text-[11px] text-slate-500">
                   <a
                     href="https://portal.ifood.com.br"
                     target="_blank"
@@ -231,10 +227,22 @@ export default function DeliveryStatusWidget() {
             </div>
 
             {/* Rodapé */}
-            <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+            <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+              <button
+                onClick={() => {
+                  setModalOpen(false)
+                  navigate('/loja')
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold shadow-sm transition-colors"
+              >
+                <Store size={14} />
+                <span>Ir para o Módulo Loja</span>
+                <ArrowRight size={13} />
+              </button>
+
               <button
                 onClick={() => setModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold shadow-sm transition-colors"
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
               >
                 Fechar
               </button>

@@ -218,7 +218,11 @@ export default function DashboardNegocios() {
     for (const w of widgets) {
       if (FULL_WIDTH.has(w.id)) {
         flush()
-        sections.push(<div key={`${prefix}-${w.id}`}>{renderWidget(w.id)}</div>)
+        sections.push(
+          <div key={`${prefix}-${w.id}`} className={w.id === 'status_loja' ? 'lg:hidden' : undefined}>
+            {renderWidget(w.id)}
+          </div>
+        )
       } else {
         half.push(w)
       }

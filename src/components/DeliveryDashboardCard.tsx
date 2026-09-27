@@ -18,7 +18,7 @@ export default function DeliveryDashboardCard() {
   const isIfoodOpen = statusIfood?.status === 'OPEN'
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm">
+    <div className="lg:hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Store size={16} className={hasAlert ? 'text-amber-500' : 'text-orange-500'} />
