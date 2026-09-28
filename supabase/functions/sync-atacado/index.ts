@@ -263,7 +263,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    let batch: Record<string, unknown>[] = []
+    // Map<id_venda, linha> em vez de array: se o mesmo id_venda aparecer mais
+    // de uma vez antes do próximo flush, a ocorrência mais recente sobrescreve
+    // a anterior — sem isso o upsert em lote manda duas linhas com o mesmo
+    // id_venda na mesma instrução e o Postgres rejeita com 21000 ("ON CONFLICT
+    // DO UPDATE command cannot affect row a second time"). Mesmo padrão já
+    // usado abaixo para `learnedLinks`.
+    let batch = new Map<number, Record<string, unknown>>()
     let upserted = 0, skipped = 0, unchanged = 0
     let matchedById = 0, matchedByName = 0, unmatched = 0
     // Vínculos descobertos por nome nesta execução — gravados no de-para para
@@ -277,16 +283,17 @@ Deno.serve(async (req: Request) => {
     const FLUSH_SIZE = 500
 
     async function flushBatch() {
-      if (!batch.length) return
+      if (!batch.size) return
+      const rows = [...batch.values()]
       const { error } = await supabase
         .from('atacado_pedidos')
-        .upsert(batch, { onConflict: 'id_venda' })
+        .upsert(rows, { onConflict: 'id_venda' })
       if (error) {
-        upsertErrors.push(`${error.message} (code: ${error.code}) — primeiro id_venda: ${batch[0]?.id_venda}`)
+        upsertErrors.push(`${error.message} (code: ${error.code}) — primeiro id_venda: ${rows[0]?.id_venda}`)
       } else {
-        upserted += batch.length
+        upserted += rows.length
       }
-      batch = []
+      batch = new Map()
     }
 
     for (const row of rows) {
@@ -340,7 +347,7 @@ Deno.serve(async (req: Request) => {
         continue
       }
 
-      batch.push({
+      batch.set(idVenda, {
         id_venda:      idVenda,
         // a planilha chama de "venda" o número do pedido no ERP
         numero_pedido: parseInt(row.numeropedido ?? row.numero ?? row.numpedido ?? row.venda ?? '', 10) || null,
@@ -364,7 +371,7 @@ Deno.serve(async (req: Request) => {
         updated_at:    now,
       })
 
-      if (batch.length >= FLUSH_SIZE) await flushBatch()
+      if (batch.size >= FLUSH_SIZE) await flushBatch()
     }
     await flushBatch()
 
@@ -474,22 +481,30 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    let batch: Record<string, unknown>[] = []
+    // Map<id_venda, linha> — a aba REG-LUMAR repete o mesmo id_venda em várias
+    // linhas conforme o histórico se acumula. Se duas ocorrências do mesmo
+    // pedido caíssem no mesmo lote como entradas separadas de um array, o
+    // upsert mandaria duas linhas com o mesmo id_venda na mesma instrução e o
+    // Postgres rejeitaria com 21000 ("ON CONFLICT DO UPDATE command cannot
+    // affect row a second time"). Com Map, a ocorrência mais recente da
+    // planilha sobrescreve a anterior antes de qualquer uma ser enviada.
+    let batch = new Map<number, Record<string, unknown>>()
     let updated = 0, skipped = 0, unchanged = 0, datesSet = 0
     const upsertErrors: string[] = []
     const FLUSH_SIZE = 500
 
     async function flushBatch() {
-      if (!batch.length) return
+      if (!batch.size) return
+      const rows = [...batch.values()]
       const { error } = await supabase
         .from('atacado_pedidos')
-        .upsert(batch, { onConflict: 'id_venda' })
+        .upsert(rows, { onConflict: 'id_venda' })
       if (error) {
-        upsertErrors.push(`${error.message} (code: ${error.code}) — primeiro id_venda: ${batch[0]?.id_venda}`)
+        upsertErrors.push(`${error.message} (code: ${error.code}) — primeiro id_venda: ${rows[0]?.id_venda}`)
       } else {
-        updated += batch.length
+        updated += rows.length
       }
-      batch = []
+      batch = new Map()
     }
 
     for (const row of rows) {
@@ -521,6 +536,11 @@ Deno.serve(async (req: Request) => {
       // Nenhum campo útil na linha
       if (!dataEntrega && !turno && !entregador && !tipo && !ocorrencia) { skipped++; continue }
 
+      // Compara contra o que já está gravado no banco. Quando o mesmo
+      // id_venda já foi resolvido nesta mesma execução (linha anterior da
+      // planilha), `prev` continua sendo o snapshot original do banco — então
+      // esta comparação usa sempre a mesma referência, e a última ocorrência
+      // na planilha decide o valor final (via Map, acima).
       if (dataEntrega && dataEntrega !== prev.data_entrega) datesSet++
 
       // null = "planilha não informa" → preserva o valor já gravado. Resolvido
@@ -550,8 +570,8 @@ Deno.serve(async (req: Request) => {
         continue
       }
 
-      batch.push({ id_venda: idVenda, ...resolved, updated_at: now })
-      if (batch.length >= FLUSH_SIZE) await flushBatch()
+      batch.set(idVenda, { id_venda: idVenda, ...resolved, updated_at: now })
+      if (batch.size >= FLUSH_SIZE) await flushBatch()
     }
     await flushBatch()
 
