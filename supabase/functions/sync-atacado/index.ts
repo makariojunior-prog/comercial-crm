@@ -435,41 +435,123 @@ Deno.serve(async (req: Request) => {
 
     const rows = parseCSV(text)
     const sheetHeaders = rows.length > 0 ? Object.keys(rows[0]) : []
-    let updated = 0, skipped = 0, datesSet = 0
+    const now = new Date().toISOString()
+
+    // Estado atual das colunas que este sync escreve, para só regravar quem de
+    // fato mudou — mesmo motivo do sync de pedidos: a aba REG-LUMAR repete o
+    // histórico inteiro, e sem isso cada execução do gatilho (a cada ~5 min)
+    // reescrevia todas as linhas com um UPDATE por pedido, sem nenhum batching.
+    type ExistingReg = {
+      data_entrega: string | null; turno: string | null
+      entregador: string | null; tipo: string | null; ocorrencia: string | null
+    }
+    const existingReg = new Map<number, ExistingReg>()
+    {
+      const PAGE_SIZE = 1000
+      let from = 0
+      while (true) {
+        const { data, error } = await supabase
+          .from('atacado_pedidos')
+          .select('id_venda, data_entrega, turno, entregador, tipo, ocorrencia')
+          .order('id_venda', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1)
+        if (error || !data) break
+        for (const r of data as Array<ExistingReg & { id_venda: number }>) {
+          existingReg.set(r.id_venda, {
+            data_entrega: r.data_entrega, turno: r.turno, entregador: r.entregador,
+            tipo: r.tipo, ocorrencia: r.ocorrencia,
+          })
+        }
+        if (data.length < PAGE_SIZE) break
+        from += PAGE_SIZE
+      }
+    }
+
+    let batch: Record<string, unknown>[] = []
+    let updated = 0, skipped = 0, unchanged = 0, datesSet = 0
+    const upsertErrors: string[] = []
+    const FLUSH_SIZE = 500
+
+    async function flushBatch() {
+      if (!batch.length) return
+      const { error } = await supabase
+        .from('atacado_pedidos')
+        .upsert(batch, { onConflict: 'id_venda' })
+      if (error) {
+        upsertErrors.push(`${error.message} (code: ${error.code}) — primeiro id_venda: ${batch[0]?.id_venda}`)
+      } else {
+        updated += batch.length
+      }
+      batch = []
+    }
 
     for (const row of rows) {
       const idVenda = parseInt(row.idvenda ?? row.venda ?? row.id ?? '', 10)
       if (!idVenda || isNaN(idVenda)) { skipped++; continue }
 
-      const patch: Record<string, string | null> = { updated_at: new Date().toISOString() }
+      // REG-LUMAR só enriquece pedidos que o sync do ERP já trouxe — nunca cria
+      // um atacado_pedidos novo (faltariam valor, cliente_nome etc., e o upsert
+      // abaixo viraria um INSERT se este id_venda não existisse ainda).
+      const prev = existingReg.get(idVenda)
+      if (!prev) { skipped++; continue }
 
       // Coluna A: data de entrega definida pela atendente
       // Tenta os nomes mais comuns para o header da coluna A
       const rawDataEntrega = row.dataentrega ?? row.entrega ?? row.data ??
         row.dtentrega ?? row.dataentregaprevista ?? row.entregaprevista ??
         row.previsao ?? row.dataprevista ?? row.previsaoentrega ?? null
+      let dataEntrega: string | null = null
       if (rawDataEntrega && rawDataEntrega.trim()) {
         const parsedDate = parseDate(rawDataEntrega)
-        if (parsedDate) {
-          patch.data_entrega = parsedDate.substring(0, 10) // YYYY-MM-DD
-          datesSet++
-        }
+        if (parsedDate) dataEntrega = parsedDate.substring(0, 10) // YYYY-MM-DD
       }
 
-      if (row.turno)      patch.turno      = row.turno.toUpperCase()
-      if (row.entregador) patch.entregador = row.entregador.toUpperCase()
-      if (row.tipo)       patch.tipo       = row.tipo.toUpperCase()
-      if (row.ocorrencia) patch.ocorrencia = row.ocorrencia
+      const turno      = row.turno      ? row.turno.toUpperCase()      : null
+      const entregador = row.entregador ? row.entregador.toUpperCase() : null
+      const tipo       = row.tipo       ? row.tipo.toUpperCase()       : null
+      const ocorrencia = row.ocorrencia ?? null
 
-      // Apenas updated_at = sem dados úteis
-      if (Object.keys(patch).length === 1) { skipped++; continue }
+      // Nenhum campo útil na linha
+      if (!dataEntrega && !turno && !entregador && !tipo && !ocorrencia) { skipped++; continue }
 
-      const { error } = await supabase
-        .from('atacado_pedidos').update(patch).eq('id_venda', idVenda)
-      if (error) skipped++; else updated++
+      if (dataEntrega && dataEntrega !== prev.data_entrega) datesSet++
+
+      // null = "planilha não informa" → preserva o valor já gravado. Resolvido
+      // aqui (em vez de simplesmente omitir a chave) porque o upsert em lote do
+      // PostgREST monta uma única instrução com a união das colunas do lote:
+      // uma linha que omitisse a coluna receberia NULL explícito e apagaria o
+      // que já estava salvo — mesmo risco que o comentário sobre crm_client_id
+      // documenta no sync de pedidos, aqui evitado resolvendo o valor antes.
+      const resolved: ExistingReg = {
+        data_entrega: dataEntrega ?? prev.data_entrega,
+        turno:        turno      ?? prev.turno,
+        entregador:   entregador ?? prev.entregador,
+        tipo:         tipo       ?? prev.tipo,
+        ocorrencia:   ocorrencia ?? prev.ocorrencia,
+      }
+
+      // Nada mudou em relação ao que já está gravado → não regrava.
+      if (
+        resolved.data_entrega === prev.data_entrega &&
+        resolved.turno        === prev.turno &&
+        resolved.entregador   === prev.entregador &&
+        resolved.tipo         === prev.tipo &&
+        resolved.ocorrencia   === prev.ocorrencia
+      ) {
+        unchanged++
+        continue
+      }
+
+      batch.push({ id_venda: idVenda, ...resolved, updated_at: now })
+      if (batch.length >= FLUSH_SIZE) await flushBatch()
     }
+    await flushBatch()
 
-    return json200({ ok: true, type, total: rows.length, updated, skipped, datesSet, sheetHeaders })
+    return json200({
+      ok: upsertErrors.length === 0,
+      type, total: rows.length, updated, skipped, unchanged, datesSet, sheetHeaders,
+      error: upsertErrors.length ? upsertErrors[0] : undefined,
+    })
   }
 
   return json200({ ok: false, error: 'type must be "pedidos" or "reg_lumar"' })
