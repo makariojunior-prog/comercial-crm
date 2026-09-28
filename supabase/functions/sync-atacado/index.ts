@@ -441,9 +441,16 @@ Deno.serve(async (req: Request) => {
     // fato mudou — mesmo motivo do sync de pedidos: a aba REG-LUMAR repete o
     // histórico inteiro, e sem isso cada execução do gatilho (a cada ~5 min)
     // reescrevia todas as linhas com um UPDATE por pedido, sem nenhum batching.
+    // `atualizacao` entra no snapshot e é reenviada sem alteração em toda
+    // linha do lote: a coluna é NOT NULL sem default no banco, e o upsert em
+    // lote do PostgREST monta a linha candidata do INSERT (que exige todo
+    // NOT NULL presente) antes de resolver o conflito e cair no UPDATE - sem
+    // isso o Postgres rejeita a linha inteira com 23502 mesmo indo sempre
+    // pelo caminho de UPDATE (reg_lumar só processa id_venda que já existe).
     type ExistingReg = {
       data_entrega: string | null; turno: string | null
       entregador: string | null; tipo: string | null; ocorrencia: string | null
+      atualizacao: string
     }
     const existingReg = new Map<number, ExistingReg>()
     {
@@ -452,14 +459,14 @@ Deno.serve(async (req: Request) => {
       while (true) {
         const { data, error } = await supabase
           .from('atacado_pedidos')
-          .select('id_venda, data_entrega, turno, entregador, tipo, ocorrencia')
+          .select('id_venda, data_entrega, turno, entregador, tipo, ocorrencia, atualizacao')
           .order('id_venda', { ascending: true })
           .range(from, from + PAGE_SIZE - 1)
         if (error || !data) break
         for (const r of data as Array<ExistingReg & { id_venda: number }>) {
           existingReg.set(r.id_venda, {
             data_entrega: r.data_entrega, turno: r.turno, entregador: r.entregador,
-            tipo: r.tipo, ocorrencia: r.ocorrencia,
+            tipo: r.tipo, ocorrencia: r.ocorrencia, atualizacao: r.atualizacao,
           })
         }
         if (data.length < PAGE_SIZE) break
@@ -528,6 +535,7 @@ Deno.serve(async (req: Request) => {
         entregador:   entregador ?? prev.entregador,
         tipo:         tipo       ?? prev.tipo,
         ocorrencia:   ocorrencia ?? prev.ocorrencia,
+        atualizacao:  prev.atualizacao,
       }
 
       // Nada mudou em relação ao que já está gravado → não regrava.
