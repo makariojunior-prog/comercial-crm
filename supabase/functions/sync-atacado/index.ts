@@ -237,13 +237,44 @@ Deno.serve(async (req: Request) => {
     const hasTipoCol       = sheetHeaders.includes('tipo')
     const hasOcorrenciaCol = sheetHeaders.includes('ocorrencia')
 
+    // Estado atual da tabela (id_venda → atualizacao em epoch ms), para só
+    // reenviar ao PostgREST os pedidos que de fato mudaram desde a última
+    // sincronização. Sem isso a função reupserta as ~7000 linhas da planilha
+    // inteira a cada ciclo de 5 min mesmo quando nada mudou — foi isso que
+    // estourou o Log Ingestion do projeto (~140 upserts em lote/execução,
+    // 24h por dia). `order` torna a paginação determinística mesmo com
+    // gravações concorrentes (ex.: webhook-erp-atacado).
+    const existingAtualizacao = new Map<number, number>()
+    {
+      const PAGE_SIZE = 1000
+      let from = 0
+      while (true) {
+        const { data, error } = await supabase
+          .from('atacado_pedidos')
+          .select('id_venda, atualizacao')
+          .order('id_venda', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1)
+        if (error || !data) break
+        for (const r of data as Array<{ id_venda: number; atualizacao: string }>) {
+          existingAtualizacao.set(r.id_venda, new Date(r.atualizacao).getTime())
+        }
+        if (data.length < PAGE_SIZE) break
+        from += PAGE_SIZE
+      }
+    }
+
     let batch: Record<string, unknown>[] = []
-    let upserted = 0, skipped = 0
+    let upserted = 0, skipped = 0, unchanged = 0
     let matchedById = 0, matchedByName = 0, unmatched = 0
     // Vínculos descobertos por nome nesta execução — gravados no de-para para
     // que as demais grafias do mesmo id_cliente já entrem vinculadas
     const learnedLinks = new Map<number, { crm_client_id: string; cliente_nome: string | null }>()
     const upsertErrors: string[] = []
+
+    // Lote maior = menos requisições HTTP ao PostgREST por execução. Com o
+    // filtro de "só o que mudou" acima, a maioria dos ciclos nem chega a
+    // acionar um flush; isto cobre backfills e picos de atualização em massa.
+    const FLUSH_SIZE = 500
 
     async function flushBatch() {
       if (!batch.length) return
@@ -273,6 +304,8 @@ Deno.serve(async (req: Request) => {
         row.dataemissao ?? row.emissao ?? row.datacompetencia ??
         row.datapedido ?? row.datavenda ?? row.data ?? '',
       )
+      // atualizacao NOT NULL — fallback garante que nunca será null
+      const atualizacaoFinal = atualizacao ?? dataEmissao ?? now
 
       const clienteNome = row.cliente ?? row.nomecliente ?? row.nome ?? null
       const erpClienteId = !isNaN(clienteId) && clienteId ? clienteId : null
@@ -295,6 +328,18 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // O ERP só reescreve `atualizacao` quando o pedido de fato muda —
+      // mesmo id_venda com a mesma atualizacao já gravada significa que este
+      // pedido não mudou desde a última sincronização, então não há motivo
+      // para reenviar a linha ao PostgREST. Comparado em epoch ms (não como
+      // string) porque o Postgres devolve o timestamp em formato diferente
+      // do `toISOString()` usado para gravar.
+      const existingTime = existingAtualizacao.get(idVenda)
+      if (existingTime !== undefined && existingTime === new Date(atualizacaoFinal).getTime()) {
+        unchanged++
+        continue
+      }
+
       batch.push({
         id_venda:      idVenda,
         // a planilha chama de "venda" o número do pedido no ERP
@@ -315,12 +360,11 @@ Deno.serve(async (req: Request) => {
         ...(hasTipoCol       && row.tipo       ? { tipo: row.tipo.toUpperCase() } : {}),
         ...(hasOcorrenciaCol && row.ocorrencia ? { ocorrencia: row.ocorrencia }   : {}),
         data_emissao:  dataEmissao,
-        // atualizacao NOT NULL — fallback garante que nunca será null
-        atualizacao:   atualizacao ?? dataEmissao ?? now,
+        atualizacao:   atualizacaoFinal,
         updated_at:    now,
       })
 
-      if (batch.length >= 50) await flushBatch()
+      if (batch.length >= FLUSH_SIZE) await flushBatch()
     }
     await flushBatch()
 
@@ -354,6 +398,7 @@ Deno.serve(async (req: Request) => {
       total: rows.length,
       upserted,
       skipped,
+      unchanged,
       // diagnóstico do vínculo com o CRM — `unmatched` alto significa cliente
       // de Revenda cadastrado com nome que o ERP não usa: vincule na aba
       // "Compras Mensais" (card "Não vinculados")
