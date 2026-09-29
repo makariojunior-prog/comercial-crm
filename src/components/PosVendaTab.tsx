@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import type { PosVendaCliente } from '../types'
 import PosVendaInteracaoModal, { P, fmtTel } from './PosVendaInteracaoModal'
+import { whatsappUrl } from '../lib/format'
 
 type Filtro = '1' | '2' | 'todos'
 
@@ -146,6 +147,7 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
 
 function ClienteCard({ cliente: c, onAction }: { cliente: PosVendaCliente; onAction: () => void }) {
   const cfg = P[c.prioridade] ?? P[3]
+  const waUrl = whatsappUrl(c.telefone)
   return (
     <div className={`card border-l-4 ${cfg.border} px-4 py-3`}>
       <div className="flex items-start gap-3">
@@ -161,14 +163,23 @@ function ClienteCard({ cliente: c, onAction }: { cliente: PosVendaCliente; onAct
             )}
           </div>
           <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">{c.nome ?? c.telefone}</p>
-          <a
-            href={`https://wa.me/${c.telefone}`}
-            target="_blank" rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 hover:underline"
-          >
-            <MessageCircle size={11} /> {fmtTel(c.telefone)}
-          </a>
+          {waUrl ? (
+            <a
+              href={waUrl}
+              target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 hover:underline"
+            >
+              <MessageCircle size={11} /> {fmtTel(c.telefone)}
+            </a>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 text-xs text-slate-400"
+              title="Número inválido: corrija o telefone na planilha de origem"
+            >
+              <MessageCircle size={11} /> {c.telefone} · número inválido
+            </span>
+          )}
           <div className="flex flex-wrap gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400">
             <span>🛒 {format(parseISO(c.ult_compra), 'dd/MM/yy')}</span>
             <span className={c.dias_sem_contato >= 40 ? 'text-red-500 font-semibold' : ''}>

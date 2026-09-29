@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { whatsappUrl } from '../lib/format'
 import type { PosVendaCliente, PosVendaInteracao } from '../types'
 
 export const P: Record<number, { icon: string; label: string; border: string; badge: string }> = {
@@ -121,14 +122,20 @@ export default function PosVendaInteracaoModal({ cliente, tipoDefault, onClose }
               )}
             </div>
             <p className="font-bold text-slate-800 dark:text-slate-100">{cliente.nome ?? cliente.telefone}</p>
-            <a
-              href={`https://wa.me/${cliente.telefone}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-green-600 dark:text-green-400 hover:underline"
-            >
-              {fmtTel(cliente.telefone)}
-            </a>
+            {whatsappUrl(cliente.telefone) ? (
+              <a
+                href={whatsappUrl(cliente.telefone)!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-green-600 dark:text-green-400 hover:underline"
+              >
+                {fmtTel(cliente.telefone)}
+              </a>
+            ) : (
+              <span className="text-xs text-slate-400" title="Número inválido: corrija o telefone na planilha de origem">
+                {cliente.telefone} · número inválido
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="btn-ghost p-1.5">
             <X size={18} />
