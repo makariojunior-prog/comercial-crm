@@ -47,8 +47,8 @@ export default function TrackingWidget() {
 
   return (
     <div className="card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap min-w-0">
           <Radio size={15} className="text-green-500" />
           <span className="font-bold text-slate-800 dark:text-slate-100 text-sm">Rastreamento</span>
           {positions.length > 0 && (
@@ -56,8 +56,29 @@ export default function TrackingWidget() {
               {positions.length}
             </span>
           )}
+          {/* Totais na linha do título (economiza uma linha do card); juntos, para quebrarem como um bloco */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+          {moving.length > 0 && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-green-50 dark:bg-green-900/20">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[11px] font-bold text-green-700 dark:text-green-300">{moving.length} em rota</span>
+            </div>
+          )}
+          {stopped.length > 0 && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700">
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{stopped.length} parado{stopped.length > 1 ? 's' : ''}</span>
+            </div>
+          )}
+          {offline.length > 0 && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-red-50 dark:bg-red-900/20">
+              <WifiOff size={11} className="text-red-500" />
+              <span className="text-[11px] font-bold text-red-600 dark:text-red-400">{offline.length} offline</span>
+            </div>
+          )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {lastUpdate && (
             <span className="text-[10px] text-slate-400">
               {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -69,30 +90,6 @@ export default function TrackingWidget() {
           <a href="#/logistica" className="text-xs text-orange-500 hover:underline font-medium">Ver tudo →</a>
         </div>
       </div>
-
-      {/* Totais */}
-      {positions.length > 0 && (
-        <div className="flex gap-2 mb-3">
-          {moving.length > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-50 dark:bg-green-900/20">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-[11px] font-bold text-green-700 dark:text-green-300">{moving.length} em rota</span>
-            </div>
-          )}
-          {stopped.length > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700">
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{stopped.length} parado{stopped.length > 1 ? 's' : ''}</span>
-            </div>
-          )}
-          {offline.length > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20">
-              <WifiOff size={11} className="text-red-500" />
-              <span className="text-[11px] font-bold text-red-600 dark:text-red-400">{offline.length} offline</span>
-            </div>
-          )}
-        </div>
-      )}
 
       {error && (
         <p className="text-xs text-red-500 text-center py-2">Falha ao buscar posições. Verifique a conexão.</p>

@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
-import { MapPin, AlertTriangle, ChevronRight, Eye } from 'lucide-react'
+import { MapPin, AlertTriangle, ChevronRight, Eye, User } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
 import type { Visit } from '../types'
-import { getResponsaveis } from '../types'
 
 const TYPE_COLORS: Record<string, string> = {
   'Prospecção':    'bg-blue-100 text-blue-700',
@@ -33,7 +32,7 @@ export default function RecentVisitsWidget() {
   async function load() {
     const { data } = await supabase
       .from('visits')
-      .select('id, client_name, visit_date, visit_type, status, report, priority, created_at')
+      .select('id, client_name, visit_date, visit_type, status, report, priority, created_at, responsible, responsaveis')
       .order('created_at', { ascending: false })
       .limit(5)
     setVisits((data || []) as Visit[])
@@ -87,6 +86,8 @@ export default function RecentVisitsWidget() {
           {visits.map(v => {
             const isHighPriority = v.priority === 'ALTA'
             const hasReport = v.report && v.report.trim().length > 0
+            const resps = (v.responsaveis ?? []).map(r => r.trim()).filter(Boolean)
+            if (resps.length === 0 && v.responsible?.trim()) resps.push(v.responsible.trim())
 
             return (
               <div
@@ -98,19 +99,26 @@ export default function RecentVisitsWidget() {
                 }`}
               >
                 <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                    <div className="flex items-center gap-1.5 min-w-[120px] flex-1">
                       {isHighPriority && <AlertTriangle size={10} className="text-red-500 shrink-0" />}
-                      <p className={`font-medium text-xs truncate ${isHighPriority ? 'text-red-800 dark:text-red-300' : 'text-slate-800 dark:text-slate-100'}`}>
+                      <p title={v.client_name} className={`font-medium text-xs truncate ${isHighPriority ? 'text-red-800 dark:text-red-300' : 'text-slate-800 dark:text-slate-100'}`}>
                         {v.client_name}
                       </p>
-                      {getResponsaveis(v) && (
-                        <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 truncate hidden sm:inline">
-                          · {getResponsaveis(v).split(',')[0]}
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      {resps.length > 0 && (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 max-w-[130px]"
+                          title={resps.join(', ')}
+                        >
+                          <User size={9} className="shrink-0" />
+                          {/* Celular: só o primeiro nome, para não espremer o nome do cliente */}
+                          <span className="truncate hidden sm:inline">{resps[0]}</span>
+                          <span className="truncate sm:hidden">{resps[0].split(/\s+/)[0]}</span>
+                          {resps.length > 1 && <span className="shrink-0">+{resps.length - 1}</span>}
+                        </span>
+                      )}
                       {v.visit_type && (
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${TYPE_COLORS[v.visit_type] || TYPE_COLORS['Outro']}`}>
                           {v.visit_type}
