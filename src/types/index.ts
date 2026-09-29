@@ -166,11 +166,20 @@ export interface Client {
   pedidos_count: number
   // Positivação (comissão de captação atacado)
   indicador: string | null
+  /** ID do usuário indicador — fonte da verdade; `indicador` (texto) é mantido por compatibilidade. */
+  indicador_user_id: string | null
   positivado: boolean
   positivado_em: string | null
+  /** 'pendente' = enviada ao RH aguardando; 'pago' = RH confirmou; 'recusada' / 'estornada' = decisão do RH. */
   comissao_status: string | null
+  comissao_motivo: string | null
+  comissao_decisao_em: string | null
+  comissao_decisao_por: string | null
   comissao_valor: number | null
   comissao_pago_em: string | null
+  comissao_periodo_fim: string | null
+  positivacao_pedidos: number | null
+  positivacao_total: number | null
 }
 
 // Tipos de crm_clients.tipo considerados clientes de Revenda (módulo Revenda)

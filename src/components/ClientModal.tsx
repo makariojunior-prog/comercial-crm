@@ -42,12 +42,12 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
   const [mensagem, setMensagem]       = useState(client?.mensagem ?? 'NÃO')
   const [restricao, setRestricao]     = useState(client?.restricao ?? '')
 
-  const [indicador, setIndicador]               = useState(client?.indicador ?? '')
+  const [indicadorUserId, setIndicadorUserId]   = useState(client?.indicador_user_id ?? '')
 
   const [carteirasOptions, setCarteirasOptions] = useState<string[]>([])
   const [pgtoOptions, setPgtoOptions]           = useState<string[]>([])
   const [routeOptions, setRouteOptions]         = useState<{ id: string; name: string }[]>([])
-  const [userOptions, setUserOptions]           = useState<string[]>([])
+  const [userOptions, setUserOptions]           = useState<{ id: string; nome: string }[]>([])
 
   useEffect(() => {
     supabase.from('crm_carteiras').select('nome').eq('ativo', true).order('nome')
@@ -63,11 +63,8 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
           if (match) setRouteId(match.id)
         }
       })
-    supabase.from('crm_users').select('nome').eq('ativo', true).order('nome')
-      .then(({ data }) => {
-        const nomes = (data ?? []).map((u: any) => String(u.nome ?? '').toUpperCase().trim()).filter(Boolean)
-        setUserOptions([...new Set(nomes)].sort())
-      })
+    supabase.from('crm_users').select('id, nome').eq('ativo', true).order('nome')
+      .then(({ data }) => setUserOptions((data ?? []) as { id: string; nome: string }[]))
   }, [])
 
   const [saving, setSaving]   = useState(false)
@@ -128,7 +125,11 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
       restricao:     restricao.trim() || null,
       // comodato e valor são mantidos pelo módulo Comodato (trigger de alocação);
       // não são gravados aqui para não sobrescrever o espelho estruturado.
-      indicador:     indicador.trim().toUpperCase() || null,
+      // ID é a fonte da verdade; o texto segue gravado por compatibilidade com telas antigas
+      indicador_user_id: indicadorUserId || null,
+      indicador:     indicadorUserId
+        ? (userOptions.find(u => u.id === indicadorUserId)?.nome ?? client?.indicador ?? '').trim().toUpperCase() || null
+        : null,
     }
 
     try {
@@ -273,12 +274,12 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
               <label className="label text-xs font-black uppercase text-slate-400 flex items-center gap-1.5">
                 <Star size={11} className="text-purple-500" /> Indicador (quem trouxe este cliente)
               </label>
-              <select className="input" value={indicador} onChange={e => setIndicador(e.target.value)}>
+              <select className="input" value={indicadorUserId} onChange={e => setIndicadorUserId(e.target.value)}>
                 <option value="">Nenhum / não indicado</option>
-                {indicador && !userOptions.includes(indicador.toUpperCase().trim()) && (
-                  <option value={indicador}>{indicador}</option>
+                {indicadorUserId && !userOptions.some(u => u.id === indicadorUserId) && (
+                  <option value={indicadorUserId}>{client?.indicador ?? 'Usuário inativo'} (inativo)</option>
                 )}
-                {userOptions.map(u => <option key={u} value={u}>{u}</option>)}
+                {userOptions.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
               </select>
               <p className="text-[10px] text-slate-400 mt-0.5">
                 Preencha apenas se este cliente foi captado por um atendente (comissão de positivação de R$ 50,00 ao atingir 3 pedidos + R$ 500)
