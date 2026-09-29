@@ -3,16 +3,10 @@ import { Link } from 'react-router-dom'
 import { Plus, TrendingUp, ChevronRight, AlertTriangle } from 'lucide-react'
 import type { Deal, DealStatus } from '../types'
 import { getResponsaveis } from '../types'
-import { daysSince } from './StatusBadge'
+import { daysSince, statusConfig, statusTint } from './StatusBadge'
 
 const STALE_DAYS = 10
 const MAX_VISIBLE = 12
-
-const CLOSED_STYLE: Partial<Record<DealStatus, { label: string; cls: string }>> = {
-  SUCESSO:   { label: 'Sucesso',   cls: 'border-l-green-500' },
-  DESISTIU:  { label: 'Desistiu',  cls: 'border-l-red-500' },
-  CANCELADO: { label: 'Cancelado', cls: 'border-l-slate-400' },
-}
 
 interface Props {
   loading: boolean
@@ -114,7 +108,8 @@ function MiniDealCard({ deal, onOpen, showStatus }: { deal: Deal; onOpen: () => 
   const active = deal.status === 'NOVO' || deal.status === 'EM ANDAMENTO'
   const stale = active && days > STALE_DAYS
   const resp = getResponsaveis(deal).split(',')[0]?.trim()
-  const closed = deal.status ? CLOSED_STYLE[deal.status] : undefined
+  const status: DealStatus = deal.status ?? 'NOVO'
+  const tint = statusTint[status]
 
   const badgeCls = !active
     ? 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'
@@ -127,9 +122,7 @@ function MiniDealCard({ deal, onOpen, showStatus }: { deal: Deal; onOpen: () => 
   return (
     <button
       onClick={onOpen}
-      className={`w-full text-left rounded-lg border border-slate-200 dark:border-slate-700 border-l-4 bg-white dark:bg-slate-800 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 active:scale-[.99] transition-all ${
-        showStatus && closed ? closed.cls : stale ? 'border-l-red-400' : 'border-l-orange-300'
-      }`}
+      className={`w-full text-left rounded-lg border border-l-4 px-2.5 py-1.5 hover:brightness-95 dark:hover:brightness-110 active:scale-[.99] transition-all ${tint.card} ${tint.accent}`}
     >
       <div className="flex items-center justify-between gap-2">
         <p className="font-semibold text-xs text-slate-800 dark:text-slate-100 truncate">{deal.client_name}</p>
@@ -139,7 +132,7 @@ function MiniDealCard({ deal, onOpen, showStatus }: { deal: Deal; onOpen: () => 
       </div>
       <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
         {resp || 'Sem responsável'}
-        {showStatus && closed ? ` · ${closed.label}` : ''}
+        {showStatus ? ` · ${statusConfig[status].label}` : ''}
       </p>
     </button>
   )

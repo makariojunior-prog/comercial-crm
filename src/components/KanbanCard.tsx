@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Deal, DealStatus } from '../types'
 import { STATUS_ORDER, getResponsaveis } from '../types'
-import { TypeBadge, PriorityBadge } from './StatusBadge'
+import { TypeBadge, PriorityBadge, statusTint } from './StatusBadge'
 
 interface CardProps {
   deal: Deal
@@ -35,7 +35,7 @@ export function DealCardContent({ deal, onOpenEdit, onMove, onDelete, onShowHist
   return (
     <div
       onClick={onOpenEdit}
-      className={`card p-3 space-y-2 cursor-pointer hover:shadow-md transition-shadow ${dragging ? 'shadow-lg rotate-1' : ''}`}
+      className={`card p-3 space-y-2 cursor-pointer hover:shadow-md transition-shadow ${statusTint[deal.status ?? 'NOVO'].card} ${dragging ? 'shadow-lg rotate-1' : ''}`}
     >
       <div className="flex items-center gap-1.5 flex-wrap">
         <TypeBadge type={deal.deal_type} />
