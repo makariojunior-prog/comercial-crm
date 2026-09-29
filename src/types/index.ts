@@ -170,8 +170,11 @@ export interface Client {
   indicador_user_id: string | null
   positivado: boolean
   positivado_em: string | null
-  /** 'pendente' = enviada ao RH aguardando; 'pago' = RH confirmou. */
+  /** 'pendente' = enviada ao RH aguardando; 'pago' = RH confirmou; 'recusada' / 'estornada' = decisão do RH. */
   comissao_status: string | null
+  comissao_motivo: string | null
+  comissao_decisao_em: string | null
+  comissao_decisao_por: string | null
   comissao_valor: number | null
   comissao_pago_em: string | null
   comissao_periodo_fim: string | null

@@ -11,11 +11,21 @@ import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
 import type { ModuleId } from '../contexts/AuthContext'
 import { usePreferences } from '../contexts/PreferencesContext'
+import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import GlobalSearch from './GlobalSearch'
 import DeliveryStatusWidget from './DeliveryStatusWidget'
 import ErrorBoundary from './ErrorBoundary'
+
+function NavBadge({ n, className = '' }: { n: number; className?: string }) {
+  if (!n) return null
+  return (
+    <span className={`min-w-[18px] h-[18px] px-1 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center ${className}`}>
+      {n}
+    </span>
+  )
+}
 
 // Porta de entrada do grupo: login único e atalho para os outros aplicativos.
 
@@ -56,6 +66,20 @@ export default function Layout() {
   const todayLabel = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })
   const sidebarMode = prefs.sidebarMode
   const [searchOpen, setSearchOpen] = useState(false)
+
+  // Aviso ao Administrador: clientes elegíveis à comissão de positivação aguardando confirmação
+  const [elegiveis, setElegiveis] = useState(0)
+  useEffect(() => {
+    if (!isAdmin) { setElegiveis(0); return }
+    const load = () => {
+      supabase.rpc('crm_positivacao_elegiveis_count')
+        .then(({ data }) => setElegiveis(typeof data === 'number' ? data : 0))
+    }
+    load()
+    window.addEventListener('positivacoes-changed', load)
+    return () => window.removeEventListener('positivacoes-changed', load)
+  }, [isAdmin, location.pathname])
+  const badgeFor = (to: string) => (to === '/comissao' ? elegiveis : 0)
 
   // Ctrl+K / Cmd+K opens search
   useEffect(() => {
@@ -146,6 +170,7 @@ export default function Layout() {
             {navItems.map(({ to, icon: Icon, label }) =>
               isIconsMode ? (
                 <div key={to} className="group relative">
+                  <NavBadge n={badgeFor(to)} className="absolute -top-1 -right-1 z-10 pointer-events-none" />
                   <NavLink
                     to={to}
                     className={({ isActive }) =>
@@ -172,6 +197,7 @@ export default function Layout() {
                 >
                   <Icon size={18} />
                   {label}
+                  <NavBadge n={badgeFor(to)} className="ml-auto" />
                 </NavLink>
               )
             )}
@@ -377,7 +403,10 @@ export default function Layout() {
                 }`
               }
             >
-              <Icon size={20} />
+              <span className="relative">
+                <Icon size={20} />
+                <NavBadge n={badgeFor(to)} className="absolute -top-1.5 -right-2.5" />
+              </span>
               <span className="mt-0.5 whitespace-nowrap text-[10px]">{label}</span>
             </NavLink>
           ))}

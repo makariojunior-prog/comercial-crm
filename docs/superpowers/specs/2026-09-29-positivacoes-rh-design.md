@@ -31,7 +31,14 @@ Extraída de `ComissaoPage.tsx` (888 linhas). Filtros iguais ao Varejo (Por mês
 - Histórico: editar/cancelar só mexe em `folha_mensal.comissao_varejo` quando a fonte é VAREJO (hoje qualquer linha sobrescreveria o valor do Varejo).
 
 ## Fora de escopo
-Migrar nomes em texto de outros módulos para ID e telas de gestão de usuário (projeto do portal). Endurecer a RLS aberta de `comissoes_mensais` (sinalizado; frente de segurança separada).
+Migrar nomes em texto de outros módulos para ID e telas de gestão de usuário (projeto do portal). Quem pode aprovar comissão no RH (hoje: qualquer membro de `perfis`).
 
-## Sugestões não implementadas
-Janela de validade da meta (ex.: 90 dias do 1º pedido), estorno por inadimplência, aviso ao Administrador quando o cliente vira elegível, metas (3 / R$ 500 / R$ 50) em tabela de configuração.
+## Sugestões
+Janela de validade, estorno, aviso ao Administrador e metas em tabela de configuração foram implementados na v2 (abaixo).
+
+## v2 (decidido após o primeiro PR)
+- **RH decide o que paga:** hoje 30 clientes já cumprem a meta pelo histórico total; em vez de o CRM filtrar, o Administrador envia e o RH **recusa** (aguardando) ou **estorna** (já pago) cliente a cliente, sempre com **motivo** (RPC `rh_positivacao_decidir`, só `rh_is_member()`). Recusada/estornada são finais (não voltam a elegível) e aparecem no Arquivo com o motivo. Estorno lança linha negativa `POSITIVACAO_ESTORNO` no período aberto, que a Folha soma.
+- **Regra configurável** (`positivacao_config`: pedidos, total, comissão, janela em dias; padrão 3 / R$ 500 / R$ 50 / sem janela). Progresso e elegibilidade calculados no banco (`crm_positivacao_progresso`), fonte única para tela e confirmação. Janela = meta atingida em até N dias do primeiro pedido. Só Administrador edita.
+- **Confirmação em lote** (`crm_confirmar_positivacoes`): valida cada cliente; falhas não abortam o lote.
+- **Aviso ao Administrador:** badge no menu "Comissões" com a contagem de elegíveis (`crm_positivacao_elegiveis_count`).
+- **RLS de `comissoes_mensais`:** de "qualquer sessão autenticada do projeto" para `rh_is_member()` (padrão da migration do portal, que deixou esta tabela de fora). O CRM só a toca por funções SECURITY DEFINER. Nota: `rh_is_member()` = ter linha em `perfis`, o que hoje inclui pessoas do Comercial (ex.: Flaviana, Julia, Luciano) — quem pode aprovar comissão é decisão para a centralização de usuários no portal.
