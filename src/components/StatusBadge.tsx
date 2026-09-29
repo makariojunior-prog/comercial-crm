@@ -8,6 +8,16 @@ export const statusConfig: Record<DealStatus, { label: string; classes: string }
   'CANCELADO': { label: 'Cancelado', classes: 'bg-slate-100 text-slate-500' },
 }
 
+// Tom sutil do card por etapa do Kanban (mesma paleta do cabeçalho da coluna).
+// `card` = fundo + borda; `accent` = cor da faixa lateral dos mini-cards.
+export const statusTint: Record<DealStatus, { card: string; accent: string }> = {
+  'NOVO':         { card: 'bg-blue-50/70 border-blue-200/80 dark:bg-blue-900/15 dark:border-blue-800/40',       accent: 'border-l-blue-400' },
+  'EM ANDAMENTO': { card: 'bg-amber-50/70 border-amber-200/80 dark:bg-amber-900/15 dark:border-amber-800/40',   accent: 'border-l-amber-400' },
+  'SUCESSO':      { card: 'bg-green-50/70 border-green-200/80 dark:bg-green-900/15 dark:border-green-800/40',   accent: 'border-l-green-500' },
+  'DESISTIU':     { card: 'bg-red-50/70 border-red-200/80 dark:bg-red-900/15 dark:border-red-800/40',           accent: 'border-l-red-500' },
+  'CANCELADO':    { card: 'bg-slate-100/70 border-slate-200 dark:bg-slate-700/30 dark:border-slate-600/50',     accent: 'border-l-slate-400' },
+}
+
 const priorityConfig: Record<DealPriority, { label: string; classes: string; dot: string }> = {
   'ALTA': { label: 'Alta', classes: 'bg-red-50 text-red-600 border border-red-200', dot: 'bg-red-500' },
   'MÉDIA': { label: 'Média', classes: 'bg-amber-50 text-amber-600 border border-amber-200', dot: 'bg-amber-500' },

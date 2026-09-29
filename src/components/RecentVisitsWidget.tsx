@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MapPin, Clock, AlertTriangle, ChevronRight, Eye } from 'lucide-react'
+import { MapPin, AlertTriangle, ChevronRight, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -104,6 +104,11 @@ export default function RecentVisitsWidget() {
                       <p className={`font-medium text-xs truncate ${isHighPriority ? 'text-red-800 dark:text-red-300' : 'text-slate-800 dark:text-slate-100'}`}>
                         {v.client_name}
                       </p>
+                      {getResponsaveis(v) && (
+                        <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 truncate hidden sm:inline">
+                          · {getResponsaveis(v).split(',')[0]}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {v.visit_type && (
@@ -111,13 +116,16 @@ export default function RecentVisitsWidget() {
                           {v.visit_type}
                         </span>
                       )}
-                      {(() => {
+                      {v.visit_date && (() => {
                         try {
-                          const d = parseISO(v.visit_date ?? '')
-                          if (isToday(d)) return <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Hoje</span>
-                          if (isYesterday(d)) return <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Ontem</span>
-                        } catch {}
-                        return null
+                          const d = parseISO(v.visit_date)
+                          const cls = isToday(d)
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            : isYesterday(d)
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                            : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'
+                          return <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{formatDate(v.visit_date)}</span>
+                        } catch { return null }
                       })()}
                     </div>
                   </div>
@@ -127,18 +135,6 @@ export default function RecentVisitsWidget() {
                       "{v.report}"
                     </p>
                   )}
-                  
-                  <div className="flex items-center justify-between mt-0.5 pt-1 border-t border-slate-100/50 dark:border-slate-700/30">
-                    {getResponsaveis(v) && (
-                      <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 truncate">
-                        {getResponsaveis(v).split(',')[0]}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-0.5 text-[9px] text-slate-400">
-                      <Clock size={9} />
-                      {formatDate(v.visit_date)}
-                    </div>
-                  </div>
                 </div>
               </div>
             )
