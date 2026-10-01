@@ -36,24 +36,49 @@ export function normalizeBrPhone(telefone: string | null | undefined): string | 
   return `55${d}`
 }
 
+/** Liga/desliga o nono dígito de um ID de celular (55 + DDD + 8/9 dígitos). */
+function toggleNono(id: string): string | null {
+  // Número novo (9 seguido de 1–5) nunca teve versão de 8 dígitos: sem alternativa
+  if (id.length === 13 && id[4] === '9' && /[6-9]/.test(id[5])) return id.slice(0, 4) + id.slice(5)
+  if (id.length === 12 && /[6-9]/.test(id[4])) return id.slice(0, 4) + '9' + id.slice(4)
+  return null
+}
+
 /**
- * ID do contato no WhatsApp (o que vai no wa.me). O WhatsApp registra celulares de DDD
- * fora da faixa 11–28 SEM o nono dígito: 55 62 9 8105-7897 é a conta 55 62 8105-7897.
- * Com o 9, o WhatsApp Web/Desktop responde "o número não está no WhatsApp". Confirmado
- * nos contatos do Digisac: 529 clientes da Recompra casam sem o 9 e só 16 com o 9.
+ * ID provável do contato no WhatsApp (o que vai no wa.me). Com o ID errado, o WhatsApp
+ * Web/Desktop responde "o número não está no WhatsApp". Regra tirada dos 2.321 contatos
+ * reais do Digisac:
+ * - DDD 11–28: com o 9 (43 de 43);
+ * - DDD 29+ e número antigo (9 seguido de 6–9, existia antes do nono dígito): sem o 9
+ *   (2.199 de 2.223);
+ * - DDD 29+ e número novo (9 seguido de 1–5, nunca teve versão de 8 dígitos): com o 9.
  */
 export function whatsappId(telefone: string | null | undefined): string | null {
   const n = normalizeBrPhone(telefone)
   if (!n) return null
   const ddd = Number(n.slice(2, 4))
-  if (n.length === 13 && ddd > 28) return n.slice(0, 4) + n.slice(5)
+  if (n.length === 13 && ddd > 28 && /[6-9]/.test(n[5])) return toggleNono(n)
   return n
+}
+
+/** Os dois IDs possíveis de um celular (com e sem o 9), para conferir contra IDs conhecidos. */
+export function whatsappIdCandidates(telefone: string | null | undefined): string[] {
+  const id = whatsappId(telefone)
+  if (!id) return []
+  const alt = toggleNono(id)
+  return alt ? [id, alt] : [id]
 }
 
 /** Gera URL do WhatsApp ou null se o número for inválido */
 export function whatsappUrl(telefone: string | null | undefined): string | null {
   const id = whatsappId(telefone)
   return id ? `https://wa.me/${id}` : null
+}
+
+/** URL com o outro formato do número (com/sem o 9), ou null se não houver alternativa. */
+export function whatsappUrlAlternativa(telefone: string | null | undefined): string | null {
+  const [, alt] = whatsappIdCandidates(telefone)
+  return alt ? `https://wa.me/${alt}` : null
 }
 
 /** Remove acentos, espaços e caracteres especiais — usado para normalizar headers CSV */
