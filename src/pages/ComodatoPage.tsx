@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Package, Plus, RefreshCw, Search, Wrench, FileSignature, Boxes, AlertTriangle,
   Pencil, Undo2, ArrowRightLeft, ClipboardCheck, CheckCircle2, ExternalLink,
-  TrendingUp, Warehouse, DollarSign, Trash2, ScrollText, X,
+  TrendingUp, Warehouse, DollarSign, Trash2, ScrollText, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -24,6 +24,7 @@ import ComodatoAlocarModal from '../components/ComodatoAlocarModal'
 import ComodatoContratoModal from '../components/ComodatoContratoModal'
 import ComodatoManutencaoModal from '../components/ComodatoManutencaoModal'
 import ComodatoModeloModal from '../components/ComodatoModeloModal'
+import ComodatoAdicionarUnidadesModal from '../components/ComodatoAdicionarUnidadesModal'
 import ComodatoAuditoriaTab from '../components/ComodatoAuditoriaTab'
 import ConfirmDialog from '../components/ConfirmDialog'
 
@@ -176,6 +177,8 @@ export default function ComodatoPage() {
   const [manutencoes, setManutencoes]   = useState<ComodatoManutencao[]>([])
   const [modelos, setModelos]           = useState<ComodatoModelo[]>([])
   const [revisao, setRevisao]           = useState<RevisaoRow[]>([])
+  const [addUnidadesModelo, setAddUnidadesModelo] = useState<ComodatoModelo | null>(null)
+  const [modeloAberto, setModeloAberto] = useState<string | null>(null)
 
   const [filtroSituacao, setFiltroSituacao]   = useState<ComodatoSituacao | 'TODOS'>('TODOS')
   const [filtroCategoria, setFiltroCategoria] = useState<string>('TODAS')
@@ -737,7 +740,41 @@ export default function ComodatoPage() {
                         {m.valor_referencia != null && <span>Ref. {fmtCurrency(m.valor_referencia)}</span>}
                         {m.manutencao_intervalo_meses && <span>Preventiva {m.manutencao_intervalo_meses}m</span>}
                       </div>
+                      {unidades.length > 0 && (
+                        <button
+                          onClick={() => setModeloAberto(modeloAberto === m.id ? null : m.id)}
+                          className="mt-1.5 text-[11px] font-semibold text-orange-500 hover:underline inline-flex items-center gap-1"
+                        >
+                          {modeloAberto === m.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          {modeloAberto === m.id ? 'Ocultar unidades' : 'Ver unidades'}
+                        </button>
+                      )}
+                      {modeloAberto === m.id && (
+                        <div className="mt-2 space-y-1.5">
+                          {unidades.map(u => (
+                            <div key={u.id} className="flex items-center gap-2 flex-wrap rounded-lg border border-slate-100 dark:border-slate-700 px-2.5 py-1.5 text-xs bg-slate-50/60 dark:bg-slate-700/20">
+                              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{u.codigo_patrimonio}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${ESTADO_COLORS[u.estado_conservacao]}`}>{COMODATO_ESTADO_LABELS[u.estado_conservacao]}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${SITUACAO_COLORS[u.situacao]}`}>{COMODATO_SITUACAO_LABELS[u.situacao]}</span>
+                              {u.numero_serie && <span className="text-slate-500">Série {u.numero_serie}</span>}
+                              <span className="text-slate-400">Adq. {fmtDate(u.data_aquisicao)}</span>
+                              {u.client_nome && <span className="text-slate-500 truncate">· {u.client_nome}</span>}
+                              {u.observacoes && <span className="text-slate-400 italic truncate max-w-[220px]">“{u.observacoes}”</span>}
+                              {canEdit && (
+                                <button onClick={() => setEditEquip(u)} className="btn-ghost p-1 ml-auto text-slate-500" title="Editar esta unidade">
+                                  <Pencil size={12} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                    {canEdit && (
+                      <button onClick={() => setAddUnidadesModelo(m)} className="btn-secondary text-xs py-1.5 px-2.5 shrink-0 flex items-center gap-1" title="Adicionar unidades deste modelo">
+                        <Plus size={13} /> Unidades
+                      </button>
+                    )}
                     {canEdit && (
                       <button onClick={() => setEditModelo(m)} className="btn-ghost p-2 text-slate-500 shrink-0" title="Editar">
                         <Pencil size={14} />
@@ -850,6 +887,13 @@ export default function ComodatoPage() {
       )}
       {editModelo !== undefined && (
         <ComodatoModeloModal modelo={editModelo} onClose={() => setEditModelo(undefined)} onSaved={load} />
+      )}
+      {addUnidadesModelo && (
+        <ComodatoAdicionarUnidadesModal
+          modelo={addUnidadesModelo}
+          onClose={() => setAddUnidadesModelo(null)}
+          onSaved={() => { setModeloAberto(addUnidadesModelo.id); load() }}
+        />
       )}
     </div>
   )
