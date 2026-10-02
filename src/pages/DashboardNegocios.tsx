@@ -8,8 +8,7 @@ import DealModal from '../components/DealModal'
 import DashboardTasks from '../components/DashboardTasks'
 import RecentVisitsWidget from '../components/RecentVisitsWidget'
 import DashboardNotesWidget from '../components/DashboardNotesWidget'
-import VehicleAlertsWidget from '../components/VehicleAlertsWidget'
-import TrackingWidget from '../components/TrackingWidget'
+import FrotaCard from '../components/FrotaCard'
 import VarejoFilaWidget from '../components/VarejoFilaWidget'
 import SocialWidget from '../components/SocialWidget'
 import PosVendaWidget from '../components/PosVendaWidget'
@@ -198,12 +197,7 @@ export default function DashboardNegocios() {
       case 'social_comentarios':
         return <div className="card p-5"><SocialWidget /></div>
       case 'frota':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <VehicleAlertsWidget />
-            <TrackingWidget />
-          </div>
-        )
+        return <FrotaCard />
       default:
         return null
     }

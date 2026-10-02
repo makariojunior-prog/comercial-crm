@@ -24,7 +24,7 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
   negocios:            'Negócios Ativos',
   notas:               'Notas',
   social_comentarios:  'Comentários Instagram',
-  frota:               'Alertas de Frota & Rastreamento',
+  frota:               'Frota (rastreamento + alertas + km)',
   varejo_fila:         'Fila Varejo',
   posvendas:           'Pós-Venda e Recompra (placar do dia)',
   resumo_pedidos:      'Resumo do Dia (Varejo + Atacado)',
