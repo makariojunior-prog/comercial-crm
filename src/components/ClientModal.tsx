@@ -413,6 +413,15 @@ export default function ClientModal({ client, onClose, onSaved }: ClientModalPro
               <label className="label text-xs font-black uppercase text-slate-400">Observações Gerais</label>
               <textarea className="input min-h-[80px]" value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="Detalhes, horários, preferências..." />
             </div>
+            {client?.comite_observacoes && (
+              <div className="rounded-xl border border-orange-200 dark:border-orange-800/40 bg-orange-50/60 dark:bg-orange-900/10 p-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-orange-500 mb-1">
+                  Comitê de clientes{client.comite_realizado_em ? ` · realizado em ${new Date(client.comite_realizado_em).toLocaleDateString('pt-BR')}` : ''}
+                </p>
+                <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{client.comite_observacoes}</p>
+                <p className="text-[10px] text-slate-400 mt-1">Editado só no módulo Comitê (Administradores).</p>
+              </div>
+            )}
           </section>
 
         </div>

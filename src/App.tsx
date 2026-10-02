@@ -13,6 +13,7 @@ const RegistroNegocios   = lazy(() => import('./pages/RegistroNegocios'))
 const DashboardVisitas   = lazy(() => import('./pages/DashboardVisitas'))
 const TabelasPreco       = lazy(() => import('./pages/TabelasPreco'))
 const GestaoUsuarios     = lazy(() => import('./pages/GestaoUsuarios'))
+const ComiteClientes     = lazy(() => import('./pages/ComiteClientes'))
 const TasksPage          = lazy(() => import('./pages/TasksPage'))
 const ClientsPage        = lazy(() => import('./pages/ClientsPage'))
 const EventsPage         = lazy(() => import('./pages/EventsPage'))
@@ -70,6 +71,7 @@ export default function App() {
                 <Route path="/promotoria"    element={<EventsPage />} />
                 <Route path="/tabelas"       element={<TabelasPreco />} />
                 <Route path="/usuarios"      element={<GestaoUsuarios />} />
+                <Route path="/comite"        element={<ComiteClientes />} />
                 <Route path="/configuracoes" element={<SettingsPage />} />
                 <Route path="/logistica"     element={<LogisticaPage />} />
                 <Route path="/varejo"        element={<VarejoPage />} />
