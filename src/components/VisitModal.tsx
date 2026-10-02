@@ -1,10 +1,12 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { X, AlertCircle, Camera, Trash2, Loader2, Users, CalendarPlus, ChevronDown, MapPin, Search } from 'lucide-react'
+import { X, AlertCircle, Camera, Trash2, Loader2, Users, CalendarPlus, ChevronDown, MapPin, Search, Briefcase, PartyPopper } from 'lucide-react'
 import imageCompression from 'browser-image-compression'
 import { supabase } from '../lib/supabase'
 import type { Visit } from '../types'
-import { VISIT_TYPES } from '../types'
+import { VISIT_TYPES, DEAL_TYPES } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
+import ResponsaveisPicker from './ResponsaveisPicker'
+import ClientSearchInput from './ClientSearchInput'
 
 interface Props {
   visit?: Visit | null
@@ -110,12 +112,32 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
     descricao:   '',
   })
 
+  // Converter em Negócio / Cadastrar Promotoria (só edição, mesmo fluxo da Agenda)
+  const [convertDeal, setConvertDeal]           = useState(false)
+  const [dealOrigem, setDealOrigem]             = useState<'NOVO' | 'INCREMENTAL'>('NOVO')
+  const [dealClientId, setDealClientId]         = useState<string | null>(null)
+  const [dealClientSearch, setDealClientSearch] = useState('')
+  const [dealClientName, setDealClientName]     = useState(visit?.client_name ?? '')
+  const [dealType, setDealType]                 = useState<string>(DEAL_TYPES[0])
+
+  const [convertEvent, setConvertEvent]           = useState(false)
+  const [eventType, setEventType]                 = useState('Degustação')
+  const [eventClientId, setEventClientId]         = useState<string | null>(null)
+  const [eventClientSearch, setEventClientSearch] = useState('')
+  const [eventNotes, setEventNotes]               = useState(visit?.demand ?? '')
+
+  // Mesma lista da Agenda (usuários ativos do CRM)
   useEffect(() => {
-    supabase.from('crm_staff').select('name').eq('active', true).order('name')
+    supabase.from('crm_users').select('nome').eq('ativo', true).order('nome')
       .then(({ data }) => {
-        if (data) setStaffOptions(data.map((s: any) => s.name as string))
+        if (data) setStaffOptions(data.map((u: any) => u.nome as string))
       })
   }, [])
+
+  // Nomes já gravados na visita que não estão na lista (ex.: usuário inativo) continuam visíveis
+  const opcoesResp = staffOptions.length === 0
+    ? []
+    : [...staffOptions, ...responsaveis.filter(n => !staffOptions.includes(n))]
 
   // Load crm_clients only when tipo = Acompanhamento
   useEffect(() => {
@@ -227,6 +249,36 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       visitId = inserted?.id ?? null
     }
 
+    // Converter em Negócio / Promotoria (só edição e se ainda não existir vínculo)
+    let conversaoErro: string | null = null
+    if (visitId && visit && convertDeal && !visit.deal_id) {
+      const nome = (dealOrigem === 'INCREMENTAL' ? dealClientSearch : dealClientName).trim()
+      if (nome) {
+        const { data: deal, error: dealErr } = await supabase.from('deals').insert({
+          client_name:    nome,
+          client_id:      dealOrigem === 'INCREMENTAL' ? dealClientId : null,
+          origem_negocio: dealOrigem,
+          deal_type:      dealType,
+          responsaveis,
+          responsible:    responsaveis[0] ?? null,
+        }).select('id').single()
+        if (dealErr || !deal?.id) conversaoErro = 'negócio: ' + (dealErr?.message ?? 'falha ao criar')
+        else await supabase.from('visits').update({ deal_id: deal.id }).eq('id', visitId)
+      }
+    }
+    if (visitId && visit && convertEvent && !visit.crm_event_id) {
+      const { data: ev, error: evErr } = await supabase.from('crm_events').insert({
+        title:      [form.visit_type, form.client_name].filter(Boolean).join(' — '),
+        client_id:  eventClientId,
+        event_type: eventType,
+        event_date: (form.visit_date || todayLocal()) + 'T00:00',
+        status:     'AGENDADO',
+        notes:      eventNotes.trim() || null,
+      }).select('id').single()
+      if (evErr || !ev?.id) conversaoErro = (conversaoErro ? conversaoErro + ' | ' : '') + 'promotoria: ' + (evErr?.message ?? 'falha ao criar')
+      else await supabase.from('visits').update({ crm_event_id: ev.id }).eq('id', visitId)
+    }
+
     // Cria próximo compromisso se solicitado
     if (scheduleNext && nextAppt.titulo.trim()) {
       await supabase.from('agenda_compromissos').insert({
@@ -246,6 +298,10 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
 
     setSaving(false)
     onSaved()
+    if (conversaoErro) {
+      setError('Visita salva, mas não foi possível criar o ' + conversaoErro)
+      return
+    }
     onClose()
   }
 
@@ -402,31 +458,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
             <label className="label flex items-center gap-1.5">
               <Users size={13} /> Responsáveis
             </label>
-            {staffOptions.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">
-                Carregando equipe… Cadastre membros em Usuários &gt; Equipe.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {staffOptions.map(name => {
-                  const sel = responsaveis.includes(name)
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => toggleResp(name)}
-                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
-                        sel
-                          ? 'bg-orange-500 border-orange-600 text-white shadow-sm'
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
-                      }`}
-                    >
-                      {sel ? '✓ ' : ''}{name}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+            <ResponsaveisPicker options={opcoesResp} selected={responsaveis} onToggle={toggleResp} />
             {responsaveis.length > 0 && (
               <p className="text-[10px] text-slate-400 mt-1.5">
                 {responsaveis.length} selecionado(s): {responsaveis.join(', ')}
@@ -442,6 +474,126 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
             <label className="label">Relatório</label>
             <textarea className="input resize-none" rows={3} value={form.report} onChange={e => set('report', e.target.value)} placeholder="O que aconteceu? Resultados, próximos passos..." />
           </div>
+
+          {/* Converter em Negócio */}
+          {visit && !visit.deal_id && (
+            <div className={`rounded-xl border transition-all overflow-hidden ${convertDeal ? 'border-purple-300 dark:border-purple-700' : 'border-slate-200 dark:border-slate-600'}`}>
+              <button
+                type="button"
+                onClick={() => setConvertDeal(v => !v)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium transition-colors ${convertDeal ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+              >
+                <span className="flex items-center gap-2">
+                  <Briefcase size={14} className={convertDeal ? 'text-purple-600' : 'text-slate-400'} />
+                  <span className={convertDeal ? 'text-purple-700 dark:text-purple-300 font-semibold' : 'text-slate-600 dark:text-slate-300'}>
+                    Converter em Negócio
+                  </span>
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${convertDeal ? 'rotate-180' : ''}`} />
+              </button>
+              {convertDeal && (
+                <div className="px-3 pb-3 pt-2 space-y-2 bg-purple-50 dark:bg-purple-900/10 border-t border-purple-200 dark:border-purple-800">
+                  <div>
+                    <label className="label">Origem</label>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setDealOrigem('NOVO')} className={`flex-1 py-2 rounded-lg border text-xs font-medium ${dealOrigem === 'NOVO' ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-400 text-purple-700 dark:text-purple-300 border-2' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-500'}`}>Negócio Novo</button>
+                      <button type="button" onClick={() => setDealOrigem('INCREMENTAL')} className={`flex-1 py-2 rounded-lg border text-xs font-medium ${dealOrigem === 'INCREMENTAL' ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-400 text-purple-700 dark:text-purple-300 border-2' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-500'}`}>Negócio Incremental</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Cliente</label>
+                    {dealOrigem === 'INCREMENTAL' ? (
+                      <ClientSearchInput
+                        clientId={dealClientId}
+                        search={dealClientSearch}
+                        onChange={(id, search) => { setDealClientId(id); setDealClientSearch(search) }}
+                        placeholder="Buscar cliente já cadastrado..."
+                      />
+                    ) : (
+                      <input className="input" value={dealClientName} onChange={e => setDealClientName(e.target.value)} placeholder="Nome do cliente (ainda não cadastrado)" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="label">Tipo</label>
+                    <select className="input" value={dealType} onChange={e => setDealType(e.target.value)}>
+                      {DEAL_TYPES.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">
+                    Um negócio será criado a partir desta visita — prioridade e acompanhamento você preenche depois, editando o negócio.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          {visit && visit.deal_id && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700">
+              <Briefcase size={14} className="text-purple-600 dark:text-purple-400 shrink-0" />
+              <p className="text-xs text-purple-700 dark:text-purple-300 font-medium flex-1">Negócio já criado a partir desta visita.</p>
+              <a href="#/negocios" className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-semibold shrink-0">Ver</a>
+            </div>
+          )}
+
+          {/* Cadastrar Promotoria */}
+          {visit && !visit.crm_event_id && (
+            <div className={`rounded-xl border transition-all overflow-hidden ${convertEvent ? 'border-pink-300 dark:border-pink-700' : 'border-slate-200 dark:border-slate-600'}`}>
+              <button
+                type="button"
+                onClick={() => setConvertEvent(v => !v)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium transition-colors ${convertEvent ? 'bg-pink-50 dark:bg-pink-900/20' : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+              >
+                <span className="flex items-center gap-2">
+                  <PartyPopper size={14} className={convertEvent ? 'text-pink-600' : 'text-slate-400'} />
+                  <span className={convertEvent ? 'text-pink-700 dark:text-pink-300 font-semibold' : 'text-slate-600 dark:text-slate-300'}>
+                    Cadastrar Promotoria
+                  </span>
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${convertEvent ? 'rotate-180' : ''}`} />
+              </button>
+              {convertEvent && (
+                <div className="px-3 pb-3 pt-2 space-y-2 bg-pink-50 dark:bg-pink-900/10 border-t border-pink-200 dark:border-pink-800">
+                  <div>
+                    <label className="label">Tipo de evento</label>
+                    <select className="input" value={eventType} onChange={e => setEventType(e.target.value)}>
+                      <option>Degustação</option>
+                      <option>Promoção</option>
+                      <option>Evento Comemorativo</option>
+                      <option>Inauguração</option>
+                      <option>Outro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Cliente</label>
+                    <ClientSearchInput
+                      clientId={eventClientId}
+                      search={eventClientSearch}
+                      onChange={(id, search) => { setEventClientId(id); setEventClientSearch(search) }}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Observações</label>
+                    <textarea
+                      className="input resize-none"
+                      rows={2}
+                      value={eventNotes}
+                      onChange={e => setEventNotes(e.target.value)}
+                      placeholder="Detalhes estratégicos..."
+                    />
+                  </div>
+                  <p className="text-[10px] text-pink-600 dark:text-pink-400 font-medium">
+                    Uma promotoria será criada a partir desta visita — materiais e equipe você adiciona depois, na tela de Promotoria.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          {visit && visit.crm_event_id && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-700">
+              <PartyPopper size={14} className="text-pink-600 dark:text-pink-400 shrink-0" />
+              <p className="text-xs text-pink-700 dark:text-pink-300 font-medium flex-1">Promotoria já criada a partir desta visita.</p>
+              <a href="#/promotoria" className="text-xs text-pink-600 dark:text-pink-400 hover:underline font-semibold shrink-0">Ver</a>
+            </div>
+          )}
 
           {/* Agendar próximo compromisso */}
           <div className={`rounded-xl border transition-all overflow-hidden ${scheduleNext ? 'border-blue-300 dark:border-blue-700' : 'border-slate-200 dark:border-slate-600'}`}>

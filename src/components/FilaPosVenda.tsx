@@ -3,7 +3,8 @@ import { Phone, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { PosVendaCliente } from '../types'
 import PosVendaInteracaoModal from './PosVendaInteracaoModal'
-import { ClienteCard } from './PosVendaTab'
+import { ClienteCard, ocultarDaRecompra } from './PosVendaTab'
+import { useAuth } from '../contexts/AuthContext'
 
 // Meta diária de Recompra: a Fila mostra só os próximos; o restante fica na aba Recompra.
 const PROXIMAS_RECOMPRAS = 40
@@ -18,6 +19,7 @@ export default function FilaPosVenda({ onVerRecompras }: { onVerRecompras: () =>
   const [totalRecompras, setTotalRecompras] = useState(0)
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<PosVendaCliente | null>(null)
+  const { isAdmin } = useAuth()
 
   const load = useCallback(async () => {
     const [pv, rc] = await Promise.all([
@@ -34,6 +36,10 @@ export default function FilaPosVenda({ onVerRecompras }: { onVerRecompras: () =>
 
   useEffect(() => { load() }, [load])
 
+  async function ocultar(c: PosVendaCliente) {
+    if (await ocultarDaRecompra(c)) load()
+  }
+
   if (loading) {
     return <div className="h-24 bg-slate-100 dark:bg-slate-700 rounded-xl animate-pulse" />
   }
@@ -48,7 +54,7 @@ export default function FilaPosVenda({ onVerRecompras }: { onVerRecompras: () =>
           <p className="card p-4 text-center text-xs text-slate-400">Nenhum pós-venda pendente.</p>
         ) : (
           <div className="space-y-2">
-            {posVendas.map(c => <ClienteCard key={c.telefone} cliente={c} onAction={() => setModal(c)} />)}
+            {posVendas.map(c => <ClienteCard key={c.telefone} cliente={c} onAction={() => setModal(c)} onOcultar={isAdmin ? () => ocultar(c) : undefined} />)}
           </div>
         )}
       </section>
@@ -62,7 +68,7 @@ export default function FilaPosVenda({ onVerRecompras }: { onVerRecompras: () =>
           <p className="card p-4 text-center text-xs text-slate-400">Nenhuma recompra pendente.</p>
         ) : (
           <div className="space-y-2">
-            {recompras.map(c => <ClienteCard key={c.telefone} cliente={c} onAction={() => setModal(c)} />)}
+            {recompras.map(c => <ClienteCard key={c.telefone} cliente={c} onAction={() => setModal(c)} onOcultar={isAdmin ? () => ocultar(c) : undefined} />)}
           </div>
         )}
         {totalRecompras > recompras.length && (
