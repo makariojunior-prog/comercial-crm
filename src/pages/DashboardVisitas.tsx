@@ -240,7 +240,7 @@ export default function DashboardVisitas() {
           </button>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 items-start">
           {filtered.map(v => <VisitCard key={v.id} visit={v} onEdit={() => setEditVisit(v)} onDelete={() => deleteVisit(v.id)} />)}
         </div>
       )}
@@ -259,30 +259,30 @@ function VisitCard({ visit, onEdit, onDelete }: { visit: Visit; onEdit: () => vo
   const typeBadge = typeColor[visit.visit_type ?? ''] ?? 'bg-slate-100 text-slate-600'
 
   return (
-    <div className="card overflow-hidden">
-      <div className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50" onClick={() => setExpanded(!expanded)}>
+    <div className={`card overflow-hidden ${expanded ? 'col-span-full' : ''}`}>
+      <div className="px-3 py-2 flex items-start gap-2 cursor-pointer hover:bg-slate-50" onClick={() => setExpanded(!expanded)}>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusBadge}`}>{visit.status}</span>
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusBadge}`}>{visit.status}</span>
             {visit.visit_type && (
-              <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${typeBadge}`}>{visit.visit_type}</span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${typeBadge}`}>{visit.visit_type}</span>
             )}
             {visit.has_amostra && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">🎁 Amostra</span>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">🎁 Amostra</span>
             )}
           </div>
-          <p className="font-semibold text-slate-800">{visit.client_name}</p>
-          <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 flex-wrap">
-            <span>{dateStr}</span>
-            {getResponsaveis(visit) && <span>{getResponsaveis(visit)}</span>}
+          <p className="font-semibold text-sm text-slate-800 truncate" title={visit.client_name}>{visit.client_name}</p>
+          <div className="flex items-center gap-x-2 mt-0.5 text-[11px] text-slate-500">
+            <span className="shrink-0">{dateStr}</span>
+            {getResponsaveis(visit) && <span className="truncate" title={getResponsaveis(visit)}>{getResponsaveis(visit)}</span>}
             {visit.photo_urls && visit.photo_urls.length > 0 && (
-              <span className="inline-flex items-center gap-1 text-slate-400">
+              <span className="inline-flex items-center gap-1 text-slate-400 shrink-0">
                 <Camera size={11} /> {visit.photo_urls.length}
               </span>
             )}
           </div>
         </div>
-        <span className="text-slate-400 select-none">{expanded ? '▲' : '▼'}</span>
+        <span className="text-slate-400 select-none text-xs">{expanded ? '▲' : '▼'}</span>
       </div>
 
       {expanded && (

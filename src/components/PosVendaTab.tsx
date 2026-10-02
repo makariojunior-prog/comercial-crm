@@ -1,12 +1,24 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, CheckCircle2 } from 'lucide-react'
+import { Plus, CheckCircle2, EyeOff, Undo2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import type { PosVendaCliente } from '../types'
 import PosVendaInteracaoModal, { P, fmtTel } from './PosVendaInteracaoModal'
 import WhatsAppNumberLink from './WhatsAppNumberLink'
+import { useAuth } from '../contexts/AuthContext'
 
-type Filtro = '1' | '2' | 'todos'
+type Ignorado = { telefone: string; motivo: string | null; nome: string | null }
+
+/** Tira o telefone da Pós-Venda/Recompra (só administrador; a RLS também exige). */
+export async function ocultarDaRecompra(c: PosVendaCliente): Promise<boolean> {
+  const motivo = window.prompt(`Ocultar ${c.nome ?? c.telefone} da Pós-Venda/Recompra?\n\nMotivo (opcional):`, 'Sem WhatsApp')
+  if (motivo === null) return false
+  const { error } = await supabase.from('posvendas_ignorados').insert({ telefone: c.telefone, motivo: motivo.trim() || null })
+  if (error) { alert('Não foi possível ocultar: ' + error.message); return false }
+  return true
+}
+
+type Filtro = '1' | '2' | 'todos' | 'ocultos'
 
 function parseDateBR(val: string): string | null {
   const s = val.trim()
@@ -34,6 +46,31 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro]   = useState<Filtro>(filtroInicial)
   const [modal, setModal]     = useState<PosVendaCliente | null>(null)
+  const { isAdmin } = useAuth()
+  const [ocultos, setOcultos] = useState<Ignorado[]>([])
+
+  const carregarOcultos = useCallback(async () => {
+    const { data } = await supabase.from('posvendas_ignorados').select('telefone, motivo').order('created_at', { ascending: false })
+    const lista = (data ?? []) as { telefone: string; motivo: string | null }[]
+    const nomes: Record<string, string> = {}
+    if (lista.length > 0) {
+      const { data: ped } = await supabase.from('varejo_pedidos').select('telefone, cliente')
+        .in('telefone', lista.map(l => l.telefone)).not('cliente', 'is', null).limit(1000)
+      for (const r of (ped ?? []) as { telefone: string; cliente: string }[]) nomes[r.telefone] ??= r.cliente
+    }
+    setOcultos(lista.map(l => ({ ...l, nome: nomes[l.telefone] ?? null })))
+  }, [])
+
+  async function ocultar(c: PosVendaCliente) {
+    if (await ocultarDaRecompra(c)) { await load(); carregarOcultos() }
+  }
+
+  async function restaurar(o: Ignorado) {
+    if (!window.confirm(`Voltar ${o.nome ?? o.telefone} para a Pós-Venda/Recompra?`)) return
+    const { error } = await supabase.from('posvendas_ignorados').delete().eq('telefone', o.telefone)
+    if (error) { alert('Não foi possível restaurar: ' + error.message); return }
+    await load(); carregarOcultos()
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -76,6 +113,7 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
   }, [onCountsChange])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { if (isAdmin) carregarOcultos() }, [isAdmin, carregarOcultos])
 
   const counts = useMemo(() => ({
     p1: clientes.filter(c => c.prioridade === 1).length,
@@ -85,6 +123,7 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
   const filtered = useMemo(() => {
     if (filtro === '1') return clientes.filter(c => c.prioridade === 1)
     if (filtro === '2') return clientes.filter(c => c.prioridade === 2)
+    if (filtro === 'ocultos') return []
     return clientes
   }, [clientes, filtro])
 
@@ -92,6 +131,7 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
     ['1',      `📞 Pós-Venda ${counts.p1}`],
     ['2',      `🚨 Recompra ${counts.p2}`],
     ['todos',  `Todos ${clientes.length}`],
+    ...(isAdmin ? [['ocultos', `🚫 Ocultos ${ocultos.length}`] as [Filtro, string]] : []),
   ]
 
   return (
@@ -111,7 +151,27 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
       </div>
 
       {/* List */}
-      {loading ? (
+      {filtro === 'ocultos' ? (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Números ocultos não aparecem na Pós-Venda, na Recompra nem na Fila. Só administradores veem e alteram esta lista.
+          </p>
+          {ocultos.length === 0 ? (
+            <div className="card p-8 text-center text-xs text-slate-400">Nenhum número oculto.</div>
+          ) : ocultos.map(o => (
+            <div key={o.telefone} className="card px-4 py-2.5 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{o.nome ?? o.telefone}</p>
+                <p className="text-xs text-slate-400 truncate">{fmtTel(o.telefone)}{o.motivo ? ` · ${o.motivo}` : ''}</p>
+              </div>
+              <button onClick={() => restaurar(o)}
+                className="shrink-0 flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 px-2.5 py-1.5 rounded-lg">
+                <Undo2 size={12} /> Restaurar
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : loading ? (
         <div className="space-y-2">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="h-20 bg-slate-100 dark:bg-slate-700 rounded-xl animate-pulse" />
@@ -130,7 +190,7 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
       ) : (
         <div className="space-y-2">
           {filtered.map(c => (
-            <ClienteCard key={c.telefone} cliente={c} onAction={() => setModal(c)} />
+            <ClienteCard key={c.telefone} cliente={c} onAction={() => setModal(c)} onOcultar={isAdmin ? () => ocultar(c) : undefined} />
           ))}
         </div>
       )}
@@ -148,7 +208,7 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
 
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 
-export function ClienteCard({ cliente: c, onAction }: { cliente: PosVendaCliente; onAction: () => void }) {
+export function ClienteCard({ cliente: c, onAction, onOcultar }: { cliente: PosVendaCliente; onAction: () => void; onOcultar?: () => void }) {
   const cfg = P[c.prioridade] ?? P[3]
   return (
     <div className={`card border-l-4 ${cfg.border} px-4 py-3`}>
@@ -179,12 +239,23 @@ export function ClienteCard({ cliente: c, onAction }: { cliente: PosVendaCliente
             </p>
           )}
         </div>
-        <button
-          onClick={onAction}
-          className="shrink-0 flex items-center gap-1 text-xs font-medium text-orange-500 hover:text-orange-600 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-        >
-          <Plus size={13} /> Registrar
-        </button>
+        <div className="shrink-0 flex flex-col items-end gap-1.5">
+          <button
+            onClick={onAction}
+            className="flex items-center gap-1 text-xs font-medium text-orange-500 hover:text-orange-600 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+          >
+            <Plus size={13} /> Registrar
+          </button>
+          {onOcultar && (
+            <button
+              onClick={onOcultar}
+              title="Ocultar este número da Pós-Venda/Recompra (ex.: sem WhatsApp)"
+              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-red-500 transition-colors whitespace-nowrap"
+            >
+              <EyeOff size={11} /> Ocultar
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

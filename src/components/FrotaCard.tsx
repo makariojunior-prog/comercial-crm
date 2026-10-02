@@ -216,8 +216,11 @@ export default function FrotaCard() {
     return veiculos
       .filter(v => v.exibir_no_dashboard)
       .map(v => ({ v, alertas: alertasDoVeiculo(v, manutencoes.filter(m => m.vehicle_id === v.id)) }))
-      .sort((a, b) => piorNivel(b.alertas) - piorNivel(a.alertas) || a.v.apelido.localeCompare(b.v.apelido))
-  }, [veiculos, manutencoes])
+      .sort((a, b) =>
+        Number(!!posPorVeiculo[b.v.id]) - Number(!!posPorVeiculo[a.v.id]) ||
+        piorNivel(b.alertas) - piorNivel(a.alertas) ||
+        a.v.apelido.localeCompare(b.v.apelido))
+  }, [veiculos, manutencoes, posPorVeiculo])
 
   // Totais do cabeçalho: só os veículos exibidos (+ rastreadores sem veículo cadastrado)
   const posExibidas = [
@@ -367,20 +370,39 @@ function VeiculoTile({ veiculo, alertas, posicao, ultimo, semKmHoje, titulo, onR
     : null
   const kmMostrado = ultimo?.km ?? veiculo?.km_atual ?? null
 
+  const mostraKm = !!veiculo && !!onRegistrarKm
+  const linhaInfo = (posicao?.address && !offline) || alertas.length > 0
+
   return (
-    <div className="rounded-lg border border-slate-100 dark:border-slate-700 px-3 py-2.5 text-xs space-y-1.5">
-      <div className="flex items-center gap-2">
+    <div className="rounded-lg border border-slate-100 dark:border-slate-700 px-2.5 py-1.5 text-xs space-y-1">
+      <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
         {posicao && (
           <span className={`shrink-0 w-2 h-2 rounded-full ${offline ? 'bg-red-400' : emRota ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
         )}
         {veiculo && <IconeVeiculo tipo={veiculo.tipo} />}
-        <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+        <div className="min-w-0 flex items-center gap-1.5">
           <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">{veiculo?.apelido ?? titulo}</span>
-          {veiculo?.placa && <span className="text-slate-400">· {veiculo.placa}</span>}
+          {veiculo?.placa && <span className="text-slate-400 whitespace-nowrap">· {veiculo.placa}</span>}
           {posicao?.driver && <span className="text-slate-400 truncate">· {posicao.driver}</span>}
         </div>
+        {mostraKm && (
+          <>
+            <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+              <OdoIcon size={10} />
+              {kmMostrado != null ? fmtKm(kmMostrado) : 'sem km'}
+              {ultimo && <span className="text-slate-400">({format(new Date(ultimo.data + 'T12:00:00'), 'dd/MM')})</span>}
+            </span>
+            {semKmHoje && (
+              <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-semibold whitespace-nowrap">sem km hoje</span>
+            )}
+            <button onClick={onRegistrarKm}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 font-medium whitespace-nowrap">
+              <OdoIcon size={11} /> Registrar km
+            </button>
+          </>
+        )}
         {posicao && (
-          <div className="shrink-0 flex items-center gap-2 text-[10px]">
+          <div className="ml-auto shrink-0 flex items-center gap-2 text-[10px]">
             {speed != null && speed > 0 && (
               <span className="flex items-center gap-0.5 text-slate-500 dark:text-slate-400 font-bold"><Gauge size={9} /> {speed} km/h</span>
             )}
@@ -397,12 +419,11 @@ function VeiculoTile({ veiculo, alertas, posicao, ultimo, semKmHoje, titulo, onR
         )}
       </div>
 
-      {posicao?.address && !offline && (
-        <p className="text-[10px] text-slate-400 truncate pl-4">{posicao.address}</p>
-      )}
-
-      {alertas.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+      {linhaInfo && (
+        <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
+          {posicao?.address && !offline && (
+            <span className="text-[10px] text-slate-400 truncate max-w-full" title={posicao.address}>{posicao.address}</span>
+          )}
           {alertas.map(a => {
             const Icon = a.icone
             return (
@@ -411,23 +432,6 @@ function VeiculoTile({ veiculo, alertas, posicao, ultimo, semKmHoje, titulo, onR
               </span>
             )
           })}
-        </div>
-      )}
-
-      {veiculo && onRegistrarKm && (
-        <div className="flex items-center gap-2 pt-0.5">
-          <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-            <OdoIcon size={10} />
-            {kmMostrado != null ? fmtKm(kmMostrado) : 'sem km'}
-            {ultimo && <span className="text-slate-400">({format(new Date(ultimo.data + 'T12:00:00'), 'dd/MM')})</span>}
-          </span>
-          {semKmHoje && (
-            <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-[10px] font-semibold">sem km hoje</span>
-          )}
-          <button onClick={onRegistrarKm}
-            className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 font-medium">
-            <OdoIcon size={11} /> Registrar km
-          </button>
         </div>
       )}
     </div>
