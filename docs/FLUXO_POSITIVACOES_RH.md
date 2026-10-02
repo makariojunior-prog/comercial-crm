@@ -30,3 +30,4 @@ Período do dia **26 ao dia 25**, pela **data em que o Administrador envia**: at
 - **Só Administrador confirma e só o RH decide:** as duas regras valem no banco de dados, não só na tela.
 - **Positivações e Varejo somam** na Folha (só linhas confirmadas pelo RH).
 - **Mudança de regra** vale para as próximas confirmações; o que já foi enviado ao RH não muda.
+- **Quem recebe comissão:** nem todo indicador é elegível (ex.: sócios). O Administrador liga/desliga em *Regra da comissão → Quem recebe comissão de positivação*. Indicador desligado continua com o progresso calculado, mas aparece só como "Meta atingida · sem comissão" (informativo): não entra na fila de confirmação, no aviso do menu nem no envio em lote, e o servidor recusa a confirmação.

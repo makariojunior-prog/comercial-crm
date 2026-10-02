@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   RefreshCw, Star, Clock, CheckCircle2, Banknote, Download, Undo2, AlertTriangle, Archive, Send,
-  Settings, XCircle, RotateCcw,
+  Settings, XCircle, RotateCcw, Ban,
 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import * as XLSX from 'xlsx'
@@ -36,6 +36,7 @@ interface ClienteRow {
   positivacao_total: number | null
   n_pedidos: number
   total_compras: number
+  pode_comissao: boolean
 }
 
 type Sub = 'ativas' | 'arquivo'
@@ -99,6 +100,8 @@ export default function PositivacoesTab() {
   const [showConfig, setShowConfig] = useState(false)
   const [cfgDraft, setCfgDraft] = useState({ meta_pedidos: '', meta_valor: '', valor_comissao: '', janela_dias: '' })
   const [cfgSaving, setCfgSaving] = useState(false)
+  const [naoElegiveis, setNaoElegiveis] = useState<Set<string>>(new Set())
+  const [togglingUser, setTogglingUser] = useState<string | null>(null)
 
   const userMap = useMemo(() => new Map(users.map(u => [u.id, u])), [users])
   const nomeIndicador = (id: string) => userMap.get(id)?.nome ?? '—'
@@ -124,6 +127,12 @@ export default function PositivacoesTab() {
   }, [])
   useEffect(() => { loadConfig() }, [loadConfig])
 
+  const loadNaoElegiveis = useCallback(async () => {
+    const { data } = await supabase.from('positivacao_indicadores_nao_elegiveis').select('user_id')
+    setNaoElegiveis(new Set((data ?? []).map(r => r.user_id as string)))
+  }, [])
+  useEffect(() => { loadNaoElegiveis() }, [loadNaoElegiveis])
+
   const alvo = isAdmin ? filtro : selfId
 
   const load = useCallback(async () => {
@@ -144,15 +153,16 @@ export default function PositivacoesTab() {
     ])
     if (err) { setError(err.message); setClientes([]); setLoading(false); return }
 
-    const progMap = new Map<string, { n: number; total: number }>()
-    for (const p of (prog ?? []) as { client_id: string; n_pedidos: number; total: number }[]) {
-      progMap.set(p.client_id, { n: p.n_pedidos, total: Number(p.total) })
+    const progMap = new Map<string, { n: number; total: number; pode: boolean }>()
+    for (const p of (prog ?? []) as { client_id: string; n_pedidos: number; total: number; pode_comissao: boolean }[]) {
+      progMap.set(p.client_id, { n: p.n_pedidos, total: Number(p.total), pode: p.pode_comissao })
     }
 
     setClientes(((data ?? []) as Omit<ClienteRow, 'n_pedidos' | 'total_compras'>[]).map(c => ({
       ...c,
       n_pedidos: progMap.get(c.id)?.n ?? 0,
       total_compras: progMap.get(c.id)?.total ?? 0,
+      pode_comissao: progMap.get(c.id)?.pode ?? true,
     })))
     setLoading(false)
   }, [alvo])
@@ -174,7 +184,8 @@ export default function PositivacoesTab() {
 
   const atingiuMeta = (c: ClienteRow) => c.n_pedidos >= config.meta_pedidos && c.total_compras >= config.meta_valor
   const abertos     = clientes.filter(c => !c.positivado)
-  const elegiveis   = abertos.filter(atingiuMeta)
+  const elegiveis   = abertos.filter(c => atingiuMeta(c) && c.pode_comissao)
+  const semDireito  = abertos.filter(c => atingiuMeta(c) && !c.pode_comissao)
   const emProgresso = abertos.filter(c => !atingiuMeta(c))
   const enviadas    = clientes.filter(c => c.positivado && c.comissao_status === 'pendente' && inRange(c.positivado_em))
   const pagas       = clientes.filter(c => c.positivado && c.comissao_status === 'pago' && inRange(c.comissao_pago_em))
@@ -245,6 +256,19 @@ export default function PositivacoesTab() {
     setNotice('Regra atualizada. Vale para as próximas confirmações; o que já foi enviado ao RH não muda.')
     setShowConfig(false)
     await loadConfig()
+    notificarMudanca()
+    load()
+  }
+
+  async function alternarElegibilidade(u: UserOpt) {
+    const naoElegivel = naoElegiveis.has(u.id)
+    setTogglingUser(u.id); setError(null); setNotice(null)
+    const { error: err } = naoElegivel
+      ? await supabase.from('positivacao_indicadores_nao_elegiveis').delete().eq('user_id', u.id)
+      : await supabase.from('positivacao_indicadores_nao_elegiveis').insert({ user_id: u.id, motivo: 'Definido por Administrador' })
+    setTogglingUser(null)
+    if (err) { setError(err.message); return }
+    await loadNaoElegiveis()
     notificarMudanca()
     load()
   }
@@ -366,6 +390,34 @@ export default function PositivacoesTab() {
             <button onClick={salvarConfig} disabled={cfgSaving} className="btn-primary py-1.5 px-4 text-xs">
               {cfgSaving ? 'Salvando…' : 'Salvar regra'}
             </button>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-600 space-y-2">
+              <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Quem recebe comissão de positivação</p>
+              <p className="text-[11px] text-slate-400">
+                Quem estiver desligado continua com o progresso calculado normalmente, mas não aparece em Elegíveis
+                (confirmação, envio ao RH e aviso do menu).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {users.map(u => {
+                  const recebe = !naoElegiveis.has(u.id)
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => alternarElegibilidade(u)}
+                      disabled={togglingUser === u.id}
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition-all disabled:opacity-50 ${
+                        recebe
+                          ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300'
+                          : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-400 line-through'
+                      }`}
+                      title={recebe ? 'Recebe comissão — clique para desligar' : 'Não recebe comissão — clique para ligar'}
+                    >
+                      {recebe ? <CheckCircle2 size={13} /> : <Ban size={13} />} {u.nome}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         )}
 
@@ -398,7 +450,7 @@ export default function PositivacoesTab() {
         <div className="card p-4 border-green-200 dark:border-green-700/40 bg-green-50/50 dark:bg-green-900/10">
           <p className="text-xs text-green-600 font-medium flex items-center gap-1"><Star size={12} /> Elegíveis</p>
           <p className="text-2xl font-bold text-green-700 dark:text-green-400 mt-1">{loading ? '—' : elegiveis.length}</p>
-          <p className="text-[10px] text-green-500 mt-0.5">aguardando confirmação ADM</p>
+          <p className="text-[10px] text-green-500 mt-0.5">aguardando confirmação ADM{semDireito.length > 0 ? ` · ${semDireito.length} sem comissão` : ''}</p>
         </div>
         <div className="card p-4 border-purple-200 dark:border-purple-700/40 bg-purple-50/50 dark:bg-purple-900/10">
           <p className="text-xs text-purple-600 font-medium flex items-center gap-1"><Banknote size={12} /> Aguardando RH</p>
@@ -485,6 +537,26 @@ export default function PositivacoesTab() {
                     ) : (
                       <p className="text-[10px] text-center text-green-600 font-medium">✓ Critério atingido — aguardando confirmação do ADM</p>
                     )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {semDireito.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                <Ban size={14} /> Meta atingida · indicador sem comissão de positivação ({semDireito.length})
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {semDireito.map(c => (
+                  <div key={c.id} className="card p-3.5 space-y-1.5 opacity-80">
+                    <p className="font-semibold text-slate-700 dark:text-slate-200 text-sm truncate">{c.nome}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {c.tipo && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500">{c.tipo}</span>}
+                      <span className="text-[10px] text-slate-500 font-medium">★ {nomeIndicador(c.indicador_user_id)}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">{c.n_pedidos} ped. · {fmtBRL(c.total_compras)} — meta atingida, sem comissão</p>
                   </div>
                 ))}
               </div>
