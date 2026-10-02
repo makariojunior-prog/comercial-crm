@@ -8,6 +8,7 @@ import type { VarejoPedido } from '../types'
 import { useSearchParams } from 'react-router-dom'
 import PedidoModal from '../components/PedidoModal'
 import PosVendaTab from '../components/PosVendaTab'
+import FilaPosVenda from '../components/FilaPosVenda'
 import PosVendaHistoricoTab from '../components/PosVendaHistoricoTab'
 
 type Tab = 'fila' | 'dashboard' | 'delivery' | 'amanha' | 'historico' | 'posvendas' | 'posvendas-historico' | 'retirada'
@@ -276,24 +277,31 @@ function DashboardTab({ pedidos, onEdit }: { pedidos: VarejoPedido[]; onEdit: (p
   )
 }
 
-function FilaTab({ pedidos, onEdit }: { pedidos: VarejoPedido[]; onEdit: (p: VarejoPedido) => void }) {
-  if (pedidos.length === 0) {
-    return (
-      <div className="card p-10 text-center">
-        <CheckCircle2 size={32} className="mx-auto mb-3 text-green-400 opacity-60" />
-        <p className="text-sm text-slate-400">Ótimo! Nenhum pedido aguardando definição.</p>
-      </div>
-    )
-  }
+function FilaTab({ pedidos, onEdit, onVerRecompras }: {
+  pedidos: VarejoPedido[]
+  onEdit: (p: VarejoPedido) => void
+  onVerRecompras: () => void
+}) {
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-        <AlertTriangle size={13} />
-        {pedidos.length} pedido{pedidos.length > 1 ? 's' : ''} aguardando definição de turno — clique para preencher
-      </p>
-      <div className="space-y-1.5">
-        {pedidos.map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
-      </div>
+    <div className="space-y-6">
+      {/* Pedidos novos: prioridade, sempre acima do pós-venda e da recompra */}
+      {pedidos.length === 0 ? (
+        <div className="card p-5 text-center">
+          <CheckCircle2 size={24} className="mx-auto mb-2 text-green-400 opacity-60" />
+          <p className="text-sm text-slate-400">Ótimo! Nenhum pedido aguardando definição.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+            <AlertTriangle size={13} />
+            {pedidos.length} pedido{pedidos.length > 1 ? 's' : ''} aguardando definição de turno — clique para preencher
+          </p>
+          <div className="space-y-1.5">
+            {pedidos.map(p => <PedidoCard key={p.id} pedido={p} onClick={() => onEdit(p)} />)}
+          </div>
+        </div>
+      )}
+      <FilaPosVenda onVerRecompras={onVerRecompras} />
     </div>
   )
 }
@@ -609,6 +617,7 @@ export default function VarejoPage() {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg]   = useState<string | null>(null)
   const [posVendaAtivos, setPosVendaAtivos] = useState(0)
+  const [posVendaFiltro, setPosVendaFiltro] = useState<'1' | '2'>('1')
   const sheetsApiKey = typeof window !== 'undefined' ? localStorage.getItem('crm_sheets_api_key') ?? '' : ''
 
   const tomorrow = useMemo(() => nextBusinessDay(selectedDate), [selectedDate])
@@ -863,7 +872,7 @@ export default function VarejoPage() {
 
       {/* Content */}
       {tab === 'posvendas' ? (
-        <PosVendaTab onCountsChange={(p1, p2) => setPosVendaAtivos(p1 + p2)} />
+        <PosVendaTab filtroInicial={posVendaFiltro} onCountsChange={(p1, p2) => setPosVendaAtivos(p1 + p2)} />
       ) : tab === 'posvendas-historico' ? (
         isAdmin ? (
           <PosVendaHistoricoTab />
@@ -881,7 +890,7 @@ export default function VarejoPage() {
       ) : tab === 'dashboard' ? (
         <DashboardTab pedidos={today} onEdit={setEditPedido} />
       ) : tab === 'fila' ? (
-        <FilaTab pedidos={fila} onEdit={setEditPedido} />
+        <FilaTab pedidos={fila} onEdit={setEditPedido} onVerRecompras={() => { setPosVendaFiltro('2'); setTab('posvendas') }} />
       ) : tab === 'delivery' ? (
         <DeliveryTab pedidos={todayDelivery} />
       ) : (

@@ -26,10 +26,13 @@ function parseDateBR(val: string): string | null {
 
 // ── Tab principal ─────────────────────────────────────────────────────────────
 
-export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: number, p2: number) => void }) {
+export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
+  onCountsChange?: (p1: number, p2: number) => void
+  filtroInicial?: Filtro
+}) {
   const [clientes, setClientes]         = useState<PosVendaCliente[]>([])
   const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro]   = useState<Filtro>('1')
+  const [filtro, setFiltro]   = useState<Filtro>(filtroInicial)
   const [modal, setModal]     = useState<PosVendaCliente | null>(null)
 
   const load = useCallback(async () => {
@@ -145,7 +148,7 @@ export default function PosVendaTab({ onCountsChange }: { onCountsChange?: (p1: 
 
 // ── Subcomponents ─────────────────────────────────────────────────────────────
 
-function ClienteCard({ cliente: c, onAction }: { cliente: PosVendaCliente; onAction: () => void }) {
+export function ClienteCard({ cliente: c, onAction }: { cliente: PosVendaCliente; onAction: () => void }) {
   const cfg = P[c.prioridade] ?? P[3]
   return (
     <div className={`card border-l-4 ${cfg.border} px-4 py-3`}>

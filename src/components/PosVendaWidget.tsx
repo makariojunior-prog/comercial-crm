@@ -67,10 +67,10 @@ export default function PosVendaWidget() {
 
       <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
         <Clock size={14} className="shrink-0 mt-0.5" />
-        <span>Lembrete: não envie mais de uma mensagem para o mesmo cliente a cada 5 minutos.</span>
+        <span>Ao enviar mensagens, aguardar um intervalo mínimo de 2 minutos entre cada cliente.</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5">
         <Painel
           icone={<Phone size={14} className="text-sky-500" />}
           titulo="Pós-Venda"
