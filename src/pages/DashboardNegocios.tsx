@@ -137,7 +137,7 @@ export default function DashboardNegocios() {
   )
 
   // Widgets that always span both columns (full width)
-  const FULL_WIDTH = new Set(['frota', 'tarefas_eventos', 'visitas_negocios', 'status_loja'])
+  const FULL_WIDTH = new Set(['frota', 'tarefas_eventos', 'visitas_negocios', 'status_loja', 'posvendas'])
 
   function renderWidget(id: string) {
     switch (id) {
