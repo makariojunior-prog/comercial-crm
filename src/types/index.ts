@@ -178,6 +178,9 @@ export interface Client {
   comissao_valor: number | null
   comissao_pago_em: string | null
   comissao_periodo_fim: string | null
+  /** Comitê de clientes: data em que o comitê foi realizado e o que foi alinhado. */
+  comite_realizado_em: string | null
+  comite_observacoes: string | null
   positivacao_pedidos: number | null
   positivacao_total: number | null
 }
