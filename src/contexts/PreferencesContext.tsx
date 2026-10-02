@@ -26,7 +26,7 @@ export const DASHBOARD_WIDGET_LABELS: Record<string, string> = {
   social_comentarios:  'Comentários Instagram',
   frota:               'Alertas de Frota & Rastreamento',
   varejo_fila:         'Fila Varejo',
-  posvendas:           'Pós-Venda Pendentes',
+  posvendas:           'Pós-Venda e Recompra (placar do dia)',
   resumo_pedidos:      'Resumo do Dia (Varejo + Atacado)',
   agenda_widget:       'Agenda',
   status_loja:         'Status das Lojas (99Food & iFood)',
