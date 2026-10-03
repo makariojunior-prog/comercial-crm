@@ -54,8 +54,9 @@ Deno.serve(async (req) => {
     let aberta = false
     let motivo: string | null = null
     if (Array.isArray(statusData)) {
-      const delivery = statusData.find((op: any) => op.operation === 'DELIVERY')
-      if (delivery?.state === 'OK') aberta = true
+      // O iFood devolve operation em minúsculas ("delivery"); compara sem diferenciar caixa.
+      const delivery = statusData.find((op: any) => String(op.operation).toUpperCase() === 'DELIVERY')
+      if (delivery?.state === 'OK' && delivery?.available !== false) aberta = true
       else motivo = delivery?.message?.title || delivery?.state || 'Loja fechada no iFood'
     }
     const status = aberta ? 'OPEN' : 'CLOSED'
