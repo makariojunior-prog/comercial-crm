@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { INITIAL_FOOD99_MENU, Food99MenuItem } from '../data/food99Menu'
+import IfoodMerchantConsole from '../components/IfoodMerchantConsole'
 
 function formatSafeDateTime(dateStr?: string | null): string {
   if (!dateStr) return '—'
@@ -1340,8 +1341,10 @@ export default function LojaPage() {
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200/80 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-semibold text-slate-700 dark:text-slate-300">Próxima Ação:</span> Aguardamos o suporte do iFood responder ao chamado confirmando a restrição ao módulo Merchant e liberando as credenciais de teste para gravarmos o vídeo desses 3 cenários.
+              <span className="font-semibold text-slate-700 dark:text-slate-300">Como gravar:</span> use o console abaixo (chama a API do iFood de verdade com o app de teste), mostre a resposta e confirme o resultado no Portal do Parceiro / Logs de Eventos. Pausas e horários ficam registrados em <code>ifood_acoes_log</code>.
             </div>
+
+            <IfoodMerchantConsole />
           </div>
         </div>
       )}
