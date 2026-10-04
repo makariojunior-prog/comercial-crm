@@ -65,11 +65,6 @@ export default function PosVendaWidget() {
         </button>
       </div>
 
-      <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1.5 text-[11px] text-amber-800 dark:text-amber-300">
-        <Clock size={12} className="shrink-0 mt-0.5" />
-        <span>Ao enviar mensagens, aguardar um intervalo mínimo de 2 minutos entre cada cliente.</span>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
         <Painel
           icone={<Phone size={14} className="text-sky-500" />}
@@ -102,6 +97,11 @@ export default function PosVendaWidget() {
           metaTotal
         />
       </div>
+
+      <p className="flex items-start gap-1.5 text-[11px] font-semibold text-red-600 dark:text-red-400">
+        <Clock size={12} className="shrink-0 mt-0.5" />
+        <span>Ao enviar mensagens, aguardar um intervalo mínimo de 2 minutos entre cada cliente.</span>
+      </p>
     </div>
   )
 }
