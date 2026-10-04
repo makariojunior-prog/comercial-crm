@@ -149,17 +149,17 @@ export default function ResumoPedidosWidget() {
                 {varejoTotal} ped. · {fmt(varejoValor)}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5">
               {[
                 { label: 'Entregas',  data: varejo!.entregas,  color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' },
                 { label: 'Retiradas', data: varejo!.retiradas, color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300' },
                 { label: 'iFood',     data: varejo!.ifood,     color: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' },
                 { label: '99Food',    data: varejo!.food99,    color: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300' },
               ].map(({ label, data, color }) => (
-                <div key={label} className={`rounded-xl px-3 py-2 ${color}`}>
-                  <p className="text-[10px] font-semibold opacity-75">{label}</p>
+                <div key={label} className={`rounded-xl px-2 py-1.5 min-w-0 ${color}`}>
+                  <p className="text-[10px] font-semibold opacity-75 truncate">{label}</p>
                   <p className="text-lg font-bold leading-tight">{data.qtd}</p>
-                  <p className="text-[10px] font-medium opacity-80">{data.valor > 0 ? fmt(data.valor) : '—'}</p>
+                  <p className="text-[10px] font-medium opacity-80 truncate">{data.valor > 0 ? fmt(data.valor) : '—'}</p>
                 </div>
               ))}
             </div>
