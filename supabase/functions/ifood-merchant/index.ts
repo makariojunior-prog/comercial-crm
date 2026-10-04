@@ -95,9 +95,12 @@ async function sincronizarStatus(mid: string) {
     const delivery = data.find((op: any) => String(op.operation).toUpperCase() === 'DELIVERY')
     if (delivery?.state === 'OK' && delivery?.available !== false) aberta = true
     else {
-      motivo = delivery?.message?.title || delivery?.state || 'Loja fechada no iFood'
       const vals: any[] = Array.isArray(delivery?.validations) ? delivery.validations : []
-      pausada = vals.some(v => /interruption|pause|paus/i.test(`${v?.id} ${v?.code}`) && v?.state !== 'OK')
+      const pausa = vals.find(v => String(v?.code).includes('unavailabilities') && v?.state !== 'OK')
+      pausada = !!pausa || delivery?.reopenable?.type === 'UNAVAILABILITY'
+      const falha = pausa ?? vals.find(v => v?.state && v.state !== 'OK')
+      motivo = [falha?.message?.title ?? delivery?.message?.title, falha?.message?.subtitle].filter(Boolean).join(' — ')
+        || delivery?.state || 'Loja fechada no iFood'
     }
   }
   const status = aberta ? 'OPEN' : pausada ? 'PAUSED' : 'CLOSED'
@@ -111,6 +114,19 @@ async function sincronizarStatus(mid: string) {
     updated_at: agora,
   }, { onConflict: 'canal' })
   return { status, motivo, bruto: data }
+}
+
+// O iFood lê start/end das pausas como horário LOCAL sem fuso; a loja (Goiânia) segue Brasília.
+// Testado: com fuso do endereço do merchant de teste (AC) a pausa foi rejeitada como "no passado".
+const FUSO = 'America/Sao_Paulo'
+
+/** "2026-10-03T20:07:59" no fuso informado (formato sem offset que o iFood espera). */
+function horaLocal(d: Date, tz: string): string {
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(d).reduce((a, x) => ({ ...a, [x.type]: x.value }), {} as Record<string, string>)
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`
 }
 
 // ── Horários ───────────────────────────────────────────────────────────────────────────
@@ -145,18 +161,33 @@ async function executar(acao: string, p: any, quem: { papel: Papel }) {
       const fim = new Date(inicio.getTime() + minutos * 60_000)
       const r = await ifood('POST', `/merchant/v1.0/merchants/${mid}/interruptions`, {
         description: String(p.motivo || 'Pausa pelo CRM Cantina').slice(0, 100),
-        start: inicio.toISOString(),
-        end: fim.toISOString(),
+        start: horaLocal(inicio, FUSO),
+        end: horaLocal(fim, FUSO),
       })
+      await new Promise(r => setTimeout(r, 1500))
       const st = await sincronizarStatus(mid)
       return { pausa: r.data, status: st.status }
     }
     case 'reabrir': {
       exige(quem.papel, 'atendente', 'reabrir a loja')
       const mid = await merchantId(p.merchantId)
-      const { data } = await ifood('GET', `/merchant/v1.0/merchants/${mid}/interruptions`)
-      const ids: string[] = (Array.isArray(data) ? data : []).filter((i: any) => !p.id || i.id === p.id).map((i: any) => i.id)
-      for (const id of ids) await ifood('DELETE', `/merchant/v1.0/merchants/${mid}/interruptions/${id}`)
+      let ids: string[]
+      if (p.id) ids = [String(p.id)]
+      else {
+        const { data } = await ifood('GET', `/merchant/v1.0/merchants/${mid}/interruptions`)
+        ids = (Array.isArray(data) ? data : []).map((i: any) => i.id)
+      }
+      for (const id of ids) {
+        try {
+          await ifood('DELETE', `/merchant/v1.0/merchants/${mid}/interruptions/${id}`)
+        } catch (e: any) {
+          if (e?.detalhe?.error?.code === 'RecentlyCreatedInterruption') {
+            throw new HttpError(409, 'O iFood só permite remover a pausa alguns instantes depois de criada. Tente de novo em instantes.', e.detalhe)
+          }
+          throw e
+        }
+      }
+      await new Promise(r => setTimeout(r, 1500))
       const st = await sincronizarStatus(mid)
       return { removidas: ids.length, status: st.status }
     }
@@ -180,7 +211,7 @@ async function executar(acao: string, p: any, quem: { papel: Papel }) {
         if (!DIAS.includes(dia) || !Number.isFinite(dur) || dur <= 0) throw new HttpError(400, `Turno inválido: ${JSON.stringify(t)}`)
         return { dayOfWeek: dia, start: `${String(h1).padStart(2, '0')}:${String(m1 || 0).padStart(2, '0')}:00`, duration: dur }
       })
-      const r = await ifood('PUT', `/merchant/v1.0/merchants/${mid}/opening-hours`, { merchantId: mid, shifts })
+      const r = await ifood('PUT', `/merchant/v1.0/merchants/${mid}/opening-hours`, { storeId: mid, shifts })
       return { enviado: shifts, resposta: r.data }
     }
     default:

@@ -52,14 +52,22 @@ Deno.serve(async (req) => {
     // 3. Status operacional (lista de operações: DELIVERY, TAKEOUT…)
     const statusData = await ifood(`/merchant/v1.0/merchants/${merchantId}/status`, token)
     let aberta = false
+    let pausada = false
     let motivo: string | null = null
     if (Array.isArray(statusData)) {
       // O iFood devolve operation em minúsculas ("delivery"); compara sem diferenciar caixa.
       const delivery = statusData.find((op: any) => String(op.operation).toUpperCase() === 'DELIVERY')
       if (delivery?.state === 'OK' && delivery?.available !== false) aberta = true
-      else motivo = delivery?.message?.title || delivery?.state || 'Loja fechada no iFood'
+      else {
+        const vals: any[] = Array.isArray(delivery?.validations) ? delivery.validations : []
+        const pausa = vals.find(v => String(v?.code).includes('unavailabilities') && v?.state !== 'OK')
+        pausada = !!pausa || delivery?.reopenable?.type === 'UNAVAILABILITY'
+        const falha = pausa ?? vals.find(v => v?.state && v.state !== 'OK')
+        motivo = [falha?.message?.title ?? delivery?.message?.title, falha?.message?.subtitle].filter(Boolean).join(' — ')
+          || delivery?.state || 'Loja fechada no iFood'
+      }
     }
-    const status = aberta ? 'OPEN' : 'CLOSED'
+    const status = aberta ? 'OPEN' : pausada ? 'PAUSED' : 'CLOSED'
 
     // 4. Grava para o dashboard
     const agora = new Date().toISOString()
@@ -69,7 +77,7 @@ Deno.serve(async (req) => {
       motivo_pausa: motivo,
       ultima_verificacao: agora,
       alerta_ativo: !aberta,
-      mensagem_alerta: !aberta ? `iFood: Loja fechada/pausada${motivo ? ' — ' + motivo : ''}` : null,
+      mensagem_alerta: !aberta ? `iFood: Loja ${pausada ? 'em pausa' : 'fechada'}${motivo ? ' — ' + motivo : ''}` : null,
       updated_at: agora,
     }, { onConflict: 'canal' })
     if (error) throw error

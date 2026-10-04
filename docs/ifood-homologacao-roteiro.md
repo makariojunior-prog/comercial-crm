@@ -6,6 +6,9 @@ O suporte pediu o checklist de Merchant e **vídeos mostrando os logs dentro do 
 Os testes usam o aplicativo **CANTINA EM CASA LTDA – Teste (C)** e a loja de teste vinculada a ele.
 Tudo é feito pelo **console do CRM** (Loja → aba *Operação iFood*, só administrador), que chama a API de verdade.
 
+> **Testado em 03/10/2026** na loja de teste: listar loja, detalhes, status, criar/listar/remover pausa e ver/definir horários
+> funcionaram (os horários originais da loja de teste — todos os dias 00:00–23:59 — foram restaurados depois do teste).
+
 ## Antes de gravar (uma vez)
 
 - [ ] Secrets do Supabase criados: `IFOOD_CLIENT_ID` e `IFOOD_CLIENT_SECRET` (do app de teste).
@@ -26,7 +29,9 @@ Tudo é feito pelo **console do CRM** (Loja → aba *Operação iFood*, só admi
 1. No CRM, escolha **30 min** e motivo "Teste de pausa — homologação" → **Cadastrar pausa**. Mostre a resposta (id da pausa).
 2. No Portal do Parceiro, mostre que a loja aparece **pausada** (valide a pausa lá).
 3. De volta ao CRM → **Listar pausas ativas**: a pausa criada aparece com início e fim.
-4. **Remover pausas** → resposta mostra quantas foram removidas.
+   O iFood leva alguns segundos para listar a pausa nova — se vier vazio, espere ~20 s e clique de novo (a loja já aparece como "em pausa" em **Aberta ou fechada?**).
+4. **Remover pausas** → resposta mostra quantas foram removidas. O iFood **não deixa remover uma pausa recém-criada**:
+   espere cerca de 1–2 minutos depois de cadastrar (se aparecer o aviso de 409, é só tentar de novo).
 5. Clique **Aberta ou fechada?** de novo e mostre que a loja voltou a "aberta"; confirme no Portal.
 
 ## Vídeo 3 — Cenário 3: horários de funcionamento
