@@ -61,7 +61,11 @@ Deno.serve(async (req) => {
   }
 
   // O iFood entrega um array de eventos; aceitamos também um evento único.
-  const eventos: any[] = Array.isArray(payload) ? payload : [payload]
+  const todos: any[] = Array.isArray(payload) ? payload : [payload]
+
+  // KEEPALIVE é só o batimento do iFood (~a cada 30 s): responde 202 e não grava, senão o log enche.
+  const eventos = todos.filter(ev => String(ev?.fullCode ?? ev?.code ?? '').toUpperCase() !== 'KEEPALIVE')
+  if (eventos.length === 0) return json({ ok: true }, 202)
   log('📥', `${eventos.length} evento(s): ${raw.substring(0, 500)}`)
 
   const agora = new Date().toISOString()

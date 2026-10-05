@@ -55,6 +55,20 @@ O suporte pediu especificamente o menu **Logs**:
 - Responda o ticket **#33063337** anexando/linkando os vídeos e citando: app **CRM Cantina**, cenários 1, 2 e 3 do módulo Merchant, webhook assinado (`X-IFood-Signature`) em produção.
 - Cada pausa/reabertura/alteração de horário fica registrada em `ifood_acoes_log` (quem, quando, resposta da API) — útil se o iFood pedir evidência.
 
+## Se o menu Logs de Eventos do Portal aparecer vazio
+
+Verificado em 05/10/2026: o iFood **está entregando** eventos ao nosso webhook (um `KEEPALIVE` a cada ~30 s, respondido com `202`),
+mas o Logs de Eventos mostra eventos **de pedido** (Full Code, Order Id…). Chamadas do módulo Merchant (status, pausa, horários)
+**não geram evento**, então a lista fica vazia mesmo com tudo funcionando. Para ter algo para mostrar:
+
+1. Tente filtrar por **Full Code = KEEPALIVE** e *Delivered Via = Webhook* (período: últimos 30 minutos).
+2. Gere um evento real: um **pedido de teste** na loja de teste (Portal do Parceiro / ferramenta de pedido de teste do iFood) —
+   o evento aparece no Logs e também em `delivery_webhook_logs` (tabela do Supabase).
+3. Se ainda assim não houver o que mostrar, pergunte ao suporte no ticket qual log eles esperam ver para o módulo Merchant
+   (o app CRM Cantina não usa o módulo Order).
+
+Os KEEPALIVE **não são mais gravados** em `delivery_webhook_logs` (eram ~2.900 linhas por dia).
+
 ## Se algo falhar
 
 | Sintoma | O que verificar |
