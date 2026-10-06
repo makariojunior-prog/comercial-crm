@@ -463,7 +463,18 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
     setResponsaveis(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name])
   }
 
+  // Compromisso com relatório de visita fica travado, mas ainda aceita conversões
+  // (negócio / promotoria / próximo compromisso) — nesse caso o botão Salvar só aplica elas.
+  const hasConversion = convertDeal || convertEvent || scheduleNext
+  // Evita duplicar se o 1º clique criou o negócio e a promotoria falhou
+  const dealCreatedRef  = useRef(false)
+  const eventCreatedRef = useRef(false)
+
   async function save() {
+    const dealNomeResolvido = (dealOrigem === 'INCREMENTAL' ? dealClientSearch : dealClientName).trim()
+    if (convertDeal && !dealCreatedRef.current && !dealNomeResolvido) {
+      return setError('Informe o cliente do negócio')
+    }
     setSaving(true)
     setError(null)
 
@@ -493,7 +504,9 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
     }
 
     let apptId = item?.id
-    if (item) {
+    if (item && hasVisitReport) {
+      // travado: não regrava os campos do compromisso
+    } else if (item) {
       const { error: err } = await supabase.from('agenda_compromissos').update(payload).eq('id', item.id)
       if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
     } else {
@@ -526,25 +539,28 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
     }
 
     // 3. Convert to Negócio
-    const dealClientNameResolved = dealOrigem === 'INCREMENTAL' ? dealClientSearch.trim() : dealClientName.trim()
-    if (convertDeal && apptId && dealClientNameResolved) {
+    if (convertDeal && apptId && !dealCreatedRef.current) {
       const { data: dealData, error: dealErr } = await supabase.from('deals').insert({
-        client_name:     dealClientNameResolved,
+        client_name:     dealNomeResolvido,
         client_id:       dealOrigem === 'INCREMENTAL' ? dealClientId : null,
         origem_negocio:  dealOrigem,
         deal_type:       dealType,
         responsaveis,
         responsible:     responsaveis[0] ?? null,
       }).select('id').single()
-      if (!dealErr && dealData?.id) {
-        await supabase.from('agenda_compromissos')
-          .update({ deal_id: dealData.id, updated_at: new Date().toISOString() })
-          .eq('id', apptId)
+      if (dealErr || !dealData?.id) {
+        setError('Não foi possível criar o negócio: ' + (dealErr?.message ?? 'falha ao criar'))
+        setSaving(false)
+        return
       }
+      dealCreatedRef.current = true
+      await supabase.from('agenda_compromissos')
+        .update({ deal_id: dealData.id, updated_at: new Date().toISOString() })
+        .eq('id', apptId)
     }
 
     // 4. Cadastrar Promotoria
-    if (convertEvent && apptId) {
+    if (convertEvent && apptId && !eventCreatedRef.current) {
       const eventDateTime = form.data + 'T' + (form.hora_inicio || '00:00')
       const { data: eventData, error: eventErr } = await supabase.from('crm_events').insert({
         title:      titulo,
@@ -554,11 +570,15 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
         status:     'AGENDADO',
         notes:      eventNotes.trim() || null,
       }).select('id').single()
-      if (!eventErr && eventData?.id) {
-        await supabase.from('agenda_compromissos')
-          .update({ crm_event_id: eventData.id, updated_at: new Date().toISOString() })
-          .eq('id', apptId)
+      if (eventErr || !eventData?.id) {
+        setError('Não foi possível criar a promotoria: ' + (eventErr?.message ?? 'falha ao criar'))
+        setSaving(false)
+        return
       }
+      eventCreatedRef.current = true
+      await supabase.from('agenda_compromissos')
+        .update({ crm_event_id: eventData.id, updated_at: new Date().toISOString() })
+        .eq('id', apptId)
     }
 
     // 5. Schedule next appointment
@@ -935,9 +955,9 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
         )}
         <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">
-            {hasVisitReport ? 'Fechar' : 'Cancelar'}
+            {hasVisitReport && !hasConversion ? 'Fechar' : 'Cancelar'}
           </button>
-          {!hasVisitReport && (
+          {(!hasVisitReport || hasConversion) && (
             <button onClick={save} disabled={saving} className="btn-primary flex-1 justify-center">
               {saving ? 'Salvando…' : item ? 'Salvar' : 'Criar'}
             </button>
