@@ -28,7 +28,8 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
   idempotentes. Com o MCP do Supabase na sessão, aplique direto e deixe o arquivo no repo.
 - Edge Functions em `supabase/functions/` (webhooks iFood/99Food/Digisac/Instagram/varejo,
   `sync-*`, `process-conversations`, `geocode`, `velotrack-positions`…). A análise de conversas
-  usa a API da Anthropic (chave em secret do Supabase, nunca no código).
+  (`process-conversations`, `digisac-webhook`) usa LLM — há referências a Anthropic e a Gemini;
+  confira na função. Chaves em secrets do Supabase, nunca no código.
 - Delivery: o app só **monitora** o status das lojas (aberto/fechado/pausado); os pedidos entram
   pelo Cardápio Web — ver `docs/DELIVERY_MONITORING.md`.
 
