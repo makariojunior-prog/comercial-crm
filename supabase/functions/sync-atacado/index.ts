@@ -20,7 +20,7 @@ function sheetCsvByName(id: string, sheetName: string) {
 
 function nk(s: string) {
   return s.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]/g, '')
 }
 
@@ -136,6 +136,29 @@ function matchScore(a: string, b: string): number {
   return 0
 }
 
+async function sha256(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Lê várias chaves de atacado_config numa única requisição ao PostgREST.
+async function lerConfig(
+  // deno-lint-ignore no-explicit-any
+  supabase: any, keys: string[],
+): Promise<Map<string, unknown>> {
+  const { data } = await supabase.from('atacado_config').select('key, value').in('key', keys)
+  return new Map(((data ?? []) as Array<{ key: string; value: unknown }>).map(r => [r.key, r.value]))
+}
+
+async function gravarHash(
+  // deno-lint-ignore no-explicit-any
+  supabase: any, key: string, hash: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('atacado_config').upsert({ key, value: hash }, { onConflict: 'key' })
+  if (error) console.error(`não foi possível gravar ${key}:`, error.message)
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
 
@@ -144,64 +167,7 @@ Deno.serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Índice de nomes do CRM para o casamento. Cada cadastro entra com TODOS os
-  // seus candidatos (nome inteiro, nome limpo e cada segmento), porque o nome
-  // composto tanto pode estar deste lado quanto do lado do ERP.
-  const { data: clientsData } = await supabase.from('crm_clients').select('id, nome')
-  const clientKeys: Array<{ k: string; id: string }> = []
-  for (const c of (clientsData ?? []) as Array<{ id: string; nome: string }>) {
-    if (!c.nome?.trim()) continue
-    for (const k of nameCandidates(c.nome)) clientKeys.push({ k, id: c.id })
-  }
-
-  // Só ~500 nomes distintos vêm do ERP para milhares de pedidos — memoiza.
-  const matchCache = new Map<string, string | null>()
-
-  function findClientId(nome: string | null | undefined): string | null {
-    if (!nome?.trim()) return null
-    const cached = matchCache.get(nome)
-    if (cached !== undefined) return cached
-
-    const candidates = nameCandidates(nome)
-    let bestScore = 0
-    let bestId: string | null = null
-    let ambiguo = false
-
-    for (const ck of clientKeys) {
-      for (const ec of candidates) {
-        const score = matchScore(ec, ck.k)
-        if (score === 0) continue
-        if (score > bestScore) { bestScore = score; bestId = ck.id; ambiguo = false }
-        // Mesma evidência apontando para outro cadastro: normalmente cadastro
-        // duplicado no CRM, ou dois clientes que dividem o nome fantasia
-        // ("PADARIA PÃO NOSSO - JOANA" e "PADARIA PÃO NOSSO - JOSE AIRTON").
-        // Chutar aqui vincularia o pedido ao cliente errado, então deixa para
-        // o de-para manual da tela de Revenda.
-        else if (score === bestScore && ck.id !== bestId) ambiguo = true
-      }
-    }
-
-    const resultado = ambiguo ? null : bestId
-    matchCache.set(nome, resultado)
-    return resultado
-  }
-
-  // De-para id_cliente (ERP) → crm_clients.id.
-  //
-  // O nome que o ERP manda para o MESMO cliente muda com o tempo
-  // ("SILVANA CORDEIRO DA SILVA LIMA" vira "SILVANA CORDEIRO DA SILVA LIMA
-  // ( PANIF E LANCH NOVA OPÇÃO) (Rota Garavelo I)" e volta), então casar só
-  // por nome deixava parte dos pedidos do cliente sem vínculo — e o módulo
-  // Revenda somava um mês e não somava o outro. `id_cliente` não muda, então
-  // o vínculo por id tem prioridade sobre o nome.
-  const { data: linkData } = await supabase
-    .from('atacado_cliente_links').select('cliente_id, crm_client_id')
-  const linkByErpId = new Map<number, string>()
-  for (const l of (linkData ?? []) as Array<{ cliente_id: number; crm_client_id: string }>) {
-    if (l.cliente_id && l.crm_client_id) linkByErpId.set(Number(l.cliente_id), l.crm_client_id)
-  }
-
-  let body: { type?: string } = {}
+  let body: { type?: string; force?: boolean } = {}
   try { body = await req.json() } catch { /* no body */ }
   const type = body.type ?? 'pedidos'
 
@@ -212,10 +178,6 @@ Deno.serve(async (req: Request) => {
 
   // ── Sync pedidos ─────────────────────────────────────────
   if (type === 'pedidos') {
-    const { data: cfg } = await supabase
-      .from('atacado_config').select('value').eq('key', 'ids_ignorados').maybeSingle()
-    const idsIgnorados: number[] = ((cfg?.value ?? []) as unknown[]).map(Number)
-
     const url = sheetCsvByGid(RECEPTION_SHEET_ID, RECEPTION_GID)
     const res = await fetch(url)
     if (!res.ok) return json200({
@@ -223,40 +185,99 @@ Deno.serve(async (req: Request) => {
       hint: 'Verifique se a planilha está pública',
     })
 
-    const rows = parseCSV(await res.text())
-    const sheetHeaders = rows.length > 0 ? Object.keys(rows[0]) : []
-    const now = new Date().toISOString()
+    const csv = await res.text()
 
-    // A planilha de recepção do ERP traz só id_venda/venda/id_cliente/cliente/
-    // valor/cidade/datas. `tipo` e `ocorrencia` são classificação manual (UI ou
-    // sync reg_lumar) — escrevê-los sempre revertia todo BONIFICACAO/CANCELADO
-    // para 'PEDIDO' a cada sync, e o módulo Revenda voltava a contar
-    // bonificação e pedido cancelado como faturamento. Só inclui no upsert
-    // quando a planilha de fato trouxer a coluna; em linha nova o banco aplica
-    // o default 'PEDIDO'.
+    const cfg = await lerConfig(supabase, ['ids_ignorados', 'sync_pedidos_hash'])
+    const idsIgnorados: number[] = ((cfg.get('ids_ignorados') ?? []) as unknown[]).map(Number)
+
+    // Planilha (e lista de ignorados) idêntica à do último sync → nada a fazer.
+    // Este é o caminho de ~99% das execuções do gatilho de 5 min: uma única
+    // requisição ao PostgREST, em vez de ler o banco inteiro e reescrever.
+    // `force: true` pula o atalho (botão "Sincronizar" da tela, ou depois de
+    // mexer no banco por fora).
+    const hashAtual = await sha256(`${csv}\n#ignorados:${idsIgnorados.join(',')}`)
+    if (!body.force && hashAtual === cfg.get('sync_pedidos_hash')) {
+      return json200({ ok: true, type, planilha_inalterada: true, upserted: 0, unchanged: 0 })
+    }
+
+    // Índice de nomes do CRM para o casamento. Cada cadastro entra com TODOS os
+    // seus candidatos (nome inteiro, nome limpo e cada segmento), porque o nome
+    // composto tanto pode estar deste lado quanto do lado do ERP. Só é montado
+    // quando a planilha mudou.
+    const { data: clientsData } = await supabase.from('crm_clients').select('id, nome')
+    const clientKeys: Array<{ k: string; id: string }> = []
+    for (const c of (clientsData ?? []) as Array<{ id: string; nome: string }>) {
+      if (!c.nome?.trim()) continue
+      for (const k of nameCandidates(c.nome)) clientKeys.push({ k, id: c.id })
+    }
+
+    // Só ~500 nomes distintos vêm do ERP para milhares de pedidos — memoiza.
+    const matchCache = new Map<string, string | null>()
+
+    function findClientId(nome: string | null | undefined): string | null {
+      if (!nome?.trim()) return null
+      const cached = matchCache.get(nome)
+      if (cached !== undefined) return cached
+
+      const candidates = nameCandidates(nome)
+      let bestScore = 0
+      let bestId: string | null = null
+      let ambiguo = false
+
+      for (const ck of clientKeys) {
+        for (const ec of candidates) {
+          const score = matchScore(ec, ck.k)
+          if (score === 0) continue
+          if (score > bestScore) { bestScore = score; bestId = ck.id; ambiguo = false }
+          // Mesma evidência apontando para outro cadastro: normalmente cadastro
+          // duplicado no CRM, ou dois clientes que dividem o nome fantasia
+          // ("PADARIA PÃO NOSSO - JOANA" e "PADARIA PÃO NOSSO - JOSE AIRTON").
+          // Chutar aqui vincularia o pedido ao cliente errado, então deixa para
+          // o de-para manual da tela de Revenda.
+          else if (score === bestScore && ck.id !== bestId) ambiguo = true
+        }
+      }
+
+      const resultado = ambiguo ? null : bestId
+      matchCache.set(nome, resultado)
+      return resultado
+    }
+
+    // De-para id_cliente (ERP) → crm_clients.id.
+    //
+    // O nome que o ERP manda para o MESMO cliente muda com o tempo
+    // ("SILVANA CORDEIRO DA SILVA LIMA" vira "SILVANA CORDEIRO DA SILVA LIMA
+    // ( PANIF E LANCH NOVA OPÇÃO) (Rota Garavelo I)" e volta), então casar só
+    // por nome deixava parte dos pedidos do cliente sem vínculo — e o módulo
+    // Revenda somava um mês e não somava o outro. `id_cliente` não muda, então
+    // o vínculo por id tem prioridade sobre o nome.
+    const { data: linkData } = await supabase
+      .from('atacado_cliente_links').select('cliente_id, crm_client_id')
+    const linkByErpId = new Map<number, string>()
+    for (const l of (linkData ?? []) as Array<{ cliente_id: number; crm_client_id: string }>) {
+      if (l.cliente_id && l.crm_client_id) linkByErpId.set(Number(l.cliente_id), l.crm_client_id)
+    }
+
+    const rows = parseCSV(csv)
+    const sheetHeaders = rows.length > 0 ? Object.keys(rows[0]) : []
+
+    // `tipo` e `ocorrencia` são classificação manual (UI ou sync reg_lumar).
+    // Só vão no lote quando a planilha de fato trouxer a coluna; senão a RPC
+    // preserva o que está gravado (e aplica o default 'PEDIDO' em linha nova).
     const hasTipoCol       = sheetHeaders.includes('tipo')
     const hasOcorrenciaCol = sheetHeaders.includes('ocorrencia')
 
-    let batch: Record<string, unknown>[] = []
-    let upserted = 0, skipped = 0
+    // O lote inteiro vai numa única chamada RPC; o diff (e a supressão das
+    // linhas iguais) acontece dentro do banco — ver as migrations
+    // 20260901213000_sync_atacado_diff_rpc.sql e
+    // 20261006120000_sync_atacado_rpc_cliente_id.sql
+    const payload: Record<string, unknown>[] = []
+    let skipped = 0
     let matchedById = 0, matchedByName = 0, unmatched = 0
     // Vínculos descobertos por nome nesta execução — gravados no de-para para
     // que as demais grafias do mesmo id_cliente já entrem vinculadas
     const learnedLinks = new Map<number, { crm_client_id: string; cliente_nome: string | null }>()
-    const upsertErrors: string[] = []
-
-    async function flushBatch() {
-      if (!batch.length) return
-      const { error } = await supabase
-        .from('atacado_pedidos')
-        .upsert(batch, { onConflict: 'id_venda' })
-      if (error) {
-        upsertErrors.push(`${error.message} (code: ${error.code}) — primeiro id_venda: ${batch[0]?.id_venda}`)
-      } else {
-        upserted += batch.length
-      }
-      batch = []
-    }
+    const errors: string[] = []
 
     for (const row of rows) {
       const idVenda = parseInt(row.idvenda ?? row.venda ?? row.id ?? row.idpedido ?? '', 10)
@@ -295,34 +316,39 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      batch.push({
+      payload.push({
         id_venda:      idVenda,
         // a planilha chama de "venda" o número do pedido no ERP
         numero_pedido: parseInt(row.numeropedido ?? row.numero ?? row.numpedido ?? row.venda ?? '', 10) || null,
-        // id_cliente do ERP: chave estável do vínculo, usada pelo de-para acima
-        ...(erpClienteId ? { cliente_id: erpClienteId } : {}),
+        // id_cliente do ERP: chave estável do vínculo; null preserva o gravado
+        cliente_id:    erpClienteId,
         cliente_nome:  clienteNome,
-        // crm_client_id NÃO entra aqui. O upsert em lote do PostgREST monta uma
-        // única instrução com a união das colunas do lote, então uma linha que
-        // omite a coluna recebe NULL explícito e perde o vínculo que já tinha —
-        // foi assim que 179 pedidos de clientes com cadastro duplicado no CRM
-        // ficaram órfãos. O vínculo é aplicado depois, pelo de-para, via
-        // aplicar_vinculos_atacado().
+        // null = sem match; a RPC preserva o vínculo já gravado (inclusive o
+        // manual), que sempre vence o casamento por nome
+        crm_client_id: clientId,
         valor:         parseValor(row.valor ?? row.total ?? row.valorliquido ?? row.valortotal ?? ''),
-        // turno e entregador NÃO são preenchidos pelo sync ERP — são gerenciados manualmente
-        // pela atendente (via UI ou sync reg_lumar). Incluí-los aqui apagaria os valores manuais.
-        // tipo/ocorrencia seguem a mesma regra (ver hasTipoCol acima).
-        ...(hasTipoCol       && row.tipo       ? { tipo: row.tipo.toUpperCase() } : {}),
-        ...(hasOcorrenciaCol && row.ocorrencia ? { ocorrencia: row.ocorrencia }   : {}),
+        // turno e entregador NÃO são preenchidos pelo sync ERP — são gerenciados
+        // manualmente pela atendente (via UI ou sync reg_lumar)
+        tipo:          hasTipoCol && row.tipo ? row.tipo.toUpperCase() : null,
+        ocorrencia:    hasOcorrenciaCol && row.ocorrencia ? row.ocorrencia : null,
         data_emissao:  dataEmissao,
-        // atualizacao NOT NULL — fallback garante que nunca será null
-        atualizacao:   atualizacao ?? dataEmissao ?? now,
-        updated_at:    now,
+        // a RPC cai para emissão > valor já gravado quando vier null
+        atualizacao,
       })
-
-      if (batch.length >= 50) await flushBatch()
     }
-    await flushBatch()
+
+    const { data: rpc, error: rpcErr } = await supabase
+      .rpc('sync_atacado_pedidos', { p_rows: payload })
+
+    if (rpcErr) {
+      return json200({
+        ok: false, type, total: rows.length, skipped, sheetHeaders,
+        error: `${rpcErr.message}${rpcErr.code ? ` (code: ${rpcErr.code})` : ''}`,
+      })
+    }
+
+    const inseridos   = Number(rpc?.inseridos ?? 0)
+    const atualizados = Number(rpc?.atualizados ?? 0)
 
     // Persiste os vínculos descobertos por nome. ignoreDuplicates garante que
     // um vínculo MANUAL (feito na tela de Revenda) nunca seja sobrescrito.
@@ -337,22 +363,32 @@ Deno.serve(async (req: Request) => {
       const { error } = await supabase
         .from('atacado_cliente_links')
         .upsert(linkRows, { onConflict: 'cliente_id', ignoreDuplicates: true })
-      if (error) upsertErrors.push(`atacado_cliente_links: ${error.message}`)
+      if (error) errors.push(`atacado_cliente_links: ${error.message}`)
       else linksLearned = linkRows.length
     }
 
-    // Propaga o de-para para os pedidos. Só escreve onde o de-para tem
-    // resposta, então nenhum vínculo existente é apagado.
+    // Propaga o de-para para os demais pedidos do mesmo cliente. Só escreve onde
+    // o de-para tem resposta, então nenhum vínculo existente é apagado. Só vale
+    // a chamada quando este sync mexeu em pedidos ou aprendeu vínculos.
     let vinculosAplicados = 0
-    const { data: rpcData, error: rpcError } = await supabase.rpc('aplicar_vinculos_atacado')
-    if (rpcError) upsertErrors.push(`aplicar_vinculos_atacado: ${rpcError.message}`)
-    else vinculosAplicados = Number(rpcData ?? 0)
+    if (inseridos + atualizados + linksLearned > 0) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('aplicar_vinculos_atacado')
+      if (rpcError) errors.push(`aplicar_vinculos_atacado: ${rpcError.message}`)
+      else vinculosAplicados = Number(rpcData ?? 0)
+    }
+
+    // Só grava o hash depois de um sync sem erro — se falhar, a próxima
+    // execução tenta de novo em vez de considerar a planilha já aplicada.
+    if (errors.length === 0) await gravarHash(supabase, 'sync_pedidos_hash', hashAtual)
 
     return json200({
-      ok: upsertErrors.length === 0,
+      ok: errors.length === 0,
       type,
       total: rows.length,
-      upserted,
+      upserted: inseridos + atualizados,
+      inseridos,
+      atualizados,
+      unchanged: Number(rpc?.sem_mudanca ?? 0),
       skipped,
       // diagnóstico do vínculo com o CRM — `unmatched` alto significa cliente
       // de Revenda cadastrado com nome que o ERP não usa: vincule na aba
@@ -363,7 +399,7 @@ Deno.serve(async (req: Request) => {
       linksLearned,
       vinculosAplicados,
       sheetHeaders,
-      error: upsertErrors.length ? upsertErrors[0] : undefined,
+      error: errors.length ? errors[0] : undefined,
     })
   }
 
@@ -388,43 +424,69 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    // Aba idêntica à do último sync → nada a fazer
+    const hashAtual = await sha256(text)
+    const cfg = await lerConfig(supabase, ['sync_reg_lumar_hash'])
+    if (!body.force && hashAtual === cfg.get('sync_reg_lumar_hash')) {
+      return json200({ ok: true, type, planilha_inalterada: true, updated: 0, unchanged: 0 })
+    }
+
     const rows = parseCSV(text)
     const sheetHeaders = rows.length > 0 ? Object.keys(rows[0]) : []
-    let updated = 0, skipped = 0, datesSet = 0
+    let skipped = 0
+
+    const payload: Record<string, unknown>[] = []
 
     for (const row of rows) {
       const idVenda = parseInt(row.idvenda ?? row.venda ?? row.id ?? '', 10)
       if (!idVenda || isNaN(idVenda)) { skipped++; continue }
-
-      const patch: Record<string, string | null> = { updated_at: new Date().toISOString() }
 
       // Coluna A: data de entrega definida pela atendente
       // Tenta os nomes mais comuns para o header da coluna A
       const rawDataEntrega = row.dataentrega ?? row.entrega ?? row.data ??
         row.dtentrega ?? row.dataentregaprevista ?? row.entregaprevista ??
         row.previsao ?? row.dataprevista ?? row.previsaoentrega ?? null
+
+      let dataEntrega: string | null = null
       if (rawDataEntrega && rawDataEntrega.trim()) {
         const parsedDate = parseDate(rawDataEntrega)
-        if (parsedDate) {
-          patch.data_entrega = parsedDate.substring(0, 10) // YYYY-MM-DD
-          datesSet++
-        }
+        if (parsedDate) dataEntrega = parsedDate.substring(0, 10) // YYYY-MM-DD
       }
 
-      if (row.turno)      patch.turno      = row.turno.toUpperCase()
-      if (row.entregador) patch.entregador = row.entregador.toUpperCase()
-      if (row.tipo)       patch.tipo       = row.tipo.toUpperCase()
-      if (row.ocorrencia) patch.ocorrencia = row.ocorrencia
+      const turno      = row.turno      ? row.turno.toUpperCase()      : null
+      const entregador = row.entregador ? row.entregador.toUpperCase() : null
+      const tipo       = row.tipo       ? row.tipo.toUpperCase()       : null
+      const ocorrencia = row.ocorrencia ?? null
 
-      // Apenas updated_at = sem dados úteis
-      if (Object.keys(patch).length === 1) { skipped++; continue }
+      // Nenhum campo útil na linha
+      if (!dataEntrega && !turno && !entregador && !tipo && !ocorrencia) { skipped++; continue }
 
-      const { error } = await supabase
-        .from('atacado_pedidos').update(patch).eq('id_venda', idVenda)
-      if (error) skipped++; else updated++
+      // null = "planilha não informa"; a RPC preserva o valor já gravado
+      payload.push({ id_venda: idVenda, data_entrega: dataEntrega, turno, entregador, tipo, ocorrencia })
     }
 
-    return json200({ ok: true, type, total: rows.length, updated, skipped, datesSet, sheetHeaders })
+    const { data: rpc, error: rpcErr } = await supabase
+      .rpc('sync_atacado_reg_lumar', { p_rows: payload })
+
+    if (rpcErr) {
+      return json200({
+        ok: false, type, total: rows.length, skipped, sheetHeaders,
+        error: `${rpcErr.message}${rpcErr.code ? ` (code: ${rpcErr.code})` : ''}`,
+      })
+    }
+
+    await gravarHash(supabase, 'sync_reg_lumar_hash', hashAtual)
+
+    return json200({
+      ok: true,
+      type,
+      total: rows.length,
+      updated: rpc?.atualizados ?? 0,
+      unchanged: rpc?.sem_mudanca ?? 0,
+      datesSet: rpc?.datas_definidas ?? 0,
+      skipped,
+      sheetHeaders,
+    })
   }
 
   return json200({ ok: false, error: 'type must be "pedidos" or "reg_lumar"' })
