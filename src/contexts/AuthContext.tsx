@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
@@ -55,10 +55,16 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+// O perfil só é relido no refoco da aba depois deste tempo (permissões alteradas por um admin
+// continuam chegando sem recarregar a página, mas sem uma consulta a cada troca de aba).
+const PERFIL_VALIDO_MS = 10 * 60_000
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession]   = useState<Session | null>(null)
   const [profile, setProfile]   = useState<CrmUser | null>(null)
   const [loading, setLoading]   = useState(true)
+  // Quem tem o perfil carregado e quando — para não reler a cada evento de auth
+  const perfil = useRef<{ userId: string; em: number } | null>(null)
 
   async function loadProfile(userId: string) {
     const { data, error } = await supabase
@@ -71,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null)
       return
     }
+    perfil.current = { userId, em: Date.now() }
     setProfile((data as CrmUser) ?? null)
   }
 
@@ -84,12 +91,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return
       setSession(session)
       if (session?.user) {
+        // O supabase-js reemite SIGNED_IN toda vez que a aba volta ao foco e TOKEN_REFRESHED a cada
+        // renovação do token. Mesma pessoa, perfil recente: nada a reler.
+        const p = perfil.current
+        const mesmaPessoa = p?.userId === session.user.id
+        const recente = p !== null && Date.now() - p.em < PERFIL_VALIDO_MS
+        if (mesmaPessoa && recente && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) return
         loadProfile(session.user.id).finally(() => active && setLoading(false))
       } else {
+        perfil.current = null
         setProfile(null)
         setLoading(false)
       }
@@ -109,6 +123,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null)
   }
 
+  // Mantém a mesma referência enquanto for a mesma pessoa: a sessão é renovada com frequência e
+  // `user` entra nas dependências de vários efeitos que recarregam dados.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const user = useMemo(() => session?.user ?? null, [session?.user?.id])
+
   const role    = profile?.role ?? null
   const isAdmin = role === 'admin'
   const canEdit = role === 'admin' || role === 'vendedor'
@@ -121,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      session, user: session?.user ?? null, profile, role, loading, isAdmin, canEdit, canAccess,
+      session, user, profile, role, loading, isAdmin, canEdit, canAccess,
       signIn, signOut,
     }}>
       {children}
