@@ -6,3 +6,7 @@ dist
 read_xlsx.js
 backup/dados/
 .claude/launch.json
+
+# Capturas de tela avulsas
+note-test.png
+screenshot_*.png
