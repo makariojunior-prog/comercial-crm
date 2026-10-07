@@ -11,9 +11,10 @@ import {
 import {
   COMODATO_ADITIVO_TIPO_LABELS,
   type ComodatoAditivo, type ComodatoAditivoTipo, type ComodatoContratoItem,
-  type ComodatoContratoStatus, type ComodatoEquipamentoView,
+  type ComodatoContratoStatus, type ComodatoEquipamentoView, type ComodatoModelo,
 } from '../types'
 import ConfirmDialog from './ConfirmDialog'
+import ComodatoAdicionarUnidadesModal from './ComodatoAdicionarUnidadesModal'
 
 interface Props {
   contratoId: string
@@ -45,6 +46,8 @@ export default function ComodatoContratoItens({
   const [candidatos, setCandidatos] = useState<ComodatoEquipamentoView[]>([])
   const [numeroContrato, setNumeroContrato] = useState<Record<string, string>>({})
   const [listaAberta, setListaAberta] = useState(false)
+  const [modelos, setModelos] = useState<ComodatoModelo[]>([])
+  const [novaUnidadeModelo, setNovaUnidadeModelo] = useState<ComodatoModelo | null>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
   const [busca, setBusca]           = useState('')
   const [marcados, setMarcados]     = useState<Set<string>>(new Set())
@@ -77,10 +80,7 @@ export default function ComodatoContratoItens({
 
   useEffect(() => { carregar() }, [carregar])
 
-  async function abrirPicker() {
-    setError(null)
-    setPickerOpen(true)
-    setListaAberta(true)
+  async function carregarCandidatos() {
     // todos os equipamentos ativos: o que não pode ser vinculado aparece desabilitado, com o motivo
     const { data, error: e } = await supabase.from('comodato_equipamentos_view')
       .select('*').eq('ativo', true).order('codigo_patrimonio').limit(2000)
@@ -93,6 +93,17 @@ export default function ComodatoContratoItens({
       const { data: cts } = await supabase.from('comodato_contratos').select('id, numero').in('id', ids)
       setNumeroContrato(Object.fromEntries((cts ?? []).map(c => [c.id, c.numero ?? 's/nº'])))
     }
+  }
+
+  async function abrirPicker() {
+    setError(null)
+    setPickerOpen(true)
+    setListaAberta(true)
+    const [, m] = await Promise.all([
+      carregarCandidatos(),
+      supabase.from('comodato_modelos').select('*').eq('ativo', true).order('nome'),
+    ])
+    setModelos((m.data ?? []) as ComodatoModelo[])
   }
 
   // fecha a lista suspensa ao clicar fora
@@ -346,7 +357,7 @@ export default function ComodatoContratoItens({
                   )}
                   {opcoes.length > 0 && qtdDisponiveis === 0 && (
                     <p className="px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                      Nenhum equipamento livre. Cadastre um novo ou registre uma devolução; os demais aparecem abaixo com o motivo.
+                      Nenhum equipamento livre. Adicione mais unidades de um modelo (abaixo) ou registre uma devolução; os demais aparecem com o motivo.
                     </p>
                   )}
                   {opcoes.map(({ e, motivo }) => {
@@ -375,6 +386,17 @@ export default function ComodatoContratoItens({
                   })}
                 </div>
               )}
+            </div>
+
+            {/* o mesmo modelo em outro contrato exige outra unidade física (cada patrimônio só fica em um contrato) */}
+            <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600 dark:text-slate-300">
+              <Plus size={12} className="text-orange-500 shrink-0" />
+              <span>Precisa de mais uma unidade de um modelo?</span>
+              <select aria-label="Adicionar unidades de um modelo" className="input !w-auto !py-1 !text-xs max-w-[16rem]"
+                value="" onChange={e => setNovaUnidadeModelo(modelos.find(m => m.id === e.target.value) ?? null)}>
+                <option value="">Adicionar unidades de…</option>
+                {modelos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </select>
             </div>
 
             {marcados.size > 0 && (
@@ -425,6 +447,14 @@ export default function ComodatoContratoItens({
           </div>
         )}
       </section>
+
+      {novaUnidadeModelo && (
+        <ComodatoAdicionarUnidadesModal
+          modelo={novaUnidadeModelo}
+          onClose={() => setNovaUnidadeModelo(null)}
+          onSaved={() => { setListaAberta(true); setBusca(''); carregarCandidatos() }}
+        />
+      )}
 
       {/* ───────── Aditivos ───────── */}
       <section className="space-y-3">
