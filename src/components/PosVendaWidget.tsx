@@ -3,6 +3,7 @@ import { Phone, Send, Clock, Pencil, Check, X, CheckCircle2 } from 'lucide-react
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useVisibleInterval } from '../hooks/useVisibleInterval'
 
 interface LinhaPlacar { tipo: number; atendente: string; hoje: number }
 
@@ -23,22 +24,24 @@ export default function PosVendaWidget() {
   const [loading, setLoading]           = useState(true)
 
   const load = useCallback(async () => {
-    const [placar, pend, meta] = await Promise.all([
+    const [placar, pend] = await Promise.all([
       supabase.rpc('crm_posvendas_placar_hoje'),
       supabase.from('crm_posvendas').select('telefone', { count: 'exact', head: true }).eq('prioridade', 1),
-      supabase.from('posvendas_metas').select('meta_recompra_dia').eq('id', 1).maybeSingle(),
     ])
     setLinhas((placar.data ?? []) as LinhaPlacar[])
     setPendentes(pend.count ?? 0)
-    if (meta.data?.meta_recompra_dia != null) setMetaRecompra(meta.data.meta_recompra_dia)
     setLoading(false)
   }, [])
 
+  // A meta é configuração (o administrador a edita aqui mesmo): lê uma vez, não a cada minuto.
   useEffect(() => {
-    load()
-    const t = setInterval(load, ATUALIZA_A_CADA_MS)
-    return () => clearInterval(t)
-  }, [load])
+    supabase.from('posvendas_metas').select('meta_recompra_dia').eq('id', 1).maybeSingle()
+      .then(({ data }) => { if (data?.meta_recompra_dia != null) setMetaRecompra(data.meta_recompra_dia) })
+  }, [])
+
+  useEffect(() => { load() }, [load])
+  // Só atualiza com a aba visível: em segundo plano ninguém vê o placar.
+  useVisibleInterval(load, ATUALIZA_A_CADA_MS)
 
   async function salvarMeta(valor: number) {
     const { error } = await supabase

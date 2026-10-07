@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useEscKey } from '../hooks/useEscKey'
 import { docExpiryStatus, daysUntil } from '../types'
 import type { VelotrackPosition } from '../types'
+import { useVisibleInterval } from '../hooks/useVisibleInterval'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────
 
@@ -185,9 +186,11 @@ export default function FrotaCard() {
     ativo.current = true
     carregarDados()
     carregarPosicoes()
-    const t = setInterval(carregarPosicoes, REFRESH_MS)
-    return () => { ativo.current = false; clearInterval(t) }
+    return () => { ativo.current = false }
   }, [carregarDados, carregarPosicoes])
+
+  // Posições do rastreador só se atualizam com a aba visível
+  useVisibleInterval(carregarPosicoes, REFRESH_MS)
 
   // Posição de cada veículo: pelo ID do rastreador e, na falta dele, pela placa
   const { posPorVeiculo, semVeiculo } = useMemo(() => {

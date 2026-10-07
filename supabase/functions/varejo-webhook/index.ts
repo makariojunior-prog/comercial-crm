@@ -46,7 +46,28 @@ async function fetchOrderFromAPI(orderId: string): Promise<any | null> {
   return await apiRes.json()
 }
 
-async function upsertOrder(orderId: string, order: any): Promise<void> {
+// Colunas que o upsertOrder compara com o que já está gravado (as mesmas que ele pode atualizar).
+const COLUNAS_COMPARADAS =
+  'status_icon, origem, order_type, valor_liquido, restricao, cardapio_order_id, frete, bairro, ' +
+  'endereco_completo, complemento, turno, scheduled_start, data_entrega_definida, data_entrega'
+
+function igual(a: unknown, b: unknown, campo: string): boolean {
+  const vazio = (v: unknown) => v === null || v === undefined || v === ''
+  if (vazio(a) && vazio(b)) return true
+  if (vazio(a) || vazio(b)) return false
+  // timestamptz volta do banco em outro formato que o ISO da API
+  if (campo === 'scheduled_start') return new Date(a as string).getTime() === new Date(b as string).getTime()
+  if (typeof a === 'number' || typeof b === 'number') return Math.abs(Number(a) - Number(b)) < 0.005
+  return String(a) === String(b)
+}
+
+function mudou(atual: Record<string, unknown>, novos: Record<string, unknown>): boolean {
+  return Object.keys(novos).some(k => k !== 'updated_at' && !igual(atual[k], novos[k], k))
+}
+
+// `atual` = linha como está no banco (só no resync). Pedido sem mudança não gera escrita: cada UPDATE
+// custa uma requisição de log e dispara um evento realtime que faz as telas abertas rebuscarem o pedido.
+async function upsertOrder(orderId: string, order: any, atual?: Record<string, unknown>): Promise<boolean> {
   // Workaround: Cardápio Web às vezes retorna order_type='takeout' para pedidos
   // que têm endereço de entrega (bug da API). Se há bairro/rua, é delivery.
   const addr = order.delivery_address ?? {}
@@ -110,6 +131,8 @@ async function upsertOrder(orderId: string, order: any): Promise<void> {
     }
   }
 
+  if (atual && !mudou(atual, updateFields)) return false
+
   const { data: updated, error: updErr } = await supabase
     .from('varejo_pedidos')
     .update(updateFields)
@@ -120,7 +143,7 @@ async function upsertOrder(orderId: string, order: any): Promise<void> {
 
   if (updated && updated.length > 0) {
     console.log(`🔄 Atualizado: ${displayId} status=${statusIcon} type=${isTakeout ? 'takeout' : 'delivery'} valor=${total - frete}`)
-    return
+    return true
   }
 
   // Pedido novo — insere
@@ -169,6 +192,7 @@ async function upsertOrder(orderId: string, order: any): Promise<void> {
 
   if (insErr) console.error(`❌ Insert error (${displayId}): ${insErr.message}`)
   else console.log(`✅ Novo pedido: ${displayId} (${isTakeout ? 'retirada' : origem}) | data=${record.data_entrega}`)
+  return true
 }
 
 async function processOrder(payload: any): Promise<void> {
@@ -189,33 +213,35 @@ async function processOrder(payload: any): Promise<void> {
 }
 
 // Rebusca todos os pedidos abertos do Cardápio Web dos últimos 2 dias
-async function resyncRecentes(): Promise<{ ok: boolean; total: number; atualizados: number; erros: number }> {
+async function resyncRecentes(): Promise<{ ok: boolean; total: number; atualizados: number; sem_mudanca: number; erros: number }> {
   const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)
 
   const { data: pedidos, error } = await supabase
     .from('varejo_pedidos')
-    .select('num_pedido, cardapio_order_id')
+    .select(`num_pedido, ${COLUNAS_COMPARADAS}`)
     .not('cardapio_order_id', 'is', null)
     .gte('data_entrega', twoDaysAgo)
     .not('status_icon', 'in', '("✅","❌")')
 
   if (error) {
     console.error('resync query error:', error.message)
-    return { ok: false, total: 0, atualizados: 0, erros: 1 }
+    return { ok: false, total: 0, atualizados: 0, sem_mudanca: 0, erros: 1 }
   }
 
   const lista = pedidos ?? []
   console.log(`🔁 Resync: ${lista.length} pedidos abertos a verificar`)
 
   let atualizados = 0
+  let semMudanca = 0
   let erros = 0
 
-  for (const p of lista) {
+  for (const p of lista as unknown as Array<Record<string, unknown>>) {
+    const orderId = p.cardapio_order_id as string
     try {
-      const order = await fetchOrderFromAPI(p.cardapio_order_id!)
+      const order = await fetchOrderFromAPI(orderId)
       if (!order) { erros++; continue }
-      await upsertOrder(p.cardapio_order_id!, order)
-      atualizados++
+      if (await upsertOrder(orderId, order, p)) atualizados++
+      else semMudanca++
     } catch (e: any) {
       console.error(`resync error ${p.num_pedido}:`, e.message)
       erros++
@@ -224,8 +250,8 @@ async function resyncRecentes(): Promise<{ ok: boolean; total: number; atualizad
     await new Promise(r => setTimeout(r, 300))
   }
 
-  console.log(`✅ Resync: ${atualizados} atualizados, ${erros} erros de ${lista.length} total`)
-  return { ok: true, total: lista.length, atualizados, erros }
+  console.log(`✅ Resync: ${atualizados} atualizados, ${semMudanca} sem mudança, ${erros} erros de ${lista.length} total`)
+  return { ok: true, total: lista.length, atualizados, sem_mudanca: semMudanca, erros }
 }
 
 Deno.serve(async (req) => {
