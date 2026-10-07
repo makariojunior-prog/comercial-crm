@@ -15,8 +15,8 @@ Vite + React 18 + TypeScript + Tailwind + Supabase. `HashRouter`; `ThemeProvider
   logistica, varejo, atacado, revenda, comodato, cobranca, comissao, conversas, loja, …).
 - Deploy: Vercel (`base: '/'`) ou GitHub Pages (`base: '/comercial-crm/'`, `npm run deploy`);
   ver `vite.config.ts`.
-- Há `vite.config.js`/`.ts` e `tailwind.config.js`/`.ts` com conteúdos **diferentes**; confira qual
-  o build usa antes de editar um deles.
+- Configs oficiais: `vite.config.ts` e `tailwind.config.js` (este tem `darkMode: 'class'`, exigido pelo
+  tema escuro; Tailwind 3 lê `.js` primeiro). Não recrie versões duplicadas.
 
 ## Supabase compartilhado
 
@@ -42,3 +42,9 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
   leia, a menos que o assunto seja exatamente esse).
 - `scripts/avulsos/` — scripts pontuais de importação e testes manuais com navegador.
 - `backup/` — rotina de backup do Supabase (Docker + scheduler).
+
+## Manutenção deste arquivo (lembrete ao usuário)
+
+Se este arquivo passar de ~80 linhas, ou se a lista de rotas/edge functions aqui divergir de
+`src/App.tsx` e `supabase/functions/`, **avise o usuário ao fim da tarefa** e ofereça atualizar.
+Planos de implementação já executados vão para `docs/archive/`, não ficam em `docs/superpowers/plans/`.
