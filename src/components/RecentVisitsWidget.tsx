@@ -5,6 +5,7 @@ import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
 import type { Visit } from '../types'
+import VisitModal from './VisitModal'
 
 const TYPE_COLORS: Record<string, string> = {
   'Prospecção':    'bg-blue-100 text-blue-700',
@@ -28,6 +29,13 @@ function formatDate(dateStr: string | null): string {
 export default function RecentVisitsWidget() {
   const [visits, setVisits] = useState<Visit[]>([])
   const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<Visit | null>(null)
+
+  // A lista traz só as colunas do card; o modal precisa da visita completa
+  async function openVisit(id: string) {
+    const { data } = await supabase.from('visits').select('*').eq('id', id).single()
+    if (data) setSelected(data as Visit)
+  }
 
   async function load() {
     const { data } = await supabase
@@ -92,7 +100,11 @@ export default function RecentVisitsWidget() {
             return (
               <div
                 key={v.id}
-                className={`rounded-lg border p-2 transition-all ${
+                role="button"
+                tabIndex={0}
+                onClick={() => openVisit(v.id)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openVisit(v.id) } }}
+                className={`rounded-lg border p-2 transition-all cursor-pointer ${
                   isHighPriority
                     ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200/50 dark:border-red-800/30'
                     : 'bg-white/80 dark:bg-slate-700/50 border-slate-100 dark:border-slate-700/50 hover:shadow-sm'
@@ -148,6 +160,10 @@ export default function RecentVisitsWidget() {
             )
           })}
         </div>
+      )}
+
+      {selected && (
+        <VisitModal visit={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); load() }} />
       )}
     </div>
   )
