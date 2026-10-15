@@ -26,6 +26,7 @@ export const ALL_MODULES = [
   { id: 'agenda',          label: 'Agenda' },
   { id: 'comodato',        label: 'Comodato' },
   { id: 'loja',            label: 'Loja' },
+  { id: 'conciliacao_edicao', label: 'Logística: editar conciliação' },
 ] as const
 
 

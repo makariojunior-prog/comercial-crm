@@ -35,7 +35,8 @@ type PendSortCol = 'cliente' | 'valor' | 'entregador'
 export default function ConciliacaoTab({
   drivers = [],
 }: Props) {
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, canAccess } = useAuth()
+  const podeEditarHistorico = canAccess('conciliacao_edicao') // admin passa sempre
   const { items, load } = useRomaneioPedidos()
 
   // Filtros de Romaneio
@@ -230,7 +231,7 @@ export default function ConciliacaoTab({
   }
 
   const handleModalOpenHistorico = (conc: RomaneioConciliacao) => {
-    if (!isAdmin) return
+    if (!podeEditarHistorico) return
     // Reconverter para RomaneioItem para edição
     const item: RomaneioItem = {
       uid: `${conc.empresa === 'LUMAR' ? 'L' : 'C'}${conc.pedido_ref}`,
@@ -588,7 +589,7 @@ export default function ConciliacaoTab({
                       <span className="text-slate-500 dark:text-slate-400">
                         {conc.data_conciliacao ? format(parseISO(conc.data_conciliacao), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : '—'}
                       </span>
-                      {isAdmin && (
+                      {podeEditarHistorico && (
                         <div className="flex gap-1">
                           <button
                             onClick={() => handleModalOpenHistorico(conc)}
@@ -596,12 +597,12 @@ export default function ConciliacaoTab({
                           >
                             <Pencil size={14} />
                           </button>
-                          <button
+                          {isAdmin && <button
                             onClick={() => handleDeleteConciliacao(conc.id)}
                             className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded"
                           >
                             <Trash2 size={14} />
-                          </button>
+                          </button>}
                         </div>
                       )}
                     </div>
