@@ -7,6 +7,7 @@ import { VISIT_TYPES, DEAL_TYPES } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
 import ResponsaveisPicker from './ResponsaveisPicker'
 import ClientSearchInput from './ClientSearchInput'
+import AmostraProdutosInput from './AmostraProdutosInput'
 
 interface Props {
   visit?: Visit | null
@@ -87,6 +88,8 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
   }
   const [responsaveis,     setResponsaveis]     = useState<string[]>(initResponsaveis)
   const [staffOptions,     setStaffOptions]     = useState<string[]>([])
+  const [amostraProdutos,  setAmostraProdutos]  = useState<string[]>(visit?.amostra_produtos ?? [])
+  const [produtosCatalogo, setProdutosCatalogo] = useState<string[]>([])
   const [photos,           setPhotos]           = useState<string[]>(visit?.photo_urls ?? [])
   const [saving,           setSaving]           = useState(false)
   const [uploading,        setUploading]        = useState(false)
@@ -133,6 +136,15 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
         if (data) setStaffOptions(data.map((u: any) => u.nome as string))
       })
   }, [])
+
+  // Catálogo de produtos (via view, que já mascara o custo) — só carrega quando a amostra é marcada
+  useEffect(() => {
+    if (!form.has_amostra || produtosCatalogo.length > 0) return
+    supabase.from('crm_price_items_view').select('nome').eq('ativo', true).order('nome')
+      .then(({ data }) => {
+        if (data) setProdutosCatalogo([...new Set(data.map((p: any) => (p.nome as string).trim()).filter(Boolean))])
+      })
+  }, [form.has_amostra, produtosCatalogo.length])
 
   // Nomes já gravados na visita que não estão na lista (ex.: usuário inativo) continuam visíveis
   const opcoesResp = staffOptions.length === 0
@@ -235,6 +247,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       responsible:  responsaveis[0] ?? null,
       responsaveis: responsaveis,
       photo_urls:   photos,
+      amostra_produtos: form.has_amostra ? amostraProdutos : [],
     }
 
     let visitId: string | null = visit?.id ?? null
@@ -678,6 +691,16 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
               <span className="text-base">{form.has_amostra ? '✅' : '○'}</span>
               <span>{form.has_amostra ? 'Com amostra de produtos' : 'Sem amostra de produtos'}</span>
             </button>
+            {form.has_amostra && (
+              <div className="mt-2">
+                <label className="label">Quais amostras foram levadas?</label>
+                <AmostraProdutosInput
+                  value={amostraProdutos}
+                  onChange={setAmostraProdutos}
+                  options={produtosCatalogo}
+                />
+              </div>
+            )}
           </div>
 
           {/* Fotos */}

@@ -40,6 +40,7 @@ export interface Visit {
   status: string | null
   photo_urls: string[] | null
   has_amostra: boolean | null
+  amostra_produtos?: string[] | null
   deal_id?: string | null
   crm_event_id?: string | null
   created_at: string
