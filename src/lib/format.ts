@@ -9,6 +9,13 @@ export function fmtDate(s: string | null | undefined): string {
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR')
 }
 
+/** Data "yyyy-MM-dd" (coluna `date`) → dd/MM/yyyy sem passar por Date, que a deslocaria um dia no fuso do Brasil. */
+export function fmtDia(s: string | null | undefined): string {
+  if (!s) return '—'
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : fmtDate(s)
+}
+
 export function fmtDatetime(s: string | null | undefined): string {
   if (!s) return '—'
   const d = new Date(s)

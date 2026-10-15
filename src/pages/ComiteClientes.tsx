@@ -9,7 +9,7 @@ import {
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { fmtCurrency, fmtDate } from '../lib/format'
+import { fmtCurrency, fmtDia } from '../lib/format'
 
 // Mesma data de corte da função crm_comite_clientes (clientes com 1ª compra a partir daqui).
 const CORTE = '2026-10-01'
@@ -60,7 +60,7 @@ const segBtn = (ativo: boolean) =>
       : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
   }`
 
-export default function ComiteClientes() {
+export default function ComiteClientes({ embedded = false }: { embedded?: boolean }) {
   const { isAdmin } = useAuth()
   const [modo, setModo]       = useState<Modo>('pendentes')
   const [ancora, setAncora]   = useState(() => new Date())
@@ -86,7 +86,7 @@ export default function ComiteClientes() {
       const ini = startOfMonth(ancora), fim = endOfMonth(ancora)
       return { ini: iso(ini), fim: iso(fim), label: format(ini, "MMMM 'de' yyyy", { locale: ptBR }) }
     }
-    return { ini: CORTE, fim: '2100-01-01', label: `Todos os clientes novos pendentes (desde ${fmtDate(CORTE)})` }
+    return { ini: CORTE, fim: '2100-01-01', label: `Todos os clientes novos pendentes (desde ${fmtDia(CORTE)})` }
   }, [modo, ancora])
 
   const carregar = useCallback(async () => {
@@ -167,14 +167,16 @@ export default function ComiteClientes() {
   const pendentes = clientes.filter(c => !c.comite_realizado_em).length
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className={embedded ? 'space-y-4' : 'space-y-4 max-w-4xl'}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Handshake size={20} className="text-orange-500" /> Comitê de clientes
-          </h1>
+          {!embedded && (
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <Handshake size={20} className="text-orange-500" /> Comitê de clientes
+            </h1>
+          )}
           <p className="text-xs text-slate-400 mt-0.5">
-            Clientes novos do atacado (primeira compra a partir de {fmtDate(CORTE)}) que ainda não passaram pelo comitê.
+            Clientes novos do atacado (primeira compra a partir de {fmtDia(CORTE)}) que ainda não passaram pelo comitê.
           </p>
         </div>
         <button onClick={carregar} disabled={loading} className="btn-secondary flex items-center gap-2 py-2">
@@ -247,7 +249,7 @@ export default function ComiteClientes() {
                     </div>
                   </div>
                   <div className="text-right text-xs text-slate-500 dark:text-slate-400">
-                    <p>1ª compra: <strong className="text-slate-700 dark:text-slate-200">{fmtDate(c.primeira_compra)}</strong></p>
+                    <p>1ª compra: <strong className="text-slate-700 dark:text-slate-200">{fmtDia(c.primeira_compra)}</strong></p>
                     <p>{c.n_pedidos} pedido{c.n_pedidos !== 1 ? 's' : ''} · <strong className="text-slate-700 dark:text-slate-200">{fmtCurrency(c.total)}</strong></p>
                   </div>
                 </div>
@@ -270,7 +272,7 @@ export default function ComiteClientes() {
                           {lista.map((p, i) => (
                             <tr key={i}>
                               <td className="py-1 font-mono text-slate-500">#{p.numero_pedido ?? '—'}</td>
-                              <td className="py-1 text-slate-600 dark:text-slate-300">{fmtDate(p.data_entrega ?? p.data_emissao?.substring(0, 10) ?? null)}</td>
+                              <td className="py-1 text-slate-600 dark:text-slate-300">{fmtDia(p.data_entrega ?? p.data_emissao?.substring(0, 10) ?? null)}</td>
                               <td className="py-1 text-right font-medium text-slate-700 dark:text-slate-200 tabular-nums">{fmtCurrency(Number(p.valor))}</td>
                             </tr>
                           ))}
