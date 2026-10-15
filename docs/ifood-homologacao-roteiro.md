@@ -9,6 +9,19 @@ Tudo é feito pelo **console do CRM** (Loja → aba *Operação iFood*, só admi
 > **Testado em 03/10/2026** na loja de teste: listar loja, detalhes, status, criar/listar/remover pausa e ver/definir horários
 > funcionaram (os horários originais da loja de teste — todos os dias 00:00–23:59 — foram restaurados depois do teste).
 
+## Retorno do iFood (10/10/2026) — regravar os vídeos
+
+O suporte reprovou os primeiros vídeos e pediu um **novo chamado de homologação** com:
+
+1. **Ações refletidas no Portal do Parceiro** em cada cenário (pausa, reabertura, horários).
+2. **Visão do lojista** — tela de controle da loja, não só a resposta crua da API. O console agora tem cabeçalho
+   com loja + situação (aberta/pausa/fechada), tabela de pausas e grade semanal de horários; a resposta bruta ficou recolhida.
+3. **Logs das chamadas realizadas** — o console tem o *Registro de chamadas ao iFood* (data/hora, endpoint, HTTP);
+   mostre também o Portal do Desenvolvedor → Logs de Eventos e, se possível, `ifood_acoes_log`/logs da função no Supabase.
+4. **Data e hora do Windows visíveis** durante a execução (barra de tarefas à mostra; o console também exibe um relógio).
+
+Grave em tela cheia mostrando CRM + Portal do Parceiro alternando, sem cortar a barra de tarefas do Windows.
+
 ## Antes de gravar (uma vez)
 
 - [ ] Secrets do Supabase criados: `IFOOD_CLIENT_ID` e `IFOOD_CLIENT_SECRET` (do app de teste).
