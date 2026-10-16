@@ -41,6 +41,15 @@ export interface FrotaCusto {
   updated_at: string
   vehicle?: { id: string; apelido: string; placa: string | null } | null
   driver?: { id: string; nome: string } | null
+  /** 'financeiro' = lançado no app Financeiro (só leitura aqui); ausente = lançado nesta tela (histórico). */
+  origem?: 'financeiro'
+}
+
+/** Linha de crm_frota_gastos (gasto de veículo lançado no Financeiro). */
+interface GastoFinanceiro {
+  id: string; vehicle_id: string; categoria: string; descricao: string | null; valor: number | string
+  km_odometro: number | null; litros: number | string | null; preco_litro: number | string | null
+  data_gasto: string; observacoes: string | null
 }
 
 export interface FrotaManutencao {
@@ -586,6 +595,8 @@ function ManutencaoModal({ manutencao, vehicles, onClose, onSaved }: ManutencaoM
 // Quick "mark as done" — logs a cost AND updates the maintenance record
 
 interface RegistrarFeitaProps {
+  /** Depois do corte o gasto é lançado no Financeiro: aqui só se atualiza a manutenção programada. */
+  semCusto: boolean
   manutencao: FrotaManutencao
   vehicles: Vehicle[]
   drivers: Driver[]
@@ -593,7 +604,7 @@ interface RegistrarFeitaProps {
   onSaved: () => void
 }
 
-function RegistrarFeitaModal({ manutencao, vehicles, drivers, onClose, onSaved }: RegistrarFeitaProps) {
+function RegistrarFeitaModal({ semCusto, manutencao, vehicles, drivers, onClose, onSaved }: RegistrarFeitaProps) {
   const veh = vehicles.find(v => v.id === manutencao.vehicle_id)
   const [km, setKm] = useState(veh?.km_atual?.toString() ?? '')
   const [valor, setValor] = useState('')
@@ -603,7 +614,7 @@ function RegistrarFeitaModal({ manutencao, vehicles, drivers, onClose, onSaved }
   const [saving, setSaving] = useState(false)
 
   async function save() {
-    if (!km || !valor) return
+    if (!km || (!semCusto && !valor)) return
     setSaving(true)
 
     const kmNum = parseInt(km)
@@ -618,8 +629,8 @@ function RegistrarFeitaModal({ manutencao, vehicles, drivers, onClose, onSaved }
     }
     const categoria: CustoCategoria = catMap[manutencao.tipo] ?? 'manutencao'
 
-    // 1) Log custo
-    await supabase.from('frota_custos').insert({
+    // 1) Log custo (depois do corte o valor é lançado no Financeiro)
+    if (!semCusto) await supabase.from('frota_custos').insert({
       vehicle_id: manutencao.vehicle_id,
       driver_id: driverId || null,
       categoria,
@@ -679,11 +690,17 @@ function RegistrarFeitaModal({ manutencao, vehicles, drivers, onClose, onSaved }
                 value={km} onChange={e => setKm(e.target.value)} />
             </div>
           </div>
+          {semCusto ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 rounded-lg bg-slate-50 dark:bg-slate-700/40 px-3 py-2">
+              O valor desta manutenção é lançado no app <strong>Financeiro</strong> (categoria Manutenção de Veículos + este veículo).
+            </p>
+          ) : (
           <div>
             <label className="label">Valor gasto (R$) *</label>
             <input type="number" step="0.01" min="0" className="input" placeholder="0,00"
               value={valor} onChange={e => setValor(e.target.value)} />
           </div>
+          )}
           <div>
             <label className="label">Motorista (opcional)</label>
             <select className="input" value={driverId} onChange={e => setDriverId(e.target.value)}>
@@ -701,7 +718,7 @@ function RegistrarFeitaModal({ manutencao, vehicles, drivers, onClose, onSaved }
         </div>
         <div className="flex gap-3 px-5 pb-5">
           <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
-          <button onClick={save} disabled={saving || !km || !valor}
+          <button onClick={save} disabled={saving || !km || (!semCusto && !valor)}
             className="btn-primary flex-1 disabled:opacity-50">
             {saving ? <RefreshCw size={15} className="animate-spin" /> : 'Confirmar'}
           </button>
@@ -729,7 +746,10 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
   const [customDateTo, setCustomDateTo] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [vehicleFilter, setVehicleFilter] = useState('todos')
   const [catFilter, setCatFilter] = useState('todas')
-  const [custos, setCustos] = useState<FrotaCusto[]>([])
+  const [legado, setLegado] = useState<FrotaCusto[]>([])
+  const [doFinanceiro, setDoFinanceiro] = useState<GastoFinanceiro[]>([])
+  /** Data a partir da qual o gasto de veículo é lançado no Financeiro (null = ainda não definida). */
+  const [corte, setCorte] = useState<string | null | undefined>(undefined)
   const [manutencoes, setManutencoes] = useState<FrotaManutencao[]>([])
   const [loading, setLoading] = useState(true)
   const [editCusto, setEditCusto] = useState<FrotaCusto | null | undefined>(undefined)
@@ -742,24 +762,54 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
     ? { from: customDateFrom, to: customDateTo }
     : periodoRange(periodo, periodo === 'mes' ? selectedMonth : new Date())
 
+  useEffect(() => {
+    supabase.rpc('crm_frota_corte').then(({ data }) => setCorte((data as string | null) && (data as string) < '9999' ? (data as string) : null))
+  }, [])
+
   const loadData = useCallback(async () => {
+    if (corte === undefined) return
     setLoading(true)
-    const [{ data: cData }, { data: mData }] = await Promise.all([
-      supabase.from('frota_custos')
-        .select('*, vehicle:crm_vehicles(id,apelido,placa), driver:crm_drivers(id,nome)')
-        .gte('data_gasto', from).lte('data_gasto', to)
-        .order('data_gasto', { ascending: false }),
+    // Até o corte vale o histórico desta tela (frota_custos); do corte em diante, o que o Financeiro lançou.
+    let legadoQ = supabase.from('frota_custos')
+      .select('*, vehicle:crm_vehicles(id,apelido,placa), driver:crm_drivers(id,nome)')
+      .gte('data_gasto', from).lte('data_gasto', to)
+    if (corte) legadoQ = legadoQ.lt('data_gasto', corte)
+    const buscaFin = corte && to >= corte ? supabase.rpc('crm_frota_gastos', { p_de: from > corte ? from : corte, p_ate: to }) : Promise.resolve({ data: [] })
+    const [{ data: cData }, { data: mData }, { data: fData }] = await Promise.all([
+      legadoQ.order('data_gasto', { ascending: false }),
       supabase.from('frota_manutencoes')
         .select('*, vehicle:crm_vehicles(id,apelido,placa,km_atual)')
         .eq('ativo', true)
         .order('vehicle_id'),
+      buscaFin,
     ])
-    setCustos((cData ?? []) as FrotaCusto[])
+    setLegado((cData ?? []) as FrotaCusto[])
+    setDoFinanceiro((fData ?? []) as GastoFinanceiro[])
     setManutencoes((mData ?? []) as FrotaManutencao[])
     setLoading(false)
-  }, [from, to])
+  }, [from, to, corte])
 
   useEffect(() => { loadData() }, [loadData])
+
+  const custos = useMemo<FrotaCusto[]>(() => {
+    const fin: FrotaCusto[] = doFinanceiro.map(g => {
+      const v = vehicles.find(x => x.id === g.vehicle_id)
+      return {
+        id: g.id, vehicle_id: g.vehicle_id, driver_id: null,
+        categoria: (g.categoria in CATEGORIAS ? g.categoria : 'outros') as CustoCategoria,
+        descricao: g.descricao, valor: Number(g.valor), km_odometro: g.km_odometro,
+        litros: g.litros != null ? Number(g.litros) : null, preco_litro: g.preco_litro != null ? Number(g.preco_litro) : null,
+        data_gasto: g.data_gasto, observacoes: g.observacoes, recorrente: false, tipo_recorrencia: null,
+        proxima_data_recorrencia: null, data_inicio_recorrencia: null, data_fim_recorrencia: null, recorrencia_indefinida: false,
+        custo_recorrente_id: null, ativo: true, created_at: g.data_gasto, updated_at: g.data_gasto,
+        vehicle: v ? { id: v.id, apelido: v.apelido, placa: v.placa } : null, driver: null, origem: 'financeiro' as const,
+      }
+    })
+    return [...legado, ...fin].sort((a, b) => b.data_gasto.localeCompare(a.data_gasto))
+  }, [legado, doFinanceiro, vehicles])
+
+  // Depois do corte o lançamento é feito no Financeiro; antes, ainda dá para lançar aqui.
+  const lancaAqui = !corte || format(new Date(), 'yyyy-MM-dd') < corte
 
   // Filtered expenses
   const filtered = useMemo(() => {
@@ -825,7 +875,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
         .delete()
         .eq('custo_recorrente_id', custo.custo_recorrente_id)
         .gte('data_gasto', custo.data_gasto)
-      setCustos(p => p.filter(c =>
+      setLegado(p => p.filter(c =>
         c.custo_recorrente_id !== custo.custo_recorrente_id ||
         new Date(c.data_gasto) < new Date(custo.data_gasto)
       ))
@@ -834,7 +884,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
 
     // Deletar apenas este lançamento
     await supabase.from('frota_custos').delete().eq('id', custo.id)
-    setCustos(p => p.filter(c => c.id !== custo.id))
+    setLegado(p => p.filter(c => c.id !== custo.id))
   }
 
   async function cancelarRecorrencia(custoRecorrenteId: string, dataAPartir: string) {
@@ -995,10 +1045,17 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
           <button onClick={loadData} className="btn-ghost p-2">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => setEditCusto(null)} className="btn-primary text-sm py-1.5">
-            <Plus size={15} /> Lançamento
-          </button>
+          {lancaAqui && (
+            <button onClick={() => setEditCusto(null)} className="btn-primary text-sm py-1.5">
+              <Plus size={15} /> Lançamento
+            </button>
+          )}
         </div>
+        {corte && (
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            {lancaAqui ? 'A partir de' : 'Desde'} {format(parseISO(corte), 'dd/MM/yyyy')} os gastos de veículo são lançados no app <strong>Financeiro</strong> (categoria + veículo) e aparecem aqui sozinhos.
+          </p>
+        )}
       </div>
 
       {/* ── KPI cards ── */}
@@ -1122,6 +1179,9 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
                                 <p className="text-sm text-slate-700 dark:text-slate-200">
                                   {c.descricao || CATEGORIAS[c.categoria]?.label}
                                 </p>
+                                {c.origem === 'financeiro' && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 whitespace-nowrap">Financeiro</span>
+                                )}
                                 {c.recorrente && (
                                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 whitespace-nowrap">
                                     🔄 {c.tipo_recorrencia}
@@ -1142,7 +1202,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
                               </p>
                             </div>
                             <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 shrink-0">{brl(c.valor)}</span>
-                            <div className="flex gap-1 shrink-0">
+                            {c.origem !== 'financeiro' && <div className="flex gap-1 shrink-0">
                               <button onClick={() => setEditCusto(c)} className="btn-ghost p-1.5 text-slate-400"><Pencil size={12} /></button>
                               {c.recorrente && c.custo_recorrente_id && (
                                 <button
@@ -1157,7 +1217,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
                                 </button>
                               )}
                               <button onClick={() => deleteCusto(c)} className="btn-ghost p-1.5 text-red-400"><Trash2 size={12} /></button>
-                            </div>
+                            </div>}
                           </div>
                         ))}
                       </div>
@@ -1170,9 +1230,11 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
             <div className="card p-10 text-center text-slate-400 space-y-2">
               <DollarSign size={28} className="mx-auto opacity-40" />
               <p className="text-sm">Nenhum lançamento no período.</p>
-              <button onClick={() => setEditCusto(null)} className="btn-primary mx-auto text-sm">
-                <Plus size={14} /> Primeiro lançamento
-              </button>
+              {lancaAqui && (
+                <button onClick={() => setEditCusto(null)} className="btn-primary mx-auto text-sm">
+                  <Plus size={14} /> Primeiro lançamento
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1272,6 +1334,7 @@ export default function CustosTab({ vehicles, drivers, onVehiclesChanged }: Prop
       )}
       {registrarMan && (
         <RegistrarFeitaModal
+          semCusto={!lancaAqui}
           manutencao={registrarMan}
           vehicles={vehicles}
           drivers={drivers}
