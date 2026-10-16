@@ -107,6 +107,15 @@ export default function AutomacaoTab() {
   const [reenviando, setReenviando] = useState(false)
 
   const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automacao-lumar`
+  // A função só aceita chamada da tela com a sessão de quem está logado
+  async function authHeaders() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return {
+      'Content-Type': 'application/json',
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      Authorization: `Bearer ${session?.access_token ?? ''}`,
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -216,7 +225,7 @@ export default function AutomacaoTab() {
     try {
       const res = await fetch(fnUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ type: 'simular' }),
       })
       setSimResult(await res.json() as SimularResp)
@@ -231,7 +240,7 @@ export default function AutomacaoTab() {
     try {
       await fetch(fnUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ type: 'cancelar' }),
       })
       await load()
@@ -244,7 +253,7 @@ export default function AutomacaoTab() {
     try {
       await fetch(fnUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ type: 'reenviar-erros' }),
       })
       await load()
@@ -258,7 +267,7 @@ export default function AutomacaoTab() {
     try {
       await fetch(fnUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({ type: 'cancelar' }),
       })
       await load()
@@ -273,7 +282,7 @@ export default function AutomacaoTab() {
     try {
       const res = await fetch(fnUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authHeaders(),
         body: JSON.stringify({
           type: 'teste',
           numero: testeNumero.trim(),

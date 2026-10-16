@@ -190,20 +190,11 @@ export default function LojaPage() {
   const loadLogs = async () => {
     setLoadingLogs(true)
     try {
-      // 1. Tenta carregar do endpoint Edge Function (usa service_role e retorna histórico real)
-      const res = await fetch('https://taicaxtjtikdajmhtsxc.supabase.co/functions/v1/test-get-logs')
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data) && data.length > 0) {
-          setLogs(data as WebhookLog[])
-          return
-        }
-      }
-
-      // 2. Fallback via cliente Supabase
+      // Leitura direta, logada (antes passava pela Edge Function test-get-logs, aberta a qualquer um)
       const { data } = await supabase
         .from('delivery_webhook_logs')
-        .select('*')
+        .select('id, canal, event_type, payload, received_at')
+        .eq('canal', '99FOOD')
         .order('received_at', { ascending: false })
         .limit(10)
       if (data) setLogs(data as WebhookLog[])

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Plus, CheckCircle2, EyeOff, Undo2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -48,6 +48,10 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
   const [modal, setModal]     = useState<PosVendaCliente | null>(null)
   const { isAdmin } = useAuth()
   const [ocultos, setOcultos] = useState<Ignorado[]>([])
+  // O pai passa a callback inline (nova a cada render): sem a ref, `load` mudava a cada
+  // render da página do Varejo — e cada pedido do realtime recarregava a view inteira.
+  const onCountsChangeRef = useRef(onCountsChange)
+  onCountsChangeRef.current = onCountsChange
 
   const carregarOcultos = useCallback(async () => {
     const { data } = await supabase.from('posvendas_ignorados').select('telefone, motivo').order('created_at', { ascending: false })
@@ -104,13 +108,13 @@ export default function PosVendaTab({ onCountsChange, filtroInicial = '1' }: {
 
     setClientes(all)
     setLoading(false)
-    if (onCountsChange) {
-      onCountsChange(
+    if (onCountsChangeRef.current) {
+      onCountsChangeRef.current(
         all.filter(c => c.prioridade === 1).length,
         all.filter(c => c.prioridade === 2).length,
       )
     }
-  }, [onCountsChange])
+  }, [])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { if (isAdmin) carregarOcultos() }, [isAdmin, carregarOcultos])

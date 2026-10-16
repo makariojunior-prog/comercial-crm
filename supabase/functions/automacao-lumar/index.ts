@@ -82,6 +82,25 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json() } catch { /* no body */ }
   const type = body.type ?? 'status'
 
+  // Acesso (verify_jwt=false por causa do pg_cron, que chama com a chave anon pública):
+  // - 'executar' (o cron) roda sem login, mas só na janela do cron (05:00–07:59 BRT);
+  // - o resto (status, simular, teste, processar, cancelar…) exige usuário ativo do Comercial
+  //   com o módulo Automações (ou admin). Antes, qualquer um na internet podia mandar WhatsApp
+  //   pelo número da Lumar com type='teste' e ler a lista de clientes com type='simular'.
+  if (type === 'executar') {
+    const horaBRT = new Date(Date.now() - 3 * 3600_000).getUTCHours()
+    if (horaBRT < 5 || horaBRT > 7) return json({ ok: false, error: 'Fora da janela de envio' }, 403)
+  } else {
+    const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
+    const { data: { user } } = jwt ? await supabase.auth.getUser(jwt) : { data: { user: null } }
+    if (!user) return json({ ok: false, error: 'Sessão inválida' }, 401)
+    const { data: perfil } = await supabase
+      .from('crm_users').select('role, ativo, permissions').eq('id', user.id).maybeSingle()
+    const p = perfil as { role: string; ativo: boolean; permissions: string[] | null } | null
+    const pode = !!p?.ativo && (p.role === 'admin' || (p.permissions ?? []).includes('conversas'))
+    if (!pode) return json({ ok: false, error: 'Sem permissão' }, 403)
+  }
+
   const { data: cfgData, error: cfgErr } = await supabase
     .from('automacao_config').select('*').eq('nome', 'LUMAR').maybeSingle()
   if (cfgErr || !cfgData) return json({ ok: false, error: 'Config não encontrada' }, 500)

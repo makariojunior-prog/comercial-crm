@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { X, AlertCircle, Camera, Trash2, Loader2, Users, CalendarPlus, ChevronDown, MapPin, Search, Briefcase, PartyPopper } from 'lucide-react'
-import imageCompression from 'browser-image-compression'
 import { supabase } from '../lib/supabase'
 import type { Visit } from '../types'
 import { VISIT_TYPES, DEAL_TYPES } from '../types'
@@ -206,6 +205,8 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
     setError(null)
     for (const file of files) {
       try {
+        // compressor só baixa quando há foto para enviar
+        const { default: imageCompression } = await import('browser-image-compression')
         const compressed = await imageCompression(file, COMPRESS_OPTIONS)
         const ext = file.type === 'image/png' ? 'png' : 'jpg'
         const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`

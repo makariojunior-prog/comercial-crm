@@ -4,7 +4,6 @@ import {
   ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
-import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import PositivacoesTab from '../components/PositivacoesTab'
@@ -42,12 +41,14 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   '⚠️': { label: 'Pendente',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' },
 }
 
-function exportExcel(
+async function exportExcel(
   pedidos: PedidoComissao[],
   titulo: string,
   showAtendente: boolean,
   byAtendente: Array<[string, { valor: number; qtd: number }]>,
 ) {
+  // xlsx (~140 kB gzip) só baixa quando alguém exporta/importa
+  const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
   const rows = pedidos.map(p => {
     const row: Record<string, string | number> = {

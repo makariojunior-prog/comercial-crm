@@ -1,7 +1,8 @@
-import * as XLSX from 'xlsx'
 import type { Deal, Visit, PriceItem } from '../types'
 
-export function exportDeals(deals: Deal[]) {
+export async function exportDeals(deals: Deal[]) {
+  // xlsx (~140 kB gzip) só baixa quando alguém exporta/importa
+  const XLSX = await import('xlsx')
   const rows = deals.map(d => ({
     'Data Início': d.start_date ?? '',
     'Cliente': d.client_name,
@@ -23,7 +24,9 @@ export function exportDeals(deals: Deal[]) {
   XLSX.writeFile(wb, `CRM_Negocios_${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
-export function exportPriceItems(items: PriceItem[], empresa: 'lumar' | 'cantina', modoTabela = false) {
+export async function exportPriceItems(items: PriceItem[], empresa: 'lumar' | 'cantina', modoTabela = false) {
+  // xlsx (~140 kB gzip) só baixa quando alguém exporta/importa
+  const XLSX = await import('xlsx')
   const fmt = (v: number | null) => v != null ? v : ''
   const mg  = (p: number | null, c: number | null) =>
     p && c ? +((p - c) / p * 100).toFixed(1) : ''
@@ -55,7 +58,9 @@ export function exportPriceItems(items: PriceItem[], empresa: 'lumar' | 'cantina
   XLSX.writeFile(wb, `Precos_${sheetName}${suffix}_${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
-export function exportVisits(visits: Visit[]) {
+export async function exportVisits(visits: Visit[]) {
+  // xlsx (~140 kB gzip) só baixa quando alguém exporta/importa
+  const XLSX = await import('xlsx')
   const rows = visits.map(v => ({
     'Data': v.visit_date ?? '',
     'Tipo': v.visit_type ?? '',

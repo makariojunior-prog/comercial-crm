@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, MapPin, Truck, CalendarDays, ChevronDown, ChevronRight, Navigation, Pencil, Plus, Trash2, Save, Users, Download, Upload } from 'lucide-react'
 import { format } from 'date-fns'
-import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -104,6 +103,8 @@ export default function RotasEntregaTab() {
   }
 
   async function exportToExcel() {
+    // xlsx (~140 kB gzip) só baixa quando alguém exporta/importa
+    const XLSX = await import('xlsx')
     // Fetch all sectors for export
     const { data: sectors } = await supabase
       .from('crm_delivery_sectors')
@@ -153,6 +154,7 @@ export default function RotasEntregaTab() {
         if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
           // Parse Excel file
           const arrayBuffer = await file.arrayBuffer()
+          const XLSX = await import('xlsx')
           const wb = XLSX.read(arrayBuffer, { type: 'array' })
           const ws = wb.Sheets[wb.SheetNames[0]]
           rows = XLSX.utils.sheet_to_json(ws)

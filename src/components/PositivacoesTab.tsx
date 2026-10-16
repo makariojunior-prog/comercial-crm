@@ -4,7 +4,6 @@ import {
   Settings, XCircle, RotateCcw, Ban,
 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
-import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { fmtBRL, fmtDateSimple, MESES, getYears } from '../lib/comissao'
@@ -273,7 +272,9 @@ export default function PositivacoesTab() {
     load()
   }
 
-  function exportar() {
+  async function exportar() {
+    // xlsx (~140 kB gzip) só baixa quando alguém exporta/importa
+    const XLSX = await import('xlsx')
     const linhas = [...enviadas, ...arquivo].map(c => ({
       'Cliente': c.nome,
       'Indicador': nomeIndicador(c.indicador_user_id),

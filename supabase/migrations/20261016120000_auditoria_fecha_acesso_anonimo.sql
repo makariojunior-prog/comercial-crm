@@ -48,6 +48,12 @@ drop policy if exists "Permitir service_role atualizar status" on public.lojas_d
 drop policy if exists "Permitir leitura dos status de delivery" on public.lojas_delivery_status;
 -- (fica "Authenticated users can read delivery status": Comercial e Loja leem logados)
 
+-- 5b. Logs de webhook do delivery: a tela Loja passa a ler direto (logada), sem a Edge Function
+--     test-get-logs, que devolvia os logs do 99Food para qualquer um sem login
+drop policy if exists delivery_webhook_logs_select_crm on public.delivery_webhook_logs;
+create policy delivery_webhook_logs_select_crm on public.delivery_webhook_logs
+  for select to authenticated using ((select public.crm_is_member()));
+
 -- 6. Fila de IA: era "true" para qualquer logado de qualquer app
 drop policy if exists auth_all_ia_processing_queue on public.ia_processing_queue;
 create policy auth_all_ia_processing_queue on public.ia_processing_queue
