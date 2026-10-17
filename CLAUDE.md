@@ -45,6 +45,14 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
   `generate-briefing`, `diag-conversations`, `debug-ia`, `webhook-erp-atacado`, `vt-positions`.
 - Monitoramento de conversas por IA está **desligado** desde 22/09/2026 (`digisac-webhook` e
   `reprocess-conversations` retornam cedo). Chaves em secrets do Supabase, nunca no código.
+- **Custos de veículo (Logística › Custos):** a partir da data de corte (`fin_frota_config.corte`, 19/10/2026)
+  o gasto de veículo é lançado só no app Financeiro (categoria de veículo + veículo) e `CustosTab` apenas
+  lê. Até o corte segue lendo `frota_custos` (histórico, editável); do corte em diante usa a RPC
+  `crm_frota_gastos(de, ate)` (SECURITY DEFINER, lê `fin_lancamentos`/`fin_lancamento_itens`/`fin_caixa_movimentos`
+  com `vehicle_id`) e `crm_frota_corte()`. Linhas do Financeiro vêm com a etiqueta "Financeiro", sem editar/excluir;
+  o botão de lançamento some e "Registrar como feita" só atualiza a manutenção programada. As recorrências de
+  `frota_custos` além do corte ficam ocultas (o gasto real vem do banco, via Financeiro). Não crie escrita nova em
+  `frota_custos` para datas pós-corte. Detalhes e regras no `CLAUDE.md` do `cantina-financeiro`.
 - Delivery: o app só **monitora** o status das lojas (aberto/fechado/pausado); os pedidos entram
   pelo Cardápio Web — ver `docs/DELIVERY_MONITORING.md`.
 
