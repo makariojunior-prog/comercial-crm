@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Anthropic from 'npm:@anthropic-ai/sdk'
 
 // Gera as notícias da barra do Comercial (lida pelos outros apps via crm_noticias_feed).
 // Junta o que aconteceu nos últimos 7 dias (negócios, visitas, demandas a outros setores,
@@ -14,8 +13,8 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 }
-const MODEL = 'claude-opus-5-5'
-const GEMINI_MODEL = 'gemini-2.5-flash'
+// Modelo padrão; para trocar sem novo deploy, cadastre o secret COMERCIAL_GEMINI_MODEL.
+const GEMINI_MODEL = Deno.env.get('COMERCIAL_GEMINI_MODEL') || 'gemini-3.8-flash'
 const CATEGORIAS = ['negocio', 'visita', 'problema', 'logistica', 'varejo', 'demanda', 'destaque'] as const
 
 const json = (body: unknown, status = 200) =>
@@ -28,28 +27,6 @@ const corta = (s: string | null | undefined, n: number) => {
 
 /** Data yyyy-MM-dd no horário de Brasília (UTC−3), deslocada em `dias`. */
 const diaBRT = (dias = 0) => new Date(Date.now() - 3 * 3600_000 + dias * 86400_000).toISOString().slice(0, 10)
-
-const SCHEMA = {
-  type: 'object',
-  properties: {
-    noticias: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          titulo: { type: 'string' },
-          texto: { type: 'string' },
-          categoria: { type: 'string', enum: [...CATEGORIAS] },
-          relevancia: { type: 'integer', enum: [1, 2, 3, 4, 5] },
-        },
-        required: ['titulo', 'texto', 'categoria', 'relevancia'],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ['noticias'],
-  additionalProperties: false,
-}
 
 const INSTRUCOES = `Você é o editor da barra de notícias interna do grupo Cantina em Casa (varejo/delivery de panificados congelados) e Lumar Alimentos (fábrica, atacado). A barra passa no topo dos apps do Financeiro, Compras, RH, Produção e na TV da loja, para que toda a empresa saiba o que está acontecendo no Comercial.
 
@@ -72,42 +49,45 @@ Regras:
 
 type Saida = { noticias: { titulo: string; texto: string; categoria: string; relevancia: number }[] }
 
-/** Claude (ANTHROPIC_API_KEY); sem a chave, cai para o Gemini (GOOGLE_API_KEY legado), como as outras funções. */
+/** Gemini, com a chave do secret COMERCIAL_GEMINI_API_KEY (cadastrado só para esta função). */
 async function gerar(system: string, prompt: string): Promise<Saida & { modelo: string }> {
-  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')
-  if (anthropicKey) {
-    const client = new Anthropic({ apiKey: anthropicKey })
-    // deno-lint-ignore no-explicit-any
-    const resp: any = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 16000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA } },
-      system,
-      messages: [{ role: 'user', content: prompt }],
-    // deno-lint-ignore no-explicit-any
-    } as any)
-    if (resp.stop_reason === 'refusal') throw new Error('A IA recusou a geração')
-    const texto = (resp.content as { type: string; text?: string }[]).find(b => b.type === 'text')?.text ?? ''
-    return { ...(JSON.parse(texto) as Saida), modelo: resp.model ?? MODEL }
+  const apiKey = Deno.env.get('COMERCIAL_GEMINI_API_KEY')
+  if (!apiKey) throw new Error('COMERCIAL_GEMINI_API_KEY não configurada nos secrets do Supabase')
+
+  const chamar = async (generationConfig: Record<string, unknown>) => {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 100_000)
+    try {
+      return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: 'user', parts: [{ text: prompt + '\n\nResponda só com JSON no formato {"noticias":[{"titulo","texto","categoria","relevancia"}]}.' }] }],
+          generationConfig,
+        }),
+      })
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') throw new Error(`Gemini (${GEMINI_MODEL}) não respondeu em 100 s`)
+      throw e
+    } finally { clearTimeout(timer) }
   }
 
-  const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? Deno.env.get('GOOGLE_API_KEY')
-  if (!geminiKey) throw new Error('Nenhuma chave de IA configurada (ANTHROPIC_API_KEY ou GOOGLE_API_KEY)')
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: prompt + '\n\nResponda só com JSON no formato {"noticias":[{"titulo","texto","categoria","relevancia"}]}.' }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 8192, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } },
-    }),
-  })
+  const base = { temperature: 0.3, maxOutputTokens: 16384, responseMimeType: 'application/json' }
+  // Raciocínio curto: a notícia é um resumo, não precisa de cadeia longa de pensamento.
+  let r = await chamar({ ...base, thinkingConfig: { thinkingLevel: 'low' } })
+  if (r.status === 400) r = await chamar(base) // modelo sem esse parâmetro
   if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 200)}`)
   const j = await r.json()
+  const bloqueio = j?.promptFeedback?.blockReason
+  if (bloqueio) throw new Error(`Gemini bloqueou o pedido (${bloqueio})`)
   const texto: string = j?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
-  return { ...(JSON.parse(texto) as Saida), modelo: GEMINI_MODEL }
+  const limpo = texto.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
+  let saida: Saida
+  try { saida = JSON.parse(limpo) as Saida } catch { throw new Error('Gemini devolveu um JSON inválido') }
+  if (!Array.isArray(saida?.noticias)) throw new Error('Gemini não devolveu a lista de notícias')
+  return { ...saida, modelo: GEMINI_MODEL }
 }
 
 Deno.serve(async (req) => {
