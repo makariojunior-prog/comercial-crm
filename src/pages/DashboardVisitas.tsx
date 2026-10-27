@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download, AlertCircle, Camera, Filter, X } from 'lucide-react'
+import { Plus, MapPin, Pencil, Trash2, RefreshCw, Download, AlertCircle, Camera, Filter, X, Route } from 'lucide-react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../lib/supabase'
@@ -23,7 +23,13 @@ const typeColor: Record<string, string> = {
   'Degustação': 'bg-pink-100 text-pink-700',
 }
 
-export default function DashboardVisitas() {
+interface Props {
+  /** Dentro da tela Negócios & Visitas: sem o título da página. */
+  embedded?: boolean
+  onShowJornada?: (visit: Visit) => void
+}
+
+export default function DashboardVisitas({ embedded, onShowJornada }: Props = {}) {
   const [visits, setVisits] = useState<Visit[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -110,8 +116,8 @@ export default function DashboardVisitas() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Dashboard Visitas</h1>
-          <p className="text-xs text-slate-400 capitalize">{monthLabel}</p>
+          {!embedded && <h1 className="text-xl font-bold text-slate-800">Dashboard Visitas</h1>}
+          <p className={`capitalize ${embedded ? 'text-sm font-semibold text-slate-600 dark:text-slate-300' : 'text-xs text-slate-400'}`}>{monthLabel}</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => { try { exportVisits(filtered) } catch { alert('Erro ao exportar Excel') } }} className="btn-secondary text-xs py-1.5" title="Exportar Excel">
@@ -241,7 +247,7 @@ export default function DashboardVisitas() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 items-start">
-          {filtered.map(v => <VisitCard key={v.id} visit={v} onEdit={() => setEditVisit(v)} onDelete={() => deleteVisit(v.id)} />)}
+          {filtered.map(v => <VisitCard key={v.id} visit={v} onEdit={() => setEditVisit(v)} onDelete={() => deleteVisit(v.id)} onJornada={onShowJornada ? () => onShowJornada(v) : undefined} />)}
         </div>
       )}
 
@@ -252,7 +258,7 @@ export default function DashboardVisitas() {
   )
 }
 
-function VisitCard({ visit, onEdit, onDelete }: { visit: Visit; onEdit: () => void; onDelete: () => void }) {
+function VisitCard({ visit, onEdit, onDelete, onJornada }: { visit: Visit; onEdit: () => void; onDelete: () => void; onJornada?: () => void }) {
   const [expanded, setExpanded] = useState(false)
   const dateStr = visit.visit_date ? format(parseISO(visit.visit_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'
   const statusBadge = statusColor[visit.status ?? ''] ?? 'bg-slate-100 text-slate-500'
@@ -330,6 +336,11 @@ function VisitCard({ visit, onEdit, onDelete }: { visit: Visit; onEdit: () => vo
             <button onClick={e => { e.stopPropagation(); onDelete() }} className="btn-danger text-xs py-1.5">
               <Trash2 size={12} /> Excluir
             </button>
+            {onJornada && (
+              <button onClick={e => { e.stopPropagation(); onJornada() }} className="btn-ghost text-xs py-1.5 ml-auto">
+                <Route size={12} /> Jornada do cliente
+              </button>
+            )}
           </div>
         </div>
       )}

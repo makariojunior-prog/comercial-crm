@@ -10,6 +10,8 @@ import AmostraProdutosInput from './AmostraProdutosInput'
 
 interface Props {
   visit?: Visit | null
+  /** Nome do cliente já preenchido numa visita nova (ex.: aberta pela Jornada do cliente). */
+  initialClientName?: string
   onClose: () => void
   onSaved: () => void
 }
@@ -62,7 +64,7 @@ interface NominatimResult {
   display_name: string
 }
 
-export default function VisitModal({ visit, onClose, onSaved }: Props) {
+export default function VisitModal({ visit, initialClientName, onClose, onSaved }: Props) {
   useEscKey(useCallback(onClose, [onClose]))
   const [form, setForm] = useState(
     visit ? {
@@ -77,7 +79,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
       priority:      visit.priority      ?? 'MÉDIA',
       status:        visit.status        ?? 'Realizada',
       has_amostra:   visit.has_amostra   ?? false,
-    } : makeEmptyForm()
+    } : { ...makeEmptyForm(), client_name: initialClientName ?? '' }
   )
 
   const initResponsaveis = (): string[] => {
@@ -544,7 +546,7 @@ export default function VisitModal({ visit, onClose, onSaved }: Props) {
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700">
               <Briefcase size={14} className="text-purple-600 dark:text-purple-400 shrink-0" />
               <p className="text-xs text-purple-700 dark:text-purple-300 font-medium flex-1">Negócio já criado a partir desta visita.</p>
-              <a href="#/negocios" className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-semibold shrink-0">Ver</a>
+              <a href="#/negocios?aba=negocios" className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-semibold shrink-0">Ver</a>
             </div>
           )}
 

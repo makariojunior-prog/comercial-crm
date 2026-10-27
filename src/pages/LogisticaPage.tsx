@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Search, Truck, Users, Radio, Settings, AlertTriangle, CheckCircle, MapPin, Gauge, Wifi, WifiOff, ExternalLink, FileText, DollarSign, ClipboardCheck } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Search, Truck, Users, Radio, AlertTriangle, CheckCircle, MapPin, Gauge, Wifi, WifiOff, ExternalLink, FileText, DollarSign, ClipboardCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Vehicle, Driver } from '../types'
 import { docExpiryStatus, daysUntil } from '../types'
@@ -9,12 +9,11 @@ import RomaneioTab from '../components/RomaneioTab'
 import RotasEntregaTab from '../components/RotasEntregaTab'
 import CustosTab from '../components/CustosTab'
 import ConciliacaoTab from '../components/ConciliacaoTab'
-import TiposOcorrenciaConfig from '../components/TiposOcorrenciaConfig'
+import OcorrenciasLogisticaTab from '../components/OcorrenciasLogisticaTab'
 import { fetchPositions } from '../lib/velotrack'
 import type { VelotrackPosition } from '../types'
-import { useAuth } from '../contexts/AuthContext'
 
-type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas' | 'custos' | 'conciliacao' | 'config_ocorrencias'
+type Tab = 'veiculos' | 'motoristas' | 'rastreamento' | 'romaneio' | 'rotas' | 'custos' | 'conciliacao' | 'ocorrencias'
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -197,7 +196,6 @@ function TrackingTab() {
 // ─── Página principal ─────────────────────────────────────────────
 
 export default function LogisticaPage() {
-  const { isAdmin } = useAuth()
   const [tab, setTab] = useState<Tab>('romaneio')
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
@@ -274,7 +272,7 @@ export default function LogisticaPage() {
     { id: 'veiculos'     as Tab, label: 'Veículos',          icon: Truck,       count: vehicles.filter(v => v.ativo).length },
     { id: 'motoristas'   as Tab, label: 'Motoristas',        icon: Users,       count: drivers.filter(d => d.ativo).length },
     { id: 'custos'       as Tab, label: 'Custos',            icon: DollarSign,  count: null },
-    ...(isAdmin ? [{ id: 'config_ocorrencias' as Tab, label: 'Ocorrências', icon: Settings, count: null }] : []),
+    { id: 'ocorrencias'  as Tab, label: 'Ocorrências',       icon: AlertTriangle, count: null },
   ]
 
   return (
@@ -329,7 +327,7 @@ export default function LogisticaPage() {
       </div>
 
       {/* Search (veiculos/motoristas) */}
-      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && tab !== 'custos' && (
+      {tab !== 'rastreamento' && tab !== 'romaneio' && tab !== 'rotas' && tab !== 'custos' && tab !== 'ocorrencias' && (
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -349,8 +347,8 @@ export default function LogisticaPage() {
           date={new Date().toISOString().split('T')[0]}
           drivers={drivers}
         />
-      ) : tab === 'config_ocorrencias' ? (
-        <TiposOcorrenciaConfig />
+      ) : tab === 'ocorrencias' ? (
+        <OcorrenciasLogisticaTab drivers={drivers} vehicles={vehicles} />
       ) : tab === 'rotas' ? (
         <RotasEntregaTab />
       ) : tab === 'custos' ? (

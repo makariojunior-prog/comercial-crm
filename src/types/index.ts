@@ -1052,3 +1052,103 @@ export interface LojaDeliveryStatus {
   updated_at: string
 }
 
+
+// ─── Comitê: demandas, notas e reuniões · Logística: ocorrências · Notícias (IA) ──
+export const SETORES_DEMANDA = ['Financeiro', 'Compras', 'RH', 'Produção', 'Logística', 'Marketing', 'TI', 'Diretoria', 'Outro'] as const
+export type SetorDemanda = typeof SETORES_DEMANDA[number]
+export type StatusDemanda = 'aberta' | 'em_andamento' | 'resolvida' | 'cancelada'
+export type Prioridade3 = 'alta' | 'media' | 'baixa'
+
+export interface ComiteDemanda {
+  id: string
+  titulo: string
+  descricao: string | null
+  setor: SetorDemanda
+  tipo: 'demanda' | 'problema'
+  prioridade: Prioridade3
+  status: StatusDemanda
+  client_id: string | null
+  cliente_nome: string | null
+  responsavel: string | null
+  prazo: string | null
+  resolucao: string | null
+  resolvida_em: string | null
+  created_by_nome: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ComiteNota {
+  id: string
+  semana_ini: string
+  conta: string
+  cliente_nome: string
+  client_id: string | null
+  deal_id: string | null
+  visit_id: string | null
+  texto: string
+  created_by_nome: string | null
+  created_at: string
+}
+
+export interface ComiteReuniao {
+  id: string
+  semana_ini: string
+  semana_fim: string
+  realizada_em: string
+  participantes: string[]
+  ata: string | null
+  encaminhamentos: string | null
+  snapshot: Record<string, unknown>
+  created_by_nome: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LogOcorrencia {
+  id: string
+  data: string
+  tipo_id: string | null
+  tipo?: Pick<TipoOcorrencia, 'id' | 'nome' | 'emoji' | 'cor'> | null
+  descricao: string
+  gravidade: Prioridade3
+  status: 'aberta' | 'resolvida'
+  resolucao: string | null
+  prejuizo: number | null
+  client_id: string | null
+  cliente_nome: string | null
+  driver_id: string | null
+  driver?: Pick<Driver, 'id' | 'nome'> | null
+  vehicle_id: string | null
+  vehicle?: Pick<Vehicle, 'id' | 'apelido' | 'placa'> | null
+  created_by_nome: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type CategoriaNoticia = 'negocio' | 'visita' | 'problema' | 'logistica' | 'varejo' | 'demanda' | 'destaque'
+
+export interface Noticia {
+  id: string
+  lote_id: string
+  titulo: string
+  texto: string | null
+  categoria: CategoriaNoticia
+  relevancia: number
+  publicada: boolean
+  oculta: boolean
+  editada: boolean
+  avaliacao: 'boa' | 'ruim' | null
+  valida_ate: string
+  gerada_em: string
+}
+
+export interface IaAprendizado {
+  id: string
+  tipo: 'regra' | 'correcao' | 'exemplo_bom' | 'exemplo_ruim'
+  texto: string
+  noticia_id: string | null
+  ativo: boolean
+  created_by_nome: string | null
+  created_at: string
+}

@@ -10,9 +10,10 @@ interface Props {
   onMove: (deal: Deal, status: DealStatus) => void
   onDelete: (deal: Deal) => void
   onShowHistory: (deal: Deal) => void
+  onShowJornada?: (deal: Deal) => void
 }
 
-export default function KanbanColumn({ status, deals, onOpenEdit, onMove, onDelete, onShowHistory }: Props) {
+export default function KanbanColumn({ status, deals, onOpenEdit, onMove, onDelete, onShowHistory, onShowJornada }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const cfg = statusConfig[status]
 
@@ -39,6 +40,7 @@ export default function KanbanColumn({ status, deals, onOpenEdit, onMove, onDele
               onMove={s => onMove(deal, s)}
               onDelete={() => onDelete(deal)}
               onShowHistory={() => onShowHistory(deal)}
+              onShowJornada={onShowJornada ? () => onShowJornada(deal) : undefined}
             />
           ))
         )}

@@ -828,7 +828,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700">
               <Briefcase size={14} className="text-purple-600 dark:text-purple-400 shrink-0" />
               <p className="text-xs text-purple-700 dark:text-purple-300 font-medium flex-1">Negócio já criado a partir deste compromisso.</p>
-              <a href="#/negocios" className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 font-semibold shrink-0">
+              <a href="#/negocios?aba=negocios" className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 font-semibold shrink-0">
                 Ver <ExternalLink size={11} />
               </a>
             </div>

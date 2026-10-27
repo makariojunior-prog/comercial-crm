@@ -9,8 +9,8 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 
 const DashboardNegocios  = lazy(() => import('./pages/DashboardNegocios'))
-const RegistroNegocios   = lazy(() => import('./pages/RegistroNegocios'))
-const DashboardVisitas   = lazy(() => import('./pages/DashboardVisitas'))
+const NegociosVisitas    = lazy(() => import('./pages/NegociosVisitas'))
+const IaPage             = lazy(() => import('./pages/IaPage'))
 const TabelasPreco       = lazy(() => import('./pages/TabelasPreco'))
 const GestaoUsuarios     = lazy(() => import('./pages/GestaoUsuarios'))
 const Comite             = lazy(() => import('./pages/Comite'))
@@ -61,9 +61,9 @@ export default function App() {
               <Route element={<Layout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard"     element={<DashboardNegocios />} />
-                <Route path="/negocios"      element={<RegistroNegocios />} />
+                <Route path="/negocios"      element={<NegociosVisitas />} />
                 <Route path="/registro"      element={<Navigate to="/negocios" replace />} />
-                <Route path="/visitas"       element={<DashboardVisitas />} />
+                <Route path="/visitas"       element={<NegociosVisitas />} />
                 <Route path="/tarefas"       element={<TasksPage />} />
                 <Route path="/clientes"      element={<ClientsPage />} />
                 <Route path="/rotas"         element={<RoutesPage />} />
@@ -72,6 +72,7 @@ export default function App() {
                 <Route path="/tabelas"       element={<TabelasPreco />} />
                 <Route path="/usuarios"      element={<GestaoUsuarios />} />
                 <Route path="/comite"        element={<Comite />} />
+                <Route path="/ia"            element={<IaPage />} />
                 <Route path="/configuracoes" element={<SettingsPage />} />
                 <Route path="/logistica"     element={<LogisticaPage />} />
                 <Route path="/varejo"        element={<VarejoPage />} />
