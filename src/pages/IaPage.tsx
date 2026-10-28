@@ -144,7 +144,7 @@ function AbaNoticias() {
                     <div className="flex items-center gap-2 flex-wrap text-[11px]">
                       <span className={`font-bold ${cat.corClara}`}>{cat.rotulo}</span>
                       <span className="text-slate-400">{format(new Date(n.gerada_em), 'dd/MM HH:mm')}</span>
-                      <span className="font-semibold text-slate-500" title="Relevância (1 a 5)">{'★'.repeat(n.relevancia)}<span className="text-slate-300">{'★'.repeat(5 - n.relevancia)}</span></span>
+                      <span className="font-semibold text-slate-500" title="Relevância (1 a 5)">{'★'.repeat(n.relevancia)}<span className="text-slate-300 dark:text-slate-700">{'★'.repeat(5 - n.relevancia)}</span> <span className="font-normal">{n.relevancia}/5</span></span>
                       {noAr ? <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-bold">no ar</span>
                         : n.oculta ? <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 font-bold">oculta</span>
                         : <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-bold">não publicada</span>}
