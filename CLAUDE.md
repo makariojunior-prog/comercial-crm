@@ -79,3 +79,20 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
 Se este arquivo passar de ~80 linhas, ou se a lista de rotas/edge functions aqui divergir de
 `src/App.tsx` e `supabase/functions/`, **avise o usuário ao fim da tarefa** e ofereça atualizar.
 Planos de implementação já executados vão para `docs/archive/`, não ficam em `docs/superpowers/plans/`.
+
+## Supabase: GRANT explícito em tabelas novas (desde 30/10/2026)
+
+O Supabase deixou de conceder acesso à API de Dados (supabase-js, PostgREST, GraphQL) automaticamente a tabelas novas em `public`. Sem GRANT a API devolve "permission denied". Tabelas anteriores a essa data não mudam. Vale também para migrations que recriam o schema (projeto novo, branch de preview, `supabase db reset`).
+
+**Regra:** toda migration que cria tabela ou view em `public` traz os GRANTs na mesma migration.
+
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.minha_tabela TO authenticated, service_role;
+-- view: GRANT SELECT ON public.minha_view TO authenticated, service_role;
+-- só backend: REVOKE ALL ON public.minha_tabela FROM PUBLIC, anon, authenticated;
+--             GRANT ALL ON public.minha_tabela TO service_role;
+```
+
+- Não conceder nada a `anon`, a menos que a leitura pública seja intencional (a RLS continua sendo a proteção de linha).
+- Funções: `REVOKE ALL ... FROM PUBLIC` e `GRANT EXECUTE` só a quem precisa.
+- Se a migration antiga foi escrita sem GRANT e o schema for recriado, rode um GRANT em lote nas tabelas existentes.
