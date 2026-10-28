@@ -19,7 +19,7 @@ export const CATEGORIA_NOTICIA: Record<CategoriaNoticia, { rotulo: string; cor: 
   visita:    { rotulo: 'Visitas',   cor: 'text-amber-400',   corClara: 'text-amber-600 dark:text-amber-400' },
   problema:  { rotulo: 'Atenção',   cor: 'text-red-400',     corClara: 'text-red-600 dark:text-red-400' },
   logistica: { rotulo: 'Logística', cor: 'text-sky-400',     corClara: 'text-sky-600 dark:text-sky-400' },
-  varejo:    { rotulo: 'Varejo',    cor: 'text-orange-400',  corClara: 'text-orange-600 dark:text-orange-400' },
+  varejo:    { rotulo: 'Cantina',   cor: 'text-orange-400',  corClara: 'text-orange-600 dark:text-orange-400' },
   demanda:   { rotulo: 'Demanda',   cor: 'text-purple-400',  corClara: 'text-purple-600 dark:text-purple-400' },
   destaque:  { rotulo: 'Destaque',  cor: 'text-yellow-300',  corClara: 'text-yellow-600 dark:text-yellow-300' },
 }
