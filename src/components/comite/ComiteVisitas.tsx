@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { RefreshCw, AlertCircle, MapPin, User, Gift, CalendarDays, ClipboardList } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { fmtDia } from '../../lib/format'
-import { getResponsaveis, type Visit } from '../../types'
+import { getResponsaveis, type ComiteNota, type Visit } from '../../types'
 import { CORTE_COMITE, iniEfetivo, type PeriodoComite } from './comiteConfig'
+import NotasComite, { carregarNotasSemana } from './NotasComite'
 
 export default function ComiteVisitas({ ini, fim }: PeriodoComite) {
   const [visitas, setVisitas] = useState<Visit[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notas, setNotas] = useState<ComiteNota[]>([])
   const dentroDoCorte = fim >= CORTE_COMITE
+
+  useEffect(() => { carregarNotasSemana(ini).then(setNotas) }, [ini])
 
   useEffect(() => {
     if (!dentroDoCorte) { setVisitas([]); return }
@@ -103,6 +107,9 @@ export default function ComiteVisitas({ ini, fim }: PeriodoComite) {
                 ))}
               </div>
             )}
+
+            <NotasComite semanaIni={ini} clienteNome={v.client_name} dealId={v.deal_id} visitId={v.id}
+              notas={notas.filter(n => n.visit_id === v.id)} onSaved={n => setNotas(ns => [...ns, n])} />
           </div>
         )
       })}

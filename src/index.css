@@ -98,3 +98,14 @@
     @apply bg-white rounded-xl border border-slate-200 shadow-sm dark:bg-slate-800 dark:border-slate-700;
   }
 }
+
+/* Barra de notícias do Comercial (NoticiasTicker): a faixa tem o conteúdo duplicado e anda metade. */
+@keyframes ticker-rolar {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.ticker-faixa { animation: ticker-rolar var(--ticker-duracao, 60s) linear infinite; }
+.ticker-faixa:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .ticker-faixa { animation: none; }
+}

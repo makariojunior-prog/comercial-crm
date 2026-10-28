@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { MoreVertical, MessageCircle, History, Trash2, ArrowRightLeft } from 'lucide-react'
+import { MoreVertical, MessageCircle, History, Trash2, ArrowRightLeft, Route } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Deal, DealStatus } from '../types'
@@ -14,6 +14,7 @@ interface CardProps {
   onMove: (status: DealStatus) => void
   onDelete: () => void
   onShowHistory: () => void
+  onShowJornada?: () => void
 }
 
 const STATUS_LABEL: Record<DealStatus, string> = {
@@ -24,7 +25,7 @@ const STATUS_LABEL: Record<DealStatus, string> = {
   'CANCELADO': 'Cancelado',
 }
 
-export function DealCardContent({ deal, onOpenEdit, onMove, onDelete, onShowHistory, dragging }: CardProps & { dragging?: boolean }) {
+export function DealCardContent({ deal, onOpenEdit, onMove, onDelete, onShowHistory, onShowJornada, dragging }: CardProps & { dragging?: boolean }) {
   const [showMove, setShowMove] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const startDate = deal.start_date ? format(parseISO(deal.start_date), 'dd/MM/yy', { locale: ptBR }) : '-'
@@ -94,6 +95,14 @@ export function DealCardContent({ deal, onOpenEdit, onMove, onDelete, onShowHist
               >
                 <History size={12} /> Histórico
               </button>
+              {onShowJornada && (
+                <button
+                  onClick={() => { onShowJornada(); setShowMenu(false) }}
+                  className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  <Route size={12} /> Jornada do cliente
+                </button>
+              )}
               <button
                 onClick={() => { onDelete(); setShowMenu(false) }}
                 className="w-full flex items-center gap-1.5 text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
@@ -108,7 +117,7 @@ export function DealCardContent({ deal, onOpenEdit, onMove, onDelete, onShowHist
   )
 }
 
-export default function KanbanCard({ deal, onOpenEdit, onMove, onDelete, onShowHistory }: CardProps) {
+export default function KanbanCard({ deal, onOpenEdit, onMove, onDelete, onShowHistory, onShowJornada }: CardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
     data: { deal },
@@ -117,7 +126,7 @@ export default function KanbanCard({ deal, onOpenEdit, onMove, onDelete, onShowH
 
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={isDragging ? 'opacity-40' : ''}>
-      <DealCardContent deal={deal} onOpenEdit={onOpenEdit} onMove={onMove} onDelete={onDelete} onShowHistory={onShowHistory} />
+      <DealCardContent deal={deal} onOpenEdit={onOpenEdit} onMove={onMove} onDelete={onDelete} onShowHistory={onShowHistory} onShowJornada={onShowJornada} />
     </div>
   )
 }

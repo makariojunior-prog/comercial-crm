@@ -9,6 +9,8 @@ import ResponsaveisPicker from './ResponsaveisPicker'
 
 interface Props {
   deal?: Deal | null
+  /** Nome do cliente já preenchido num negócio novo (ex.: aberto pela Jornada do cliente). */
+  initialClientName?: string
   onClose: () => void
   onSaved: () => void
 }
@@ -35,7 +37,7 @@ function makeEmptyForm() {
   }
 }
 
-export default function DealModal({ deal, onClose, onSaved }: Props) {
+export default function DealModal({ deal, initialClientName, onClose, onSaved }: Props) {
   const [form, setForm] = useState(
     deal ? {
       start_date:        deal.start_date        ?? todayLocal(),
@@ -50,7 +52,7 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
       follow_up:         deal.follow_up          ?? '',
       end_date:          deal.end_date           ?? '',
       potential_notes:   deal.potential_notes    ?? '',
-    } : makeEmptyForm()
+    } : { ...makeEmptyForm(), client_name: initialClientName ?? '' }
   )
 
   const initResponsaveis = (): string[] => {
@@ -109,6 +111,18 @@ export default function DealModal({ deal, onClose, onSaved }: Props) {
       ? await supabase.from('deals').update(payload).eq('id', deal.id)
       : await supabase.from('deals').insert(payload)
     if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+    // Mudança de etapa pelo formulário também entra no histórico (Comitê, Dashboard e Jornada
+    // leem os ganhos e perdas de crm_deal_history; antes só o Kanban e a atualização rápida gravavam).
+    if (deal && (deal.status ?? 'NOVO') !== form.status) {
+      await supabase.from('crm_deal_history').insert({
+        deal_id: deal.id,
+        client_name: form.client_name,
+        status_before: deal.status,
+        status_after: form.status,
+        follow_up: form.follow_up !== (deal.follow_up ?? '') ? form.follow_up || null : null,
+        last_contact_date: form.last_contact_date || null,
+      })
+    }
     setSaving(false)
     onSaved()
     onClose()

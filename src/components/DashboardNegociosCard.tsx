@@ -45,7 +45,7 @@ export default function DashboardNegociosCard({
           >
             <Plus size={13} /> Novo
           </button>
-          <Link to="/negocios" className="text-xs font-semibold text-orange-500 hover:underline flex items-center gap-0.5">
+          <Link to="/negocios?aba=negocios" className="text-xs font-semibold text-orange-500 hover:underline flex items-center gap-0.5">
             Kanban <ChevronRight size={12} />
           </Link>
         </div>

@@ -15,9 +15,10 @@ interface Props {
   onMove: (deal: Deal, status: DealStatus) => void
   onDelete: (deal: Deal) => void
   onShowHistory: (deal: Deal) => void
+  onShowJornada?: (deal: Deal) => void
 }
 
-export default function KanbanBoard({ deals, hideClosed, onOpenEdit, onMove, onDelete, onShowHistory }: Props) {
+export default function KanbanBoard({ deals, hideClosed, onOpenEdit, onMove, onDelete, onShowHistory, onShowJornada }: Props) {
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -55,6 +56,7 @@ export default function KanbanBoard({ deals, hideClosed, onOpenEdit, onMove, onD
             onMove={onMove}
             onDelete={onDelete}
             onShowHistory={onShowHistory}
+            onShowJornada={onShowJornada}
           />
         ))}
       </div>

@@ -7,16 +7,25 @@ import { CORTE_COMITE } from '../components/comite/comiteConfig'
 import ComiteResumo from '../components/comite/ComiteResumo'
 import ComiteVisitas from '../components/comite/ComiteVisitas'
 import ComiteNegocios from '../components/comite/ComiteNegocios'
+import ComiteLogistica from '../components/comite/ComiteLogistica'
+import ComiteDemandas from '../components/comite/ComiteDemandas'
+import ComiteHistorico from '../components/comite/ComiteHistorico'
 import ComiteClientes from './ComiteClientes'
 
-type Aba = 'resumo' | 'visitas' | 'negocios' | 'clientes'
+type Aba = 'resumo' | 'visitas' | 'negocios' | 'logistica' | 'demandas' | 'clientes' | 'historico'
 
 const ABAS: [Aba, string][] = [
   ['resumo', 'Resumo da semana'],
   ['visitas', 'Visitas'],
   ['negocios', 'Negócios'],
+  ['logistica', 'Logística'],
+  ['demandas', 'Demandas e problemas'],
   ['clientes', 'Clientes novos'],
+  ['historico', 'Ata e histórico'],
 ]
+
+/** Abas que não dependem da semana escolhida. */
+const SEM_SEMANA: Aba[] = ['clientes', 'demandas']
 
 const iso = (d: Date) => format(d, 'yyyy-MM-dd')
 const segunda = (d: Date) => startOfWeek(d, { weekStartsOn: 1 })
@@ -56,7 +65,7 @@ export default function Comite() {
           <Handshake size={20} className="text-orange-500" /> Comitê
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Revisão semanal do comercial: visitas, negócios, vendas do varejo, recompra e pós-venda (a partir de {fmtDia(CORTE_COMITE)}) e clientes novos do atacado.
+          Revisão semanal do comercial: visitas, negócios, vendas do varejo, recompra e pós-venda (a partir de {fmtDia(CORTE_COMITE)}), ocorrências da logística, demandas a outros setores, clientes novos do atacado e o histórico das reuniões.
         </p>
       </div>
 
@@ -77,7 +86,7 @@ export default function Comite() {
           ))}
         </div>
 
-        {aba !== 'clientes' && (
+        {!SEM_SEMANA.includes(aba) && (
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1">
               <button onClick={() => setInicioSemana(s => addWeeks(s, -1))} disabled={!podeVoltar} className="btn-ghost p-1.5 disabled:opacity-30" title="Semana anterior"><ChevronLeft size={16} /></button>
@@ -94,7 +103,10 @@ export default function Comite() {
       {aba === 'resumo'   && <ComiteResumo ini={periodo.ini} fim={periodo.fim} />}
       {aba === 'visitas'  && <ComiteVisitas ini={periodo.ini} fim={periodo.fim} />}
       {aba === 'negocios' && <ComiteNegocios ini={periodo.ini} fim={periodo.fim} />}
+      {aba === 'logistica' && <ComiteLogistica ini={periodo.ini} fim={periodo.fim} />}
+      {aba === 'demandas' && <ComiteDemandas ini={periodo.ini} />}
       {aba === 'clientes' && <ComiteClientes embedded />}
+      {aba === 'historico' && <ComiteHistorico ini={periodo.ini} fim={periodo.fim} />}
     </div>
   )
 }

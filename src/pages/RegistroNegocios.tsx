@@ -11,7 +11,13 @@ import { usePreferences } from '../contexts/PreferencesContext'
 
 const ALL = 'TODOS'
 
-export default function RegistroNegocios() {
+interface Props {
+  /** Dentro da tela Negócios & Visitas: sem o título da página. */
+  embedded?: boolean
+  onShowJornada?: (deal: Deal) => void
+}
+
+export default function RegistroNegocios({ embedded, onShowJornada }: Props = {}) {
   const { prefs, updateNegociosOcultarFechados } = usePreferences()
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
@@ -100,8 +106,8 @@ export default function RegistroNegocios() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold text-slate-800">Negócios</h1>
+      <div className={`flex items-center flex-wrap gap-2 ${embedded ? 'justify-end' : 'justify-between'}`}>
+        {!embedded && <h1 className="text-xl font-bold text-slate-800">Negócios</h1>}
         <div className="flex gap-2">
           <button
             onClick={() => updateNegociosOcultarFechados(!prefs.negociosOcultarFechados)}
@@ -175,6 +181,7 @@ export default function RegistroNegocios() {
           onMove={moveDeal}
           onDelete={deal => deleteDeal(deal.id)}
           onShowHistory={deal => setHistoryDeal(deal)}
+          onShowJornada={onShowJornada}
         />
       )}
 

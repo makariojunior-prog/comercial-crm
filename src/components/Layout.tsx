@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, ClipboardList, MapPin, DollarSign, ShieldCheck, LogOut,
+  LayoutDashboard, ClipboardList, DollarSign, ShieldCheck, LogOut,
   CheckCircle2, Users, Calendar, Settings, Route, StickyNote, Truck,
   ShoppingBag, MessageSquare, Instagram, Package2, Store, Banknote, TrendingUp,
   Building2, CalendarDays, PanelLeft, PanelBottom, Search, ChevronsLeft, ChevronsRight,
-  PackageOpen, LayoutGrid, UserCheck, Handshake,
+  PackageOpen, LayoutGrid, UserCheck, Handshake, Sparkles,
 } from 'lucide-react'
 import logoUrl from '../assets/logo.svg'
 import { useAuth } from '../contexts/AuthContext'
@@ -17,6 +17,7 @@ import { ptBR } from 'date-fns/locale'
 import GlobalSearch from './GlobalSearch'
 import DeliveryStatusWidget from './DeliveryStatusWidget'
 import ErrorBoundary from './ErrorBoundary'
+import NoticiasTicker from './NoticiasTicker'
 
 function NavBadge({ n, className = '' }: { n: number; className?: string }) {
   if (!n) return null
@@ -33,8 +34,8 @@ const PORTAL_URL = 'https://portal.cantinaemcasa.com/home'
 
 const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'admin' | 'personal' }[] = [
   { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard',        module: 'dashboard'       },
-  { to: '/negocios',       icon: ClipboardList,   label: 'Negócios',         module: 'negocios'        },
-  { to: '/visitas',        icon: MapPin,          label: 'Visitas',          module: 'visitas'         },
+  // Negócios e Visitas viraram uma tela só (aparece para quem tem um dos dois módulos)
+  { to: '/negocios',       icon: ClipboardList,   label: 'Negócios & Visitas', module: 'negocios'      },
   { to: '/tarefas',        icon: CheckCircle2,    label: 'Tarefas',          module: 'tarefas'         },
   { to: '/clientes',       icon: Users,           label: 'Cli. Atacado',     module: 'clientes'        },
   { to: '/rotas',          icon: Route,           label: 'Rotas Comerciais', module: 'rotas'           },
@@ -54,6 +55,7 @@ const NAV_ITEMS: { to: string; icon: any; label: string; module: ModuleId | 'adm
   { to: '/comodato',       icon: PackageOpen,     label: 'Comodato',         module: 'comodato'        },
   { to: '/logistica',      icon: Truck,           label: 'Logística',        module: 'logistica'       },
   { to: '/comite',         icon: Handshake,       label: 'Comitê',           module: 'admin'           },
+  { to: '/ia',             icon: Sparkles,        label: 'IA',               module: 'admin'           },
   { to: '/usuarios',       icon: ShieldCheck,     label: 'Usuários',         module: 'admin'           },
   { to: '/configuracoes',  icon: Settings,        label: 'Configurações',    module: 'personal'        },
 ]
@@ -97,6 +99,7 @@ export default function Layout() {
   const accessibleItems = NAV_ITEMS.filter(item => {
     if (item.module === 'admin') return isAdmin
     if (item.module === 'personal') return true
+    if (item.to === '/negocios') return canAccess('negocios') || canAccess('visitas')
     return canAccess(item.module as ModuleId)
   })
 
@@ -374,6 +377,11 @@ export default function Layout() {
 
           </header>
         )}
+
+        {/* Barra de notícias do Comercial (some quando não há notícia publicada) */}
+        <ErrorBoundary>
+          <NoticiasTicker />
+        </ErrorBoundary>
 
         {/* Page content */}
         <main className={`flex-1 min-w-0 p-4 lg:p-6 pb-24 ${isBottomMode ? 'lg:pb-24' : 'lg:pb-6'}`}>
