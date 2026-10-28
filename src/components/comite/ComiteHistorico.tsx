@@ -1,19 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Save, Search, ChevronDown, ChevronRight, Archive, Users, ShoppingBag, MapPin, Handshake, Truck, Inbox, Gavel, Trophy } from 'lucide-react'
+import { RefreshCw, Save, Search, ChevronDown, ChevronRight, Archive, Users, ShoppingBag, MapPin, Handshake, Truck, Inbox, Gavel, Trophy, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import { fmtCurrency, fmtDia } from '../../lib/format'
 import type { ComiteReuniao } from '../../types'
 import type { PeriodoComite } from './comiteConfig'
-
-interface Snapshot {
-  resumo?: { varejo?: { faturamento: number; pedidos: number }; posvendas?: { pos_venda: number; recompra: number } }
-  visitas?: { cliente: string; data: string; tipo: string | null; responsaveis: string | null; amostra: boolean; relatorio: string | null }[]
-  negocios?: { cliente: string; status: string | null; tipo: string | null; novo: boolean; movimentos: number; ganho: boolean }[]
-  ocorrencias?: { data: string; tipo: string | null; gravidade: string; status: string; cliente: string | null; descricao: string }[]
-  demandas_abertas?: { titulo: string; setor: string; tipo: string; prioridade: string; status: string; desde: string }[]
-  notas?: { cliente: string; texto: string; por: string | null }[]
-}
+import { montarSintese, type Snapshot } from './sinteseAta'
+import { useVisibleInterval } from '../../hooks/useVisibleInterval'
 
 /** Ata da semana selecionada + histórico das reuniões (com o retrato congelado de cada semana). */
 export default function ComiteHistorico({ ini, fim }: PeriodoComite) {
@@ -78,6 +71,33 @@ function AtaDaSemana({ ini, fim, reuniao, usuarios, onSaved }: { ini: string; fi
   const [ata, setAta] = useState(reuniao?.ata ?? '')
   const [encaminhamentos, setEncaminhamentos] = useState(reuniao?.encaminhamentos ?? '')
   const [salvando, setSalvando] = useState(false)
+  const [editouAta, setEditouAta] = useState(false)
+  const [atualizadaEm, setAtualizadaEm] = useState<Date | null>(null)
+  // Com ata já salva ou texto digitado à mão, a síntese não sobrescreve nada sozinha
+  const automatica = !reuniao?.ata && !editouAta
+
+  const sintese = useCallback(async (): Promise<string | null> => {
+    const { data, error } = await supabase.rpc('crm_comite_retrato', { p_ini: ini, p_fim: fim })
+    if (error) { toast.error('Não foi possível montar a síntese: ' + error.message); return null }
+    setAtualizadaEm(new Date())
+    return montarSintese((data ?? {}) as Snapshot, `${fmtDia(ini)} a ${fmtDia(fim)}`)
+  }, [ini, fim])
+
+  const preencherAuto = useCallback(async () => {
+    const t = await sintese()
+    if (t !== null) setAta(t)
+  }, [sintese])
+  useEffect(() => { if (automatica) preencherAuto() }, [automatica, preencherAuto])
+  // Enquanto o texto é automático, acompanha o que o time vai registrando nas outras abas do Comitê
+  useVisibleInterval(() => { if (automatica) preencherAuto() }, 60_000)
+
+  async function atualizarSintese() {
+    if (ata.trim() && !automatica && !window.confirm('Substituir o texto da pauta pela síntese atualizada da semana?')) return
+    const t = await sintese()
+    if (t === null) return
+    setAta(t); setEditouAta(false)
+    toast.success('Síntese atualizada com o que foi registrado na semana')
+  }
 
   async function salvar() {
     setSalvando(true)
@@ -117,8 +137,19 @@ function AtaDaSemana({ ini, fim, reuniao, usuarios, onSaved }: { ini: string; fi
         </div>
       </div>
       <div>
-        <label className="label">Pauta e discussão</label>
-        <textarea className="input" rows={4} value={ata} onChange={e => setAta(e.target.value)} placeholder="Principais pontos discutidos na reunião..." />
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <label className="label mb-0">Pauta e discussão</label>
+          <button type="button" onClick={atualizarSintese} className="btn-ghost text-xs py-1 px-2 inline-flex items-center gap-1" title="Refaz o texto com o que já foi registrado na semana">
+            <Sparkles size={13} className="text-orange-500" /> Atualizar síntese
+          </button>
+        </div>
+        {automatica && (
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Preenchida automaticamente com o que foi registrado na semana{atualizadaEm ? ` (atualizada às ${atualizadaEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})` : ''}. Ao editar, ela para de se atualizar sozinha.
+          </p>
+        )}
+        <textarea className="input mt-1 font-mono text-[13px] leading-relaxed" rows={14} value={ata}
+          onChange={e => { setAta(e.target.value); setEditouAta(true) }} placeholder="Principais pontos discutidos na reunião..." />
       </div>
       <div>
         <label className="label">Decisões e encaminhamentos</label>
