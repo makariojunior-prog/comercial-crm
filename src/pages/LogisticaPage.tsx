@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Search, Truck, Users, Radio, AlertTriangle, CheckCircle, MapPin, Gauge, Wifi, WifiOff, ExternalLink, FileText, DollarSign, ClipboardCheck } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Search, Truck, Users, Radio, AlertTriangle, CheckCircle, MapPin, Gauge, Wifi, WifiOff, ExternalLink, FileText, DollarSign, ClipboardCheck, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Vehicle, Driver } from '../types'
 import { docExpiryStatus, daysUntil } from '../types'
 import VehicleModal from '../components/VehicleModal'
+import VeiculoVidaPanel from '../components/VeiculoVidaPanel'
 import DriverModal from '../components/DriverModal'
 import RomaneioTab from '../components/RomaneioTab'
 import RotasEntregaTab from '../components/RotasEntregaTab'
@@ -203,6 +204,8 @@ export default function LogisticaPage() {
   const [search, setSearch] = useState('')
   const [editVehicle, setEditVehicle] = useState<Vehicle | null | undefined>(undefined)
   const [editDriver, setEditDriver] = useState<Driver | null | undefined>(undefined)
+  const [vidaId, setVidaId] = useState<string | null>(null)
+  const vidaVehicle = vidaId ? vehicles.find(v => v.id === vidaId) ?? null : null
   const [showInactive, setShowInactive] = useState(false)
 
   const load = useCallback(async () => {
@@ -364,6 +367,7 @@ export default function LogisticaPage() {
       ) : tab === 'veiculos' ? (
         <VehiclesList
           vehicles={filteredVehicles}
+          onOpen={v => setVidaId(v.id)}
           onEdit={v => setEditVehicle(v)}
           onDelete={deleteVehicle}
         />
@@ -376,6 +380,9 @@ export default function LogisticaPage() {
       )}
 
       {/* Modals */}
+      {vidaVehicle && (
+        <VeiculoVidaPanel vehicle={vidaVehicle} onClose={() => setVidaId(null)} onSaved={load} />
+      )}
       {editVehicle !== undefined && (
         <VehicleModal vehicle={editVehicle} onClose={() => setEditVehicle(undefined)} onSaved={load} />
       )}
@@ -388,8 +395,9 @@ export default function LogisticaPage() {
 
 // ─── Vehicles list ────────────────────────────────────────────────
 
-function VehiclesList({ vehicles, onEdit, onDelete }: {
+function VehiclesList({ vehicles, onOpen, onEdit, onDelete }: {
   vehicles: Vehicle[]
+  onOpen: (v: Vehicle) => void
   onEdit: (v: Vehicle) => void
   onDelete: (id: string) => void
 }) {
@@ -405,7 +413,10 @@ function VehiclesList({ vehicles, onEdit, onDelete }: {
           .some(d => { const s = docExpiryStatus(d); return s && s !== 'ok' })
 
         return (
-          <div key={v.id} className={`card overflow-hidden ${!v.ativo ? 'opacity-60' : ''}`}>
+          <div key={v.id} className={`card overflow-hidden group cursor-pointer hover:ring-2 hover:ring-orange-300/60 dark:hover:ring-orange-700/50 transition-shadow ${!v.ativo ? 'opacity-60' : ''}`}
+            role="button" tabIndex={0} title="Ver a vida do veículo"
+            onClick={() => onOpen(v)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(v) } }}>
             <div className="px-4 py-3 flex items-start gap-3">
               <div className={`mt-0.5 p-2 rounded-xl ${
                 statusOp === 'ativo' ? 'bg-green-50 dark:bg-green-900/20' : 'bg-amber-50 dark:bg-amber-900/20'
@@ -445,12 +456,15 @@ function VehiclesList({ vehicles, onEdit, onDelete }: {
                 )}
               </div>
 
-              <div className="flex gap-1 shrink-0">
-                <button onClick={() => onEdit(v)} className="btn-ghost p-2 text-slate-500">
+              <div className="flex gap-1 shrink-0 items-center" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+                <button onClick={() => onEdit(v)} className="btn-ghost p-2 text-slate-500" title="Editar cadastro">
                   <Pencil size={14} />
                 </button>
-                <button onClick={() => onDelete(v.id)} className="btn-ghost p-2 text-red-400 hover:text-red-600">
+                <button onClick={() => onDelete(v.id)} className="btn-ghost p-2 text-red-400 hover:text-red-600" title="Excluir">
                   <Trash2 size={14} />
+                </button>
+                <button onClick={() => onOpen(v)} className="btn-ghost p-2 text-slate-400 group-hover:text-orange-500" title="Ver a vida do veículo">
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
