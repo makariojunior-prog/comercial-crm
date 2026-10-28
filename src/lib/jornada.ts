@@ -165,6 +165,15 @@ export function negocioPrincipal(c: Conta): Deal | null {
   return ord.find(x => !['SUCESSO', 'DESISTIU', 'CANCELADO'].includes(x.status ?? 'NOVO')) ?? ord[0] ?? null
 }
 
+/** Quem cuida da conta: o responsável do negócio da vez; sem negócio, o da última visita. */
+export function responsavelDaConta(c: Conta): string | null {
+  const deal = negocioPrincipal(c)
+  const doDeal = deal ? respDe(deal)[0] : null
+  if (doDeal) return doDeal
+  const ultima = [...c.visitas].sort((a, b) => (b.visit_date ?? b.created_at).localeCompare(a.visit_date ?? a.created_at))[0]
+  return (ultima && respDe(ultima)[0]) || c.responsaveis[0] || null
+}
+
 export function eventosDaConta(c: Conta): Evento[] {
   const ev: Evento[] = []
   for (const v of c.visitas) {

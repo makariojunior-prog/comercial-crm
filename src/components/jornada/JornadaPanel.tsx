@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase'
 import { useEscKey } from '../../hooks/useEscKey'
 import { useAuth } from '../../contexts/AuthContext'
 import { StatusBadge } from '../StatusBadge'
-import { eventosDaConta, negocioPrincipal, type Conta, type Evento, type EventoTipo } from '../../lib/jornada'
+import { eventosDaConta, negocioPrincipal, responsavelDaConta, type Conta, type Evento, type EventoTipo } from '../../lib/jornada'
 import type { Deal, Visit } from '../../types'
 
 const ESTILO: Record<EventoTipo, { icon: typeof MapPin; cor: string; rotulo: string }> = {
@@ -91,7 +91,7 @@ export default function JornadaPanel({ conta, onClose, onEditVisit, onEditDeal, 
                   ? <span className="inline-flex items-center gap-1 font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"><Building2 size={11} /> Cliente {conta.cliente.tipo ?? 'atacado'}{conta.cliente.rota ? ` · ${conta.cliente.rota}` : ''}</span>
                   : <span className="font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Prospect</span>}
                 {principal && <StatusBadge status={principal.status} />}
-                {conta.responsaveis.length > 0 && <span className="text-slate-500 inline-flex items-center gap-1"><User size={11} /> {conta.responsaveis.join(', ')}</span>}
+                {responsavelDaConta(conta) && <span className="text-slate-500 inline-flex items-center gap-1"><User size={11} /> {responsavelDaConta(conta)}</span>}
               </div>
             </div>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400" title="Fechar"><X size={20} /></button>

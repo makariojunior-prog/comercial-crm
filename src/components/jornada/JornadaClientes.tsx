@@ -3,7 +3,7 @@ import { Search, RefreshCw, AlertCircle, MapPin, Handshake, Gavel, Building2, Ch
 import { format, parseISO, differenceInCalendarDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { StatusBadge } from '../StatusBadge'
-import { negocioPrincipal, type Conta } from '../../lib/jornada'
+import { negocioPrincipal, responsavelDaConta, type Conta } from '../../lib/jornada'
 
 type FiltroSit = 'todos' | 'aberto' | 'sucesso' | 'perdido' | 'so_visitas' | 'clientes'
 
@@ -31,13 +31,13 @@ export default function JornadaClientes({ contas, loading, error, onReload, onOp
   const [resp, setResp] = useState('')
   const [limite, setLimite] = useState(PAGINA)
 
-  const responsaveis = useMemo(() => [...new Set(contas.flatMap(c => c.responsaveis))].sort((a, b) => a.localeCompare(b, 'pt')), [contas])
+  const responsaveis = useMemo(() => [...new Set(contas.map(responsavelDaConta).filter((r): r is string => !!r))].sort((a, b) => a.localeCompare(b, 'pt')), [contas])
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return contas.filter(c => {
-      if (q && !c.nome.toLowerCase().includes(q) && !c.responsaveis.some(r => r.toLowerCase().includes(q))) return false
-      if (resp && !c.responsaveis.includes(resp)) return false
+      if (q && !c.nome.toLowerCase().includes(q) && !(responsavelDaConta(c) ?? '').toLowerCase().includes(q)) return false
+      if (resp && responsavelDaConta(c) !== resp) return false
       const st = negocioPrincipal(c)?.status ?? null
       switch (filtro) {
         case 'aberto': return !!st && !['SUCESSO', 'DESISTIU', 'CANCELADO'].includes(st)
@@ -126,7 +126,7 @@ function CardConta({ conta: c, onOpen }: { conta: Conta; onOpen: () => void }) {
             {principal?.deal_type && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{principal.deal_type}</span>}
           </div>
           <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate" title={c.nome}>{c.nome}</p>
-          {c.responsaveis.length > 0 && <p className="text-[11px] text-slate-500 truncate">{c.responsaveis.join(', ')}</p>}
+          {responsavelDaConta(c) && <p className="text-[11px] text-slate-500 truncate">{responsavelDaConta(c)}</p>}
         </div>
         <ChevronRight size={16} className="text-slate-300 group-hover:text-orange-400 shrink-0 mt-1" />
       </div>
