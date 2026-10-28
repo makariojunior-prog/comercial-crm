@@ -72,7 +72,7 @@ export interface FrotaManutencao {
 
 // ─── Constants ────────────────────────────────────────────────────────
 
-const CATEGORIAS: Record<CustoCategoria, { label: string; emoji: string; isMaint: boolean }> = {
+export const CATEGORIAS: Record<CustoCategoria, { label: string; emoji: string; isMaint: boolean }> = {
   combustivel: { label: 'Combustível',         emoji: '⛽', isMaint: false },
   troca_oleo:  { label: 'Troca de Óleo',       emoji: '🛢️', isMaint: true  },
   pneu:        { label: 'Pneu',                emoji: '🔘', isMaint: true  },
