@@ -62,11 +62,6 @@ export default function NoticiasTicker() {
   return (
     <>
       <div className="flex items-stretch h-8 bg-slate-900 border-b border-slate-800 text-xs shrink-0 overflow-hidden" aria-label="Últimas do Comercial">
-        <button onClick={() => setAberto(true)}
-          className="flex items-center gap-1.5 px-3 bg-orange-500 text-white font-bold shrink-0 hover:bg-orange-600 transition-colors"
-          title="Ver todas as notícias">
-          <Newspaper size={13} /> <span className="hidden sm:inline">Comercial</span>
-        </button>
         <div className="relative flex-1 overflow-hidden">
           <div className="ticker-faixa absolute inset-y-0 left-0 flex items-center w-max cursor-pointer"
             style={{ ['--ticker-duracao' as string]: duracao }} onClick={() => setAberto(true)}>
