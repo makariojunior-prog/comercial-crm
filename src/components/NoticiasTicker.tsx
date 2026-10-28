@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Newspaper, X } from 'lucide-react'
+import { AlertTriangle, Newspaper, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { useVisibleInterval } from '../hooks/useVisibleInterval'
@@ -23,6 +23,8 @@ export const CATEGORIA_NOTICIA: Record<CategoriaNoticia, { rotulo: string; cor: 
   demanda:   { rotulo: 'Demanda',   cor: 'text-purple-400',  corClara: 'text-purple-600 dark:text-purple-400' },
   destaque:  { rotulo: 'Destaque',  cor: 'text-yellow-300',  corClara: 'text-yellow-600 dark:text-yellow-300' },
 }
+
+const ehAtencao = (n: ItemFeed) => n.categoria === 'problema'
 
 /**
  * Barra de notícias do Comercial, no estilo da do Jarvis. Lê a RPC crm_noticias_feed (a mesma
@@ -50,6 +52,14 @@ export default function NoticiasTicker() {
   const duracao = `${Math.max(30, itens.length * 7)}s`
   const faixa = (chave: string) => itens.map(n => {
     const cat = CATEGORIA_NOTICIA[n.categoria] ?? CATEGORIA_NOTICIA.destaque
+    // Atenção/problema (inclui os de produção) salta aos olhos: selo vermelho e título em negrito
+    if (ehAtencao(n)) return (
+      <span key={`${chave}-${n.id}`} className="inline-flex items-center gap-2 px-5 whitespace-nowrap">
+        <span className="inline-flex items-center gap-1 rounded bg-red-500 px-1.5 py-0.5 font-bold text-white"><AlertTriangle size={11} /> {cat.rotulo}</span>
+        <span className="font-bold text-red-200">{n.titulo}</span>
+        <span className="text-slate-500">·</span>
+      </span>
+    )
     return (
       <span key={`${chave}-${n.id}`} className="inline-flex items-center gap-2 px-5 whitespace-nowrap">
         <span className={`font-bold ${cat.cor}`}>{cat.rotulo}</span>
@@ -82,7 +92,7 @@ export default function NoticiasTicker() {
               {itens.map(n => {
                 const cat = CATEGORIA_NOTICIA[n.categoria] ?? CATEGORIA_NOTICIA.destaque
                 return (
-                  <li key={n.id} className="px-5 py-3">
+                  <li key={n.id} className={`px-5 py-3 ${ehAtencao(n) ? 'bg-red-50 dark:bg-red-500/10 border-l-4 border-red-500' : ''}`}>
                     <p className="text-[11px] text-slate-400">
                       <span className={`font-bold ${cat.corClara}`}>{cat.rotulo}</span> · {format(new Date(n.gerada_em), 'dd/MM HH:mm')}
                     </p>
