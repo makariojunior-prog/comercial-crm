@@ -12,8 +12,9 @@ Vite + React 18 + TypeScript + Tailwind + Supabase. `HashRouter`; `ThemeProvider
 
 - `npm run dev` · `npm run build` (`tsc -b && vite build`). Não há script de lint nem testes.
 - Rotas: todas declaradas em `src/App.tsx` (dashboard, negocios, visitas, tarefas, clientes, rotas,
-  notas, promotoria, tabelas, usuarios, comite, configuracoes, logistica, varejo, conversas, social,
-  atacado, clientes-varejo, cobranca, comissao, revenda, agenda, comodato, loja).
+  notas, promotoria, tabelas, usuarios, comite, ia, configuracoes, logistica, varejo, conversas, social,
+  atacado, clientes-varejo, cobranca, comissao, revenda, agenda, comodato, loja). `/negocios` e
+  `/visitas` abrem a mesma tela (`NegociosVisitas`: abas Por cliente/Negócios/Visitas). `comite` e `ia` só admin.
 - Deploy: Vercel (`base: '/'`) ou GitHub Pages (`base: '/comercial-crm/'`, `npm run deploy`);
   ver `vite.config.ts`. `vercel.json` define cabeçalhos de segurança (sem iframe) e cache immutable
   em `/assets`.
@@ -32,7 +33,7 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
   idempotentes. Com o MCP do Supabase na sessão, aplique direto e deixe o arquivo no repo.
 - **Segurança:** a chave anon é pública (vai no bundle; repo público). Ela não tem nenhum acesso às
   tabelas do app (grants revogados em `20261016120000_auditoria_fecha_acesso_anonimo.sql`); a TV
-  (`dashboard-tv`) só chama `tv_verify_pin` e `tv_dashboard_snapshot` (SECURITY DEFINER). Políticas
+  (`dashboard-tv`) só chama `tv_verify_pin`, `tv_dashboard_snapshot` e `tv_noticias` (SECURITY DEFINER). Políticas
   usam `(select crm_is_member())`. Nunca crie política para `anon`/`public` nem escreva em RLS
   "service_role" no papel `public` (a service role já ignora RLS).
 - Edge Functions em `supabase/functions/`: webhooks `ifood-webhook` (assinatura), `food99-webhook`,
@@ -40,9 +41,16 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
   `sync-ifood-status`, `sync-99food-status`, `ifood-merchant`, `automacao-lumar` (WhatsApp da Lumar:
   exige usuário do Comercial, exceto `executar` do cron 05h–07h59), `geocode`, `velotrack-positions`,
   `generate-recurring-costs`, `auto-process-pending`, `process-conversations`,
-  `reprocess-conversations`; `test-get-logs` é stub desativado. Função com `verify_jwt=false` tem
+  `reprocess-conversations`, `gerar-noticias-comercial` (ver Notícias e IA); `test-get-logs` é stub desativado. Função com `verify_jwt=false` tem
   de checar segredo ou sessão no próprio código. No ar mas fora do repo: `crm-create-user`,
   `generate-briefing`, `diag-conversations`, `debug-ia`, `webhook-erp-atacado`, `vt-positions`.
+- **Notícias e IA:** `gerar-noticias-comercial` (Gemini, secret `COMERCIAL_GEMINI_API_KEY`; modelo em
+  `COMERCIAL_GEMINI_MODEL`) roda no pg_cron 8h/13h BRT, `verify_jwt=false` + header `x-cron-secret` (vault
+  `noticias_cron_secret`). Grava `crm_noticias` (publica só `relevancia >= limiar` de `crm_noticias_config`);
+  curadoria e `crm_ia_aprendizados` em `/ia`. A barra (`NoticiasTicker`) lê `crm_noticias_feed`; o
+  Financeiro, Compras e RH usam a mesma RPC e a TV `tv_noticias` (só títulos).
+- **Comitê:** só admin (UI, RPCs e RLS de `crm_comite_*`). `crm_comite_retrato` alimenta a síntese da ata e
+  o snapshot de `crm_comite_fechar_semana`.
 - Monitoramento de conversas por IA está **desligado** desde 22/09/2026 (`digisac-webhook` e
   `reprocess-conversations` retornam cedo). Chaves em secrets do Supabase, nunca no código.
 - **Custos de veículo (Logística › Custos):** a partir da data de corte (`fin_frota_config.corte`, 19/10/2026)
