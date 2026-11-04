@@ -277,6 +277,7 @@ export default function Layout() {
           <button onClick={() => setSearchOpen(true)} className="text-slate-400 hover:text-white p-1 transition-colors">
             <Search size={16} />
           </button>
+          <SolicitarCompra escuro />
           <a href={PORTAL_URL} title="Voltar ao Portal" className="text-slate-400 hover:text-white p-1 transition-colors">
             <LayoutGrid size={16} />
           </a>
@@ -311,6 +312,7 @@ export default function Layout() {
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
                   <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
                 </div>
+                <SolicitarCompra />
                 <a href={PORTAL_URL} title="Voltar ao Portal"
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
                   <LayoutGrid size={14} /> <span className="hidden xl:inline">Portal</span>
@@ -359,6 +361,7 @@ export default function Layout() {
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{profile.nome || profile.email}</p>
                   <p className="text-[10px] text-slate-400 capitalize">{profile.role}</p>
                 </div>
+                <SolicitarCompra />
                 <a
                   href={PORTAL_URL}
                   title="Voltar ao Portal"
@@ -378,8 +381,6 @@ export default function Layout() {
 
           </header>
         )}
-
-        <SolicitarCompra />
 
         {/* Barra de notícias do Comercial (some quando não há notícia publicada) */}
         <ErrorBoundary>
