@@ -18,6 +18,7 @@ import GlobalSearch from './GlobalSearch'
 import DeliveryStatusWidget from './DeliveryStatusWidget'
 import ErrorBoundary from './ErrorBoundary'
 import NoticiasTicker from './NoticiasTicker'
+import SolicitarCompra from './SolicitarCompra'
 
 function NavBadge({ n, className = '' }: { n: number; className?: string }) {
   if (!n) return null
@@ -377,6 +378,8 @@ export default function Layout() {
 
           </header>
         )}
+
+        <SolicitarCompra />
 
         {/* Barra de notícias do Comercial (some quando não há notícia publicada) */}
         <ErrorBoundary>
