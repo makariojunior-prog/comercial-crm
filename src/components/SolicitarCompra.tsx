@@ -17,11 +17,11 @@ export default function SolicitarCompra({ escuro = false }: { escuro?: boolean }
         onClick={() => setAberto(true)}
         title="Solicitar compra"
         className={escuro
-          ? 'text-slate-400 hover:text-white p-1 transition-colors'
-          : 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors'}
+          ? 'p-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-colors'
+          : 'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white shadow-sm transition-colors'}
       >
-        <ShoppingCart size={escuro ? 16 : 14} />
-        {!escuro && <span className="hidden xl:inline">Solicitar compra</span>}
+        <ShoppingCart size={escuro ? 15 : 14} />
+        {!escuro && <span>Solicitar compra</span>}
       </button>
       {aberto && <Formulario onClose={() => setAberto(false)} />}
     </>
