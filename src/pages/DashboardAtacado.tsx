@@ -889,10 +889,20 @@ function NovoPedidoRow({ pedido: p, onEdit, onIgnorar, cobrancaAberto }: {
 }) {
   const nome = p.crm_client?.nome ?? p.cliente_nome ?? `#${p.id_venda}`
   const divida = cobrancaAberto.get(nome.toUpperCase().trim()) ?? 0
+  // Clicar na linha mostra os itens do pedido (Fácil 123) antes de definir a data/rota
+  const [aberto, setAberto] = useState(false)
   return (
-    <tr className="hover:bg-amber-50/40 dark:hover:bg-amber-900/10 transition-colors">
+    <>
+    <tr
+      onClick={() => setAberto(a => !a)}
+      title="Clique para ver os itens do pedido"
+      className={`cursor-pointer hover:bg-amber-50/40 dark:hover:bg-amber-900/10 transition-colors ${aberto ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}
+    >
       <td className="px-3 py-2.5 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
-        {pedNum(p)}
+        <span className="inline-flex items-center gap-1">
+          <ChevronDown size={12} aria-hidden className={`text-slate-400 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+          {pedNum(p)}
+        </span>
       </td>
       <td className="px-3 py-2.5 font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
         {p.valor > 0 ? p.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
@@ -922,13 +932,13 @@ function NovoPedidoRow({ pedido: p, onEdit, onIgnorar, cobrancaAberto }: {
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           <button
-            onClick={onEdit}
+            onClick={e => { e.stopPropagation(); onEdit() }}
             className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors whitespace-nowrap"
           >
             <Calendar size={11} /> Definir data
           </button>
           <button
-            onClick={onIgnorar}
+            onClick={e => { e.stopPropagation(); onIgnorar() }}
             title="Ignorar pedido (retirada na fábrica, correção, etc.)"
             className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors whitespace-nowrap"
           >
@@ -937,6 +947,16 @@ function NovoPedidoRow({ pedido: p, onEdit, onIgnorar, cobrancaAberto }: {
         </div>
       </td>
     </tr>
+    {aberto && (
+      <tr className="bg-slate-50/60 dark:bg-slate-900/30">
+        <td colSpan={6} className="px-3 py-3">
+          <div className="max-w-xl">
+            <PedidoItens idVenda={p.id_venda} />
+          </div>
+        </td>
+      </tr>
+    )}
+    </>
   )
 }
 
