@@ -54,7 +54,7 @@ const num = (v: unknown) => (v == null || v === '' ? null : Number(v))
 
 function queryVendas(pagina: number) {
   return `query comercialCrm_vendas { getInvoices(page: ${pagina}, limit: ${LIMIT}) {
-    id sequential status total emitted_at updated_at recipient_id
+    id sequential status total emitted_at updated_at created_at recipient_id
     recipient { name }
     invoicelane { name }
     operationkind { name }
@@ -78,6 +78,7 @@ function mapVendas(lista: any[]) {
       operacao: v.operationkind?.name ?? null,
       emitido_em: v.emitted_at ?? null,
       atualizacao: v.updated_at ?? null,
+      criado_em: v.created_at ?? null,
     })
     // deno-lint-ignore no-explicit-any
     ;(v.invoice_products_attributes ?? []).forEach((p: any, i: number) => {
@@ -166,5 +167,26 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ ok: erros.length === 0, modo, resultado, erros: erros.length ? erros : undefined })
+  // Com atacado_config.fonte_pedidos = 'api', leva ao atacado_pedidos o que mudou. O sync-atacado
+  // recalcula as pendências no banco, então uma execução que falhou é recuperada na seguinte.
+  let atacado: unknown = undefined
+  if (modo === 'incremental') {
+    const { data: fonte } = await supabase.from('atacado_config').select('value').eq('key', 'fonte_pedidos').maybeSingle()
+    if (fonte?.value === 'api') {
+      try {
+        const r = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-atacado`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+          body: JSON.stringify({ type: 'pedidos' }),
+        })
+        const j = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }))
+        atacado = { ok: j.ok, fonte: j.fonte, sem_pendencias: j.sem_pendencias, upserted: j.upserted, unmatched: j.unmatched }
+        if (!j.ok) erros.push(`sync-atacado: ${j.error ?? 'falha'}`)
+      } catch (e) {
+        erros.push(`sync-atacado: ${(e as Error).message}`)
+      }
+    }
+  }
+
+  return json({ ok: erros.length === 0, modo, resultado, atacado, erros: erros.length ? erros : undefined })
 })

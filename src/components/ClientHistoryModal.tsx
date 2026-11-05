@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, ShoppingBag, Calendar, Briefcase, MapPin, ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import PedidoItens from './PedidoItens'
 
 interface Props {
   clientId: string
@@ -136,6 +137,9 @@ export default function ClientHistoryModal({ clientId, clienteName, onClose }: P
     }
   }
 
+  // Cancelado no Fácil 123: o sync grava tipo 'CANCELADO' (registro, sem entrar no faturamento)
+  const isCancelado = (item: HistoryItem) => item.type === 'pedido_atacado' && item.details?.tipo === 'CANCELADO'
+
   const getIcon = (type: string) => {
     switch (type) {
       case 'pedido_atacado':
@@ -236,12 +240,20 @@ export default function ClientHistoryModal({ clientId, clienteName, onClose }: P
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <p className="font-medium text-slate-800 dark:text-slate-100 text-sm truncate">
+                        <p className={`font-medium text-sm truncate ${isCancelado(item) ? 'text-slate-400 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
                           {item.title}
                         </p>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${getTypeColor(item.type)}`}>
                           {getTypeLabel(item.type)}
                         </span>
+                        {isCancelado(item) && (
+                          <span
+                            title="Pedido cancelado no Fácil 123: fica registrado, mas não conta no faturamento"
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                          >
+                            Cancelado
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">{formatDate(item.date)}</p>
                     </div>
@@ -253,6 +265,11 @@ export default function ClientHistoryModal({ clientId, clienteName, onClose }: P
                   {/* Details */}
                   {expandedId === item.id && item.details && (
                     <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-700 text-xs space-y-1">
+                      {item.type === 'pedido_atacado' && (
+                        <div className="pb-2">
+                          <PedidoItens idVenda={item.details.id_venda} />
+                        </div>
+                      )}
                       {Object.entries(item.details)
                         .filter(([key]) => !['id', 'crm_client_id', 'cliente_id', 'created_at', 'updated_at'].includes(key))
                         .map(([key, value]) => {

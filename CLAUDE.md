@@ -50,11 +50,13 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
   `noticias_cron_secret`). Grava `crm_noticias` (publica só `relevancia >= limiar` de `crm_noticias_config`);
   curadoria e `crm_ia_aprendizados` em `/ia`. A barra (`NoticiasTicker`) lê `crm_noticias_feed`; o
   Financeiro, Compras e RH usam a mesma RPC e a TV `tv_noticias` (só títulos).
-- **Fácil 123 (API GraphQL):** `sync-facil123` (cron 5 min, `x-cron-secret` do vault `facil123_cron_secret`; tokens nos
-  secrets `FACIL123_TOKEN_LUMAR` e `_CANTINA`, um por licenciado) grava vendas em `atacado_pedidos_api` e produtos de cada
-  venda em `atacado_pedido_itens`. Fase 1: paralelo à planilha, que ainda alimenta `atacado_pedidos`; compare com
-  `atacado_conferencia_api()`. Página máx. 100; `start_date` sozinho é ignorado. Estoque NÃO vem de lá (câmara única):
-  será do futuro app de Produção. Na troca, `status canceled` vira `tipo='CANCELADO'`.
+- **Fácil 123 (API GraphQL) alimenta `atacado_pedidos`:** `sync-facil123` (cron 5 min, `x-cron-secret` do vault
+  `facil123_cron_secret`; tokens nos secrets `FACIL123_TOKEN_LUMAR`/`_CANTINA`, um por licenciado) grava as vendas em
+  `atacado_pedidos_api` e os produtos em `atacado_pedido_itens`, e com `atacado_config.fonte_pedidos='api'` chama o
+  `sync-atacado`, que leva ao `atacado_pedidos` só o que difere (`atacado_api_pendentes()`). A planilha de recepção só
+  volta se `fonte_pedidos='planilha'`; a REG-LUMAR (entrega/turno/entregador) segue manual. Venda cancelada entra com
+  `tipo='CANCELADO'` (registro, fora do faturamento). Página máx. 100; `start_date` sozinho é ignorado. Estoque NÃO vem
+  de lá (câmara única): será do futuro app de Produção.
 - **Comitê:** só admin (UI, RPCs e RLS de `crm_comite_*`). `crm_comite_retrato` alimenta a síntese da ata e
   o snapshot de `crm_comite_fechar_semana`.
 - Monitoramento de conversas por IA está **desligado** desde 22/09/2026 (`digisac-webhook` e
