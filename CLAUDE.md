@@ -14,93 +14,55 @@ Vite + React 18 + TypeScript + Tailwind + Supabase. `HashRouter`; `ThemeProvider
 - Rotas: todas declaradas em `src/App.tsx` (dashboard, negocios, visitas, tarefas, clientes, rotas,
   notas, promotoria, tabelas, usuarios, comite, ia, configuracoes, logistica, varejo, conversas, social,
   atacado, clientes-varejo, cobranca, comissao, revenda, agenda, comodato, loja). `/negocios` e
-  `/visitas` abrem a mesma tela (`NegociosVisitas`: abas Por cliente/Negócios/Visitas). `comite` e `ia` só admin.
-- Deploy: Vercel (`base: '/'`) ou GitHub Pages (`base: '/comercial-crm/'`, `npm run deploy`);
-  ver `vite.config.ts`. `vercel.json` define cabeçalhos de segurança (sem iframe) e cache immutable
-  em `/assets`.
-- Bibliotecas pesadas (`xlsx`, `browser-image-compression`) entram por `await import()` só na hora
-  do uso; não volte a importá-las no topo do arquivo.
-- Configs oficiais: `vite.config.ts` e `tailwind.config.js` (este tem `darkMode: 'class'`, exigido pelo
-  tema escuro; Tailwind 3 lê `.js` primeiro). Não recrie versões duplicadas.
+  `/visitas` abrem a mesma tela (`NegociosVisitas`). `comite` e `ia` só admin.
+- Deploy: Vercel (`base: '/'`) ou GitHub Pages (`base: '/comercial-crm/'`, `npm run deploy`); ver
+  `vite.config.ts`. `vercel.json` define cabeçalhos de segurança (sem iframe) e cache immutable em `/assets`.
+- Bibliotecas pesadas (`xlsx`, `browser-image-compression`) entram por `await import()` só na hora do uso;
+  não volte a importá-las no topo do arquivo.
+- Configs oficiais: `vite.config.ts` e `tailwind.config.js` (este tem `darkMode: 'class'`, exigido pelo tema
+  escuro; Tailwind 3 lê `.js` primeiro). Não recrie versões duplicadas.
 
 ## Supabase compartilhado
 
-Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*`) e do Portal
-(schema `portal`). Tabelas deste app: `crm_*`, `varejo_*`, `atacado_*`, `deals`, `visits`,
-`lojas_delivery_status`… **Não altere tabelas/políticas do RH, do Compras nem do Portal.**
+Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*`) e do Portal (schema
+`portal`). Tabelas deste app: `crm_*`, `varejo_*`, `atacado_*`, `deals`, `visits`, `lojas_delivery_status`…
+**Não altere tabelas/políticas do RH, do Compras nem do Portal.** Chaves em secrets, nunca no código.
 
-- Migrations em `supabase/migrations/` (~38), nome `AAAAMMDDHHMMSS_assunto.sql`; mantenha-as
-  idempotentes. Com o MCP do Supabase na sessão, aplique direto e deixe o arquivo no repo.
-- **Segurança:** a chave anon é pública (vai no bundle; repo público). Ela não tem nenhum acesso às
-  tabelas do app (grants revogados em `20261016120000_auditoria_fecha_acesso_anonimo.sql`); a TV
-  (`dashboard-tv`) só chama `tv_verify_pin`, `tv_dashboard_snapshot` e `tv_noticias` (SECURITY DEFINER). Políticas
-  usam `(select crm_is_member())`. Nunca crie política para `anon`/`public` nem escreva em RLS
-  "service_role" no papel `public` (a service role já ignora RLS).
-- Edge Functions em `supabase/functions/`: webhooks `ifood-webhook` (assinatura), `food99-webhook`,
-  `varejo-webhook`, `instagram-webhook` (segredo), `digisac-webhook`; `sync-atacado`,
-  `sync-ifood-status`, `sync-99food-status`, `ifood-merchant`, `automacao-lumar` (WhatsApp da Lumar:
-  exige usuário do Comercial, exceto `executar` do cron 05h–07h59), `geocode`, `velotrack-positions`,
-  `generate-recurring-costs`, `auto-process-pending`, `process-conversations`,
-  `reprocess-conversations`, `gerar-noticias-comercial` (ver Notícias e IA), `sync-facil123` (ver Fácil 123);
-  `test-get-logs` e `diag-facil123` são stubs desativados. Função com `verify_jwt=false` tem
-  de checar segredo ou sessão no próprio código. No ar mas fora do repo: `crm-create-user`,
-  `generate-briefing`, `diag-conversations`, `debug-ia`, `webhook-erp-atacado`, `vt-positions`.
-- **Notícias e IA:** `gerar-noticias-comercial` (Gemini, secret `COMERCIAL_GEMINI_API_KEY`; modelo em
-  `COMERCIAL_GEMINI_MODEL`) roda no pg_cron 8h/13h BRT, `verify_jwt=false` + header `x-cron-secret` (vault
-  `noticias_cron_secret`). Grava `crm_noticias` (publica só `relevancia >= limiar` de `crm_noticias_config`);
-  curadoria e `crm_ia_aprendizados` em `/ia`. A barra (`NoticiasTicker`) lê `crm_noticias_feed`; o
-  Financeiro, Compras e RH usam a mesma RPC e a TV `tv_noticias` (só títulos).
-- **Fácil 123 (API GraphQL) alimenta `atacado_pedidos`:** `sync-facil123` (cron 5 min, `x-cron-secret` do vault
-  `facil123_cron_secret`; tokens nos secrets `FACIL123_TOKEN_LUMAR`/`_CANTINA`, um por licenciado) grava as vendas em
-  `atacado_pedidos_api` e os produtos em `atacado_pedido_itens`, e com `atacado_config.fonte_pedidos='api'` chama o
-  `sync-atacado`, que leva ao `atacado_pedidos` só o que difere (`atacado_api_pendentes()`). A planilha de recepção só
-  volta se `fonte_pedidos='planilha'`; a REG-LUMAR (entrega/turno/entregador) segue manual. Venda cancelada entra com
-  `tipo='CANCELADO'` (registro, fora do faturamento). Página máx. 100; `start_date` sozinho é ignorado. Estoque NÃO vem
-  de lá (câmara única): será do futuro app de Produção.
-- **Comitê:** só admin (UI, RPCs e RLS de `crm_comite_*`). `crm_comite_retrato` alimenta a síntese da ata e
-  o snapshot de `crm_comite_fechar_semana`.
-- Monitoramento de conversas por IA está **desligado** desde 22/09/2026 (`digisac-webhook` e
-  `reprocess-conversations` retornam cedo). Chaves em secrets do Supabase, nunca no código.
-- **Custos de veículo (Logística › Custos):** a partir da data de corte (`fin_frota_config.corte`, 19/10/2026)
-  o gasto de veículo é lançado só no app Financeiro (categoria de veículo + veículo) e `CustosTab` apenas
-  lê. Até o corte segue lendo `frota_custos` (histórico, editável); do corte em diante usa a RPC
-  `crm_frota_gastos(de, ate)` (SECURITY DEFINER, lê `fin_lancamentos`/`fin_lancamento_itens`/`fin_caixa_movimentos`
-  com `vehicle_id`) e `crm_frota_corte()`. Linhas do Financeiro vêm com a etiqueta "Financeiro", sem editar/excluir;
-  o botão de lançamento some e "Registrar como feita" só atualiza a manutenção programada. As recorrências de
-  `frota_custos` além do corte ficam ocultas (o gasto real vem do banco, via Financeiro). Não crie escrita nova em
-  `frota_custos` para datas pós-corte. Detalhes e regras no `CLAUDE.md` do `cantina-financeiro`.
-- Delivery: o app só **monitora** o status das lojas (aberto/fechado/pausado); os pedidos entram
-  pelo Cardápio Web — ver `docs/DELIVERY_MONITORING.md`.
+- Migrations em `supabase/migrations/`, nome `AAAAMMDDHHMMSS_assunto.sql`, idempotentes. Com o MCP do
+  Supabase na sessão, aplique direto e deixe o arquivo no repo.
+- **Segurança:** a chave anon é pública (repo público) e não tem acesso às tabelas do app. Políticas usam
+  `(select crm_is_member())`. Nunca crie política para `anon`/`public` nem escreva em RLS "service_role" no
+  papel `public` (a service role já ignora RLS).
+- **GRANT explícito (desde 30/10/2026):** o Supabase não concede mais acesso à API a tabelas novas. Toda
+  migration que cria tabela/view em `public` traz os GRANTs: `GRANT SELECT, INSERT, UPDATE, DELETE ... TO
+  authenticated, service_role`; só backend: `REVOKE ALL ... FROM PUBLIC, anon, authenticated` + `GRANT ALL ... TO
+  service_role`. Nada para `anon`. Funções: `REVOKE ALL ... FROM PUBLIC` e `GRANT EXECUTE` só a quem precisa.
+- **Edge Functions** (`supabase/functions/`): lista e detalhes em `docs/SUPABASE_E_FUNCOES.md`. Função com
+  `verify_jwt=false` tem de checar segredo ou sessão no próprio código.
+- **Fácil 123:** a API (`sync-facil123` → `sync-atacado`) alimenta `atacado_pedidos` (chave
+  `atacado_config.fonte_pedidos = 'api'`; para voltar à planilha, `'planilha'`) e os itens em
+  `atacado_pedido_itens`. Venda cancelada entra como `tipo='CANCELADO'` (registro, fora do faturamento);
+  orçamentos contam como pedido. Estoque não vem de lá: será do futuro app de Produção.
+- **Comitê:** só admin (UI, RPCs e RLS de `crm_comite_*`).
+- **Custos de veículo:** após `fin_frota_config.corte` (19/10/2026) o gasto vem do Financeiro via
+  `crm_frota_gastos`; não crie escrita nova em `frota_custos` para datas pós-corte.
+- Monitoramento de conversas por IA está **desligado** desde 22/09/2026.
+- Delivery: o app só **monitora** o status das lojas; os pedidos entram pelo Cardápio Web.
 
 ## Onde está o resto
 
+- `docs/SUPABASE_E_FUNCOES.md` — Edge Functions, Fácil 123, Notícias e IA, Comitê, custos de veículo, GRANT.
 - `docs/superpowers/specs/` — desenho dos módulos recentes (agenda, negócios, logística, comitê…).
 - `docs/MODULO_COMODATO.md`, `docs/BENCHMARK_COMODATO.md`, `docs/REVENDA_VINCULO_ERP.md`,
-  `docs/FLUXO_POSITIVACOES_RH.md`, `docs/ifood-homologacao-roteiro.md`.
-- `docs/archive/` — planos já executados e instruções da migração Gemini→Claude (históricos; não
-  leia, a menos que o assunto seja exatamente esse).
+  `docs/FLUXO_POSITIVACOES_RH.md`, `docs/DELIVERY_MONITORING.md`, `docs/ifood-homologacao-roteiro.md`.
+- `docs/archive/` — planos já executados e instruções da migração Gemini→Claude (históricos; não leia, a
+  menos que o assunto seja exatamente esse).
 - `scripts/avulsos/` — scripts pontuais de importação e testes manuais com navegador.
 - `backup/` — rotina de backup do Supabase (Docker + scheduler).
 
 ## Manutenção deste arquivo (lembrete ao usuário)
 
-Se este arquivo passar de ~80 linhas, ou se a lista de rotas/edge functions aqui divergir de
-`src/App.tsx` e `supabase/functions/`, **avise o usuário ao fim da tarefa** e ofereça atualizar.
-Planos de implementação já executados vão para `docs/archive/`, não ficam em `docs/superpowers/plans/`.
-
-## Supabase: GRANT explícito em tabelas novas (desde 30/10/2026)
-
-O Supabase deixou de conceder acesso à API de Dados (supabase-js, PostgREST, GraphQL) automaticamente a tabelas novas em `public`. Sem GRANT a API devolve "permission denied". Tabelas anteriores a essa data não mudam. Vale também para migrations que recriam o schema (projeto novo, branch de preview, `supabase db reset`).
-
-**Regra:** toda migration que cria tabela ou view em `public` traz os GRANTs na mesma migration.
-
-```sql
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.minha_tabela TO authenticated, service_role;
--- view: GRANT SELECT ON public.minha_view TO authenticated, service_role;
--- só backend: REVOKE ALL ON public.minha_tabela FROM PUBLIC, anon, authenticated;
---             GRANT ALL ON public.minha_tabela TO service_role;
-```
-
-- Não conceder nada a `anon`, a menos que a leitura pública seja intencional (a RLS continua sendo a proteção de linha).
-- Funções: `REVOKE ALL ... FROM PUBLIC` e `GRANT EXECUTE` só a quem precisa.
-- Se a migration antiga foi escrita sem GRANT e o schema for recriado, rode um GRANT em lote nas tabelas existentes.
+Se este arquivo passar de ~80 linhas, ou se a lista de rotas aqui ou de edge functions em
+`docs/SUPABASE_E_FUNCOES.md` divergir de `src/App.tsx` e `supabase/functions/`, **avise o usuário ao fim da
+tarefa** e ofereça atualizar. Planos de implementação já executados vão para `docs/archive/`, não ficam em
+`docs/superpowers/plans/`.
