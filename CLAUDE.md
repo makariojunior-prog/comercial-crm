@@ -41,7 +41,8 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
   `sync-ifood-status`, `sync-99food-status`, `ifood-merchant`, `automacao-lumar` (WhatsApp da Lumar:
   exige usuário do Comercial, exceto `executar` do cron 05h–07h59), `geocode`, `velotrack-positions`,
   `generate-recurring-costs`, `auto-process-pending`, `process-conversations`,
-  `reprocess-conversations`, `gerar-noticias-comercial` (ver Notícias e IA); `test-get-logs` é stub desativado. Função com `verify_jwt=false` tem
+  `reprocess-conversations`, `gerar-noticias-comercial` (ver Notícias e IA), `sync-facil123` (ver Fácil 123);
+  `test-get-logs` e `diag-facil123` são stubs desativados. Função com `verify_jwt=false` tem
   de checar segredo ou sessão no próprio código. No ar mas fora do repo: `crm-create-user`,
   `generate-briefing`, `diag-conversations`, `debug-ia`, `webhook-erp-atacado`, `vt-positions`.
 - **Notícias e IA:** `gerar-noticias-comercial` (Gemini, secret `COMERCIAL_GEMINI_API_KEY`; modelo em
@@ -49,6 +50,13 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
   `noticias_cron_secret`). Grava `crm_noticias` (publica só `relevancia >= limiar` de `crm_noticias_config`);
   curadoria e `crm_ia_aprendizados` em `/ia`. A barra (`NoticiasTicker`) lê `crm_noticias_feed`; o
   Financeiro, Compras e RH usam a mesma RPC e a TV `tv_noticias` (só títulos).
+- **Fácil 123 (API GraphQL) alimenta `atacado_pedidos`:** `sync-facil123` (cron 5 min, `x-cron-secret` do vault
+  `facil123_cron_secret`; tokens nos secrets `FACIL123_TOKEN_LUMAR`/`_CANTINA`, um por licenciado) grava as vendas em
+  `atacado_pedidos_api` e os produtos em `atacado_pedido_itens`, e com `atacado_config.fonte_pedidos='api'` chama o
+  `sync-atacado`, que leva ao `atacado_pedidos` só o que difere (`atacado_api_pendentes()`). A planilha de recepção só
+  volta se `fonte_pedidos='planilha'`; a REG-LUMAR (entrega/turno/entregador) segue manual. Venda cancelada entra com
+  `tipo='CANCELADO'` (registro, fora do faturamento). Página máx. 100; `start_date` sozinho é ignorado. Estoque NÃO vem
+  de lá (câmara única): será do futuro app de Produção.
 - **Comitê:** só admin (UI, RPCs e RLS de `crm_comite_*`). `crm_comite_retrato` alimenta a síntese da ata e
   o snapshot de `crm_comite_fechar_semana`.
 - Monitoramento de conversas por IA está **desligado** desde 22/09/2026 (`digisac-webhook` e

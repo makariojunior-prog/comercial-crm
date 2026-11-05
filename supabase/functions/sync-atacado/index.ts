@@ -159,6 +159,77 @@ async function gravarHash(
   if (error) console.error(`não foi possível gravar ${key}:`, error.message)
 }
 
+// Uma venda já normalizada, venha da planilha (CSV) ou da API do Fácil 123.
+interface Entrada {
+  idVenda:      number
+  numeroPedido: number | null
+  clienteId:    number | null
+  clienteNome:  string | null
+  valor:        number
+  tipo:         string | null
+  ocorrencia:   string | null
+  dataEmissao:  string | null
+  atualizacao:  string | null
+}
+
+// Início da janela que a API alimenta em atacado_pedidos (a planilha trazia desde 23/02/2026).
+// Vendas anteriores só são tocadas se já existirem em atacado_pedidos.
+const DESDE_API = '2026-02-23T00:00:00-03:00'
+
+// Ids de atacado_pedidos_api que faltam ou diferem em atacado_pedidos (comparação feita no banco).
+// deno-lint-ignore no-explicit-any
+async function pendentesApi(supabase: any): Promise<number[]> {
+  const { data, error } = await supabase.rpc('atacado_api_pendentes', { p_desde: DESDE_API })
+  if (error) throw new Error(`atacado_api_pendentes: ${error.message}`)
+  return ((data ?? []) as unknown[]).map(Number)
+}
+
+// Todos os ids da janela da API (reprocessamento completo).
+// deno-lint-ignore no-explicit-any
+async function idsJanelaApi(supabase: any): Promise<number[]> {
+  const ids: number[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('atacado_pedidos_api').select('id_venda')
+      .gte('atualizacao', DESDE_API).order('id_venda').range(from, from + 999)
+    if (error) throw new Error(`atacado_pedidos_api: ${error.message}`)
+    const lote = (data ?? []) as Array<{ id_venda: number }>
+    ids.push(...lote.map(r => Number(r.id_venda)))
+    if (lote.length < 1000) break
+  }
+  return ids
+}
+
+// Lê as vendas da API e converte para Entrada. Venda cancelada vira tipo 'CANCELADO': continua
+// registrada no CRM, mas as telas e RPCs de faturamento já excluem esse tipo. A data da venda
+// é o created_at do Fácil 123 (estável); a RPC preserva a data_emissao já gravada.
+// deno-lint-ignore no-explicit-any
+async function carregarEntradasApi(supabase: any, ids: number[]): Promise<Entrada[]> {
+  const out: Entrada[] = []
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase
+      .from('atacado_pedidos_api')
+      .select('id_venda, numero_pedido, cliente_id, cliente_nome, valor, status_erp, atualizacao, criado_em, emitido_em')
+      .in('id_venda', ids.slice(i, i + 200))
+    if (error) throw new Error(`atacado_pedidos_api: ${error.message}`)
+    // deno-lint-ignore no-explicit-any
+    for (const r of (data ?? []) as any[]) {
+      out.push({
+        idVenda:      Number(r.id_venda),
+        numeroPedido: r.numero_pedido ?? null,
+        clienteId:    r.cliente_id != null ? Number(r.cliente_id) : null,
+        clienteNome:  r.cliente_nome ?? null,
+        valor:        Number(r.valor) || 0,
+        tipo:         r.status_erp === 'canceled' ? 'CANCELADO' : null,
+        ocorrencia:   null,
+        dataEmissao:  r.criado_em ?? r.emitido_em ?? r.atualizacao ?? null,
+        atualizacao:  r.atualizacao ?? null,
+      })
+    }
+  }
+  return out
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
 
@@ -178,32 +249,90 @@ Deno.serve(async (req: Request) => {
 
   // ── Sync pedidos ─────────────────────────────────────────
   if (type === 'pedidos') {
-    const url = sheetCsvByGid(RECEPTION_SHEET_ID, RECEPTION_GID)
-    const res = await fetch(url)
-    if (!res.ok) return json200({
-      ok: false, error: 'Planilha de recepção inacessível', http_status: res.status,
-      hint: 'Verifique se a planilha está pública',
-    })
-
-    const csv = await res.text()
-
-    const cfg = await lerConfig(supabase, ['ids_ignorados', 'sync_pedidos_hash'])
+    const cfg = await lerConfig(supabase, ['ids_ignorados', 'sync_pedidos_hash', 'fonte_pedidos'])
     const idsIgnorados: number[] = ((cfg.get('ids_ignorados') ?? []) as unknown[]).map(Number)
 
-    // Planilha (e lista de ignorados) idêntica à do último sync → nada a fazer.
-    // Este é o caminho de ~99% das execuções do gatilho de 5 min: uma única
-    // requisição ao PostgREST, em vez de ler o banco inteiro e reescrever.
-    // `force: true` pula o atalho (botão "Sincronizar" da tela, ou depois de
-    // mexer no banco por fora).
-    const hashAtual = await sha256(`${csv}\n#ignorados:${idsIgnorados.join(',')}`)
-    if (!body.force && hashAtual === cfg.get('sync_pedidos_hash')) {
-      return json200({ ok: true, type, planilha_inalterada: true, upserted: 0, unchanged: 0 })
+    // fonte_pedidos = 'api': as vendas vêm de atacado_pedidos_api (gravada pelo sync-facil123 a
+    // partir da API do Fácil 123) e a planilha de recepção NÃO é lida. Qualquer outro valor
+    // mantém o comportamento antigo (planilha). Para voltar à planilha basta gravar 'planilha'.
+    const fonteApi = cfg.get('fonte_pedidos') === 'api'
+
+    let hashAtual = ''
+    let entradas: Entrada[] = []
+    let sheetHeaders: string[] = []
+    let skipped = 0
+    let totalLinhas = 0
+
+    if (fonteApi) {
+      // Só o que difere de atacado_pedidos (a comparação é feita no banco). `force` reprocessa
+      // toda a janela da API — usado pelo botão "Sincronizar" da tela.
+      try {
+        const ids = body.force ? await idsJanelaApi(supabase) : await pendentesApi(supabase)
+        if (!ids.length) return json200({ ok: true, type, fonte: 'api', sem_pendencias: true, upserted: 0, unchanged: 0 })
+        entradas = await carregarEntradasApi(supabase, ids)
+        totalLinhas = entradas.length
+      } catch (e) {
+        return json200({ ok: false, type, fonte: 'api', error: (e as Error).message })
+      }
+    } else {
+      const url = sheetCsvByGid(RECEPTION_SHEET_ID, RECEPTION_GID)
+      const res = await fetch(url)
+      if (!res.ok) return json200({
+        ok: false, error: 'Planilha de recepção inacessível', http_status: res.status,
+        hint: 'Verifique se a planilha está pública',
+      })
+
+      const csv = await res.text()
+
+      // Planilha (e lista de ignorados) idêntica à do último sync → nada a fazer.
+      // Este é o caminho de ~99% das execuções do gatilho de 5 min: uma única
+      // requisição ao PostgREST, em vez de ler o banco inteiro e reescrever.
+      // `force: true` pula o atalho (botão "Sincronizar" da tela, ou depois de
+      // mexer no banco por fora).
+      hashAtual = await sha256(`${csv}\n#ignorados:${idsIgnorados.join(',')}`)
+      if (!body.force && hashAtual === cfg.get('sync_pedidos_hash')) {
+        return json200({ ok: true, type, planilha_inalterada: true, upserted: 0, unchanged: 0 })
+      }
+
+      const rows = parseCSV(csv)
+      totalLinhas = rows.length
+      sheetHeaders = rows.length > 0 ? Object.keys(rows[0]) : []
+
+      // `tipo` e `ocorrencia` são classificação manual (UI ou sync reg_lumar).
+      // Só vão no lote quando a planilha de fato trouxer a coluna; senão a RPC
+      // preserva o que está gravado (e aplica o default 'PEDIDO' em linha nova).
+      const hasTipoCol       = sheetHeaders.includes('tipo')
+      const hasOcorrenciaCol = sheetHeaders.includes('ocorrencia')
+
+      for (const row of rows) {
+        const idVenda = parseInt(row.idvenda ?? row.venda ?? row.id ?? row.idpedido ?? '', 10)
+        if (!idVenda || isNaN(idVenda)) { skipped++; continue }
+        const clienteId = parseInt(row.idcliente ?? row.clienteid ?? '', 10)
+        entradas.push({
+          idVenda,
+          // a planilha chama de "venda" o número do pedido no ERP
+          numeroPedido: parseInt(row.numeropedido ?? row.numero ?? row.numpedido ?? row.venda ?? '', 10) || null,
+          clienteId:    !isNaN(clienteId) && clienteId ? clienteId : null,
+          clienteNome:  row.cliente ?? row.nomecliente ?? row.nome ?? null,
+          valor:        parseValor(row.valor ?? row.total ?? row.valorliquido ?? row.valortotal ?? ''),
+          tipo:         hasTipoCol && row.tipo ? row.tipo.toUpperCase() : null,
+          ocorrencia:   hasOcorrenciaCol && row.ocorrencia ? row.ocorrencia : null,
+          dataEmissao:  parseDate(
+            row.dataemissao ?? row.emissao ?? row.datacompetencia ??
+            row.datapedido ?? row.datavenda ?? row.data ?? '',
+          ),
+          atualizacao:  parseDate(
+            row.atualizacao ?? row.dataatualizacao ?? row.atualizacoes ??
+            row.updated ?? row.timestamp ?? '',
+          ),
+        })
+      }
     }
 
     // Índice de nomes do CRM para o casamento. Cada cadastro entra com TODOS os
     // seus candidatos (nome inteiro, nome limpo e cada segmento), porque o nome
     // composto tanto pode estar deste lado quanto do lado do ERP. Só é montado
-    // quando a planilha mudou.
+    // quando há o que processar.
     const { data: clientsData } = await supabase.from('crm_clients').select('id, nome')
     const clientKeys: Array<{ k: string; id: string }> = []
     for (const c of (clientsData ?? []) as Array<{ id: string; nome: string }>) {
@@ -258,58 +387,32 @@ Deno.serve(async (req: Request) => {
       if (l.cliente_id && l.crm_client_id) linkByErpId.set(Number(l.cliente_id), l.crm_client_id)
     }
 
-    const rows = parseCSV(csv)
-    const sheetHeaders = rows.length > 0 ? Object.keys(rows[0]) : []
-
-    // `tipo` e `ocorrencia` são classificação manual (UI ou sync reg_lumar).
-    // Só vão no lote quando a planilha de fato trouxer a coluna; senão a RPC
-    // preserva o que está gravado (e aplica o default 'PEDIDO' em linha nova).
-    const hasTipoCol       = sheetHeaders.includes('tipo')
-    const hasOcorrenciaCol = sheetHeaders.includes('ocorrencia')
-
     // O lote inteiro vai numa única chamada RPC; o diff (e a supressão das
     // linhas iguais) acontece dentro do banco — ver as migrations
-    // 20260901213000_sync_atacado_diff_rpc.sql e
-    // 20261006120000_sync_atacado_rpc_cliente_id.sql
+    // 20260901213000_sync_atacado_diff_rpc.sql, 20261006120000_sync_atacado_rpc_cliente_id.sql
+    // e 20261105140000_facil123_fonte_api.sql
     const payload: Record<string, unknown>[] = []
-    let skipped = 0
     let matchedById = 0, matchedByName = 0, unmatched = 0
     // Vínculos descobertos por nome nesta execução — gravados no de-para para
     // que as demais grafias do mesmo id_cliente já entrem vinculadas
     const learnedLinks = new Map<number, { crm_client_id: string; cliente_nome: string | null }>()
     const errors: string[] = []
 
-    for (const row of rows) {
-      const idVenda = parseInt(row.idvenda ?? row.venda ?? row.id ?? row.idpedido ?? '', 10)
-      if (!idVenda || isNaN(idVenda)) { skipped++; continue }
-
-      const clienteId = parseInt(row.idcliente ?? row.clienteid ?? '', 10)
-      if (!isNaN(clienteId) && clienteId && idsIgnorados.includes(clienteId)) { skipped++; continue }
-
-      const atualizacao = parseDate(
-        row.atualizacao ?? row.dataatualizacao ?? row.atualizacoes ??
-        row.updated ?? row.timestamp ?? '',
-      )
-      const dataEmissao = parseDate(
-        row.dataemissao ?? row.emissao ?? row.datacompetencia ??
-        row.datapedido ?? row.datavenda ?? row.data ?? '',
-      )
-
-      const clienteNome = row.cliente ?? row.nomecliente ?? row.nome ?? null
-      const erpClienteId = !isNaN(clienteId) && clienteId ? clienteId : null
+    for (const e of entradas) {
+      if (e.clienteId && idsIgnorados.includes(e.clienteId)) { skipped++; continue }
 
       // Prioridade: de-para por id_cliente (estável, e onde mora a correção
       // manual feita na tela de Revenda) → casamento por nome.
-      let clientId = erpClienteId ? (linkByErpId.get(erpClienteId) ?? null) : null
+      let clientId = e.clienteId ? (linkByErpId.get(e.clienteId) ?? null) : null
       if (clientId) {
         matchedById++
       } else {
-        clientId = findClientId(clienteNome)
+        clientId = findClientId(e.clienteNome)
         if (clientId) {
           matchedByName++
-          if (erpClienteId) {
-            linkByErpId.set(erpClienteId, clientId)
-            learnedLinks.set(erpClienteId, { crm_client_id: clientId, cliente_nome: clienteNome })
+          if (e.clienteId) {
+            linkByErpId.set(e.clienteId, clientId)
+            learnedLinks.set(e.clienteId, { crm_client_id: clientId, cliente_nome: e.clienteNome })
           }
         } else {
           unmatched++
@@ -317,32 +420,32 @@ Deno.serve(async (req: Request) => {
       }
 
       payload.push({
-        id_venda:      idVenda,
-        // a planilha chama de "venda" o número do pedido no ERP
-        numero_pedido: parseInt(row.numeropedido ?? row.numero ?? row.numpedido ?? row.venda ?? '', 10) || null,
+        id_venda:      e.idVenda,
+        numero_pedido: e.numeroPedido,
         // id_cliente do ERP: chave estável do vínculo; null preserva o gravado
-        cliente_id:    erpClienteId,
-        cliente_nome:  clienteNome,
+        cliente_id:    e.clienteId,
+        cliente_nome:  e.clienteNome,
         // null = sem match; a RPC preserva o vínculo já gravado (inclusive o
         // manual), que sempre vence o casamento por nome
         crm_client_id: clientId,
-        valor:         parseValor(row.valor ?? row.total ?? row.valorliquido ?? row.valortotal ?? ''),
+        valor:         e.valor,
         // turno e entregador NÃO são preenchidos pelo sync ERP — são gerenciados
-        // manualmente pela atendente (via UI ou sync reg_lumar)
-        tipo:          hasTipoCol && row.tipo ? row.tipo.toUpperCase() : null,
-        ocorrencia:    hasOcorrenciaCol && row.ocorrencia ? row.ocorrencia : null,
-        data_emissao:  dataEmissao,
+        // manualmente pela atendente (via UI ou sync reg_lumar). Da API, só o
+        // cancelamento vira tipo ('CANCELADO'): fica registrado, mas fora do faturamento.
+        tipo:          e.tipo,
+        ocorrencia:    e.ocorrencia,
+        data_emissao:  e.dataEmissao,
         // a RPC cai para emissão > valor já gravado quando vier null
-        atualizacao,
+        atualizacao:   e.atualizacao,
       })
     }
 
     const { data: rpc, error: rpcErr } = await supabase
-      .rpc('sync_atacado_pedidos', { p_rows: payload })
+      .rpc('sync_atacado_pedidos', { p_rows: payload, p_manter_emissao: fonteApi })
 
     if (rpcErr) {
       return json200({
-        ok: false, type, total: rows.length, skipped, sheetHeaders,
+        ok: false, type, total: totalLinhas, skipped, sheetHeaders,
         error: `${rpcErr.message}${rpcErr.code ? ` (code: ${rpcErr.code})` : ''}`,
       })
     }
@@ -379,12 +482,14 @@ Deno.serve(async (req: Request) => {
 
     // Só grava o hash depois de um sync sem erro — se falhar, a próxima
     // execução tenta de novo em vez de considerar a planilha já aplicada.
-    if (errors.length === 0) await gravarHash(supabase, 'sync_pedidos_hash', hashAtual)
+    // (Na fonte API não há hash: as pendências são recalculadas no banco a cada execução.)
+    if (!fonteApi && errors.length === 0) await gravarHash(supabase, 'sync_pedidos_hash', hashAtual)
 
     return json200({
       ok: errors.length === 0,
       type,
-      total: rows.length,
+      fonte: fonteApi ? 'api' : 'planilha',
+      total: totalLinhas,
       upserted: inseridos + atualizados,
       inseridos,
       atualizados,

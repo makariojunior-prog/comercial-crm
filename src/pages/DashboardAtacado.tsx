@@ -8,6 +8,7 @@ import {
   Clock, History, ChevronDown, Search, Pencil,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import PedidoItens from '../components/PedidoItens'
 import { useSearchParams } from 'react-router-dom'
 import type { AtacadoPedido, Client } from '../types'
 
@@ -1186,7 +1187,13 @@ export function EditPedidoModal({ pedido: p, onClose, onSave, drivers, vehicles 
               <span>{p.tipo}</span>
               {p.crm_client?.rota && <span className="text-orange-500">{p.crm_client.rota}</span>}
             </div>
+            {p.tipo === 'CANCELADO' && (
+              <p className="text-[11px] text-red-500 mt-1">Pedido cancelado no Fácil 123 — não conta no faturamento.</p>
+            )}
           </div>
+
+          {/* Itens (Fácil 123) */}
+          <PedidoItens idVenda={p.id_venda} />
 
           {/* Data entrega */}
           <div>
