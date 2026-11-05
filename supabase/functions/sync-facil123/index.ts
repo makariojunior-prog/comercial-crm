@@ -7,8 +7,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // A tabela atacado_pedidos segue vindo do sync-atacado (planilha).
 //
 // Corpo (JSON, tudo opcional):
-//   modo:    'incremental' (padrão: as 3 páginas mais novas de cada empresa) |
-//            'backfill' (páginas pagina_ini..pagina_ini+paginas-1)
+//   modo:    'incremental' (padrão: vendas com updated_at nas últimas `horas`, 24 por padrão) |
+//            'backfill' (páginas pagina_ini..pagina_ini+paginas-1; com `desde`/`ate` filtra por updated_at)
+//   horas:   janela do incremental (1..8760)
 //   empresa: 'LUMAR' | 'CANTINA' (padrão: as duas)
 //
 // Acesso (verify_jwt=false por causa do pg_cron): header x-cron-secret igual ao segredo do
@@ -21,18 +22,19 @@ const CORS = {
 }
 const API = 'https://app.facil123.com.br/graphql'
 const LIMIT = 100
-const PAGINAS_INCREMENTAL = 3
+const HORAS_INCREMENTAL = 24
+const MAX_PAGINAS_INCREMENTAL = 15
 const EMPRESAS = ['LUMAR', 'CANTINA'] as const
 type Empresa = typeof EMPRESAS[number]
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-async function gql(token: string, query: string, tentativas = 4): Promise<any> {
+async function gql(token: string, query: string, variables?: Record<string, unknown>, tentativas = 4): Promise<any> {
   for (let i = 0; i < tentativas; i++) {
     const res = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify(variables ? { query, variables } : { query }),
     })
     if (res.status === 429) {
       const espera = Number(res.headers.get('retry-after')) || 5
@@ -52,14 +54,36 @@ async function gql(token: string, query: string, tentativas = 4): Promise<any> {
 
 const num = (v: unknown) => (v == null || v === '' ? null : Number(v))
 
-function queryVendas(pagina: number) {
-  return `query comercialCrm_vendas { getInvoices(page: ${pagina}, limit: ${LIMIT}) {
-    id sequential status total emitted_at updated_at created_at recipient_id
+const CAMPOS_VENDA = `id sequential status total emitted_at updated_at created_at recipient_id
     recipient { name }
     invoicelane { name }
     operationkind { name }
-    invoice_products_attributes { product_id quantity unit_price total product { name } }
-  } }`
+    invoice_products_attributes { product_id quantity unit_price total product { name } }`
+
+// Filtro do dialeto próprio do Fácil 123 (suporte, 05/11/2026): o campo vai em {attr:"invoice.<campo>"},
+// o tempo em {as_time:[ISO com fuso]} e a variável filterfields (tipo JsonLogic) é uma STRING com o JSON.
+function filtroAtualizacao(desdeIso: string, ateIso?: string) {
+  const cond: unknown[] = [{ '>=': [{ attr: 'invoice.updated_at' }, { as_time: [desdeIso] }] }]
+  if (ateIso) cond.push({ '<': [{ attr: 'invoice.updated_at' }, { as_time: [ateIso] }] })
+  return JSON.stringify(cond.length === 1 ? cond[0] : { and: cond })
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+// ISO com fuso -03:00 (Brasília não tem horário de verão desde 2019)
+function isoBrasilia(d: Date) {
+  const b = new Date(d.getTime() - 3 * 3600_000)
+  return `${b.getUTCFullYear()}-${pad(b.getUTCMonth() + 1)}-${pad(b.getUTCDate())}T${pad(b.getUTCHours())}:${pad(b.getUTCMinutes())}:${pad(b.getUTCSeconds())}-03:00`
+}
+
+// Sem `filtro`: todas as vendas, da mais nova para a mais antiga (backfill por página).
+function consultaVendas(pagina: number, filtro?: string) {
+  if (!filtro) {
+    return { query: `query comercialCrm_vendas { getInvoices(page: ${pagina}, limit: ${LIMIT}) { ${CAMPOS_VENDA} } }`, variables: undefined }
+  }
+  return {
+    query: `query comercialCrm_vendas($f: JsonLogic) { getInvoices(filterfields: $f, page: ${pagina}, limit: ${LIMIT}) { ${CAMPOS_VENDA} } }`,
+    variables: { f: filtro },
+  }
 }
 
 // deno-lint-ignore no-explicit-any
@@ -128,6 +152,21 @@ Deno.serve(async (req: Request) => {
     ? [String(body.empresa).toUpperCase() as Empresa] : [...EMPRESAS]
   if (!['incremental', 'backfill'].includes(modo)) return json({ ok: false, error: 'modo inválido' }, 400)
 
+  // Incremental: vendas atualizadas nas últimas `horas` (padrão 24), buscadas com filtro por updated_at e
+  // paginadas até a página vir incompleta. Backfill: sem filtro, por página; se vier `desde` (ISO), filtra por
+  // updated_at >= desde (e `ate`, opcional, < ate) para reconciliar um período.
+  const horas = Math.min(24 * 365, Math.max(1, Number(body.horas) || HORAS_INCREMENTAL))
+  let filtro: string | undefined
+  if (modo === 'incremental') {
+    filtro = filtroAtualizacao(isoBrasilia(new Date(Date.now() - horas * 3600_000)))
+  } else if (body.desde) {
+    const d = new Date(String(body.desde))
+    if (isNaN(d.getTime())) return json({ ok: false, error: 'desde inválido' }, 400)
+    const a = body.ate ? new Date(String(body.ate)) : null
+    if (a && isNaN(a.getTime())) return json({ ok: false, error: 'ate inválido' }, 400)
+    filtro = filtroAtualizacao(isoBrasilia(d), a ? isoBrasilia(a) : undefined)
+  }
+
   const tokens: Record<Empresa, string | undefined> = {
     LUMAR: Deno.env.get('FACIL123_TOKEN_LUMAR')?.trim(),
     CANTINA: Deno.env.get('FACIL123_TOKEN_CANTINA')?.trim(),
@@ -141,12 +180,13 @@ Deno.serve(async (req: Request) => {
     if (!token) { erros.push(`${empresa}: secret FACIL123_TOKEN_${empresa} ausente`); continue }
     try {
       const iniPag = modo === 'backfill' ? Math.max(1, Number(body.pagina_ini) || 1) : 1
-      const nPag = modo === 'backfill' ? Math.min(25, Math.max(1, Number(body.paginas) || 10)) : PAGINAS_INCREMENTAL
+      const nPag = modo === 'backfill' ? Math.min(25, Math.max(1, Number(body.paginas) || 10)) : MAX_PAGINAS_INCREMENTAL
       const acum = { recebidos: 0, inseridos: 0, atualizados: 0, itens: 0 }
       let ultimaPagina = iniPag - 1
       let fim = false
       for (let p = iniPag; p < iniPag + nPag; p++) {
-        const d = await gql(token, queryVendas(p))
+        const { query, variables } = consultaVendas(p, filtro)
+        const d = await gql(token, query, variables)
         const lista = d.getInvoices ?? []
         ultimaPagina = p
         if (lista.length) {
@@ -162,6 +202,9 @@ Deno.serve(async (req: Request) => {
         await sleep(300)
       }
       resultado[empresa] = { ...acum, ultima_pagina: ultimaPagina, fim_do_historico: fim }
+      // Incremental que bateu no teto de páginas sem esgotar: avisa (a próxima execução continua do começo,
+      // então o excedente só é recuperado se a janela cobrir; por isso o teto é folgado).
+      if (modo === 'incremental' && !fim) erros.push(`${empresa}: janela de ${horas}h tem mais de ${MAX_PAGINAS_INCREMENTAL * LIMIT} vendas; aumente MAX_PAGINAS_INCREMENTAL`)
     } catch (e) {
       erros.push(`${empresa}: ${(e as Error).message}`)
     }

@@ -38,8 +38,14 @@ Substituiu a planilha do webhook como fonte dos pedidos do atacado (05/11/2026).
 - **Venda cancelada** entra com `tipo='CANCELADO'`: fica registrada, mas fora do faturamento (Revenda,
   Dashboard, Romaneio, Resumo, Comitê, positivação e TV já excluem esse tipo).
 - **Orçamentos** (raia "Orçamento" no Fácil 123) continuam contando como pedido (decisão de 05/11/2026).
-- A API limita a página a 100 itens e ignora `start_date` sem `end_date`. Introspecção em
-  `ajuda.facil123.com.br` (api-introspeccao).
+- A API limita a página a 100 itens (para mais, incrementar `page` até vir vazia) e ignora `start_date` sem
+  `end_date`. Introspecção em `ajuda.facil123.com.br` (api-introspeccao).
+- **Filtro por data (confirmado pelo suporte do Fácil 123, 05/11/2026):** `filterfields` usa dialeto próprio,
+  não o JsonLogic padrão. O campo vai em `{"attr":"invoice.updated_at"}`, o tempo em `{"as_time":["2026-11-01T00:00:00-03:00"]}`
+  (sempre com fuso) e a variável GraphQL (`$f: JsonLogic`) é uma **string** com o JSON já serializado; intervalo = `{"and":[{">=":…},{"<":…}]}`.
+  O `incremental` do `sync-facil123` usa isso: busca as vendas com `updated_at` nas últimas `horas` (padrão 24)
+  e pagina até vir página incompleta (teto de 15 páginas por empresa, com aviso em `erros`). O `backfill` aceita
+  `desde`/`ate` para reconciliar um período.
 - Estoque NÃO vem do Fácil 123 (separado por licenciado, e a câmara fria é única): será do futuro app de
   Produção, que também será o catálogo de produtos de referência.
 - Conferência: `atacado_conferencia_api()` compara a planilha antiga com a API pelo `id_venda`.
