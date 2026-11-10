@@ -120,7 +120,12 @@ export default function AgendaPage() {
 
   async function handleDuplicate(item: AgendaCompromisso, newDate: string) {
     const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = item
-    await supabase.from('agenda_compromissos').insert({ ...rest, data: newDate, status: 'AGENDADO', updated_at: new Date().toISOString() })
+    await supabase.from('agenda_compromissos').insert({
+      ...rest, data: newDate, status: 'AGENDADO', updated_at: new Date().toISOString(),
+      criado_por: profile?.nome ?? null, criado_por_id: profile?.id ?? null,
+      aprovacao_status: null, aprovado_por: null, aprovacao_nota: null,
+      aprovacao_sugestao_data: null, aprovacao_sugestao_hora: null,
+    })
     setDupItem(null)
     load()
   }
@@ -498,7 +503,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
       responsavel:      responsaveis[0]   ?? null,
       responsaveis,
       criado_por:       item ? item.criado_por : currentUser,
-      criado_por_id:    item ? item.criado_por_id : (needsApproval ? currentUserId : null),
+      criado_por_id:    item ? item.criado_por_id : (currentUserId || null),
       aprovacao_status: convertVisit ? 'APROVADO' : (item ? item.aprovacao_status : (needsApproval ? 'PENDENTE' : null)),
       updated_at:       new Date().toISOString(),
     }
@@ -595,6 +600,7 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
         responsavel:  responsaveis[0]   ?? null,
         responsaveis,
         criado_por:   currentUser,
+        criado_por_id: currentUserId || null,
         updated_at:   new Date().toISOString(),
       })
     }
@@ -952,6 +958,12 @@ function AppointmentModal({ item, defaultDate, staffOptions, currentUser, curren
           <div className="px-5 py-2 flex items-center gap-2 text-xs text-red-700 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
             <AlertCircle size={13} className="shrink-0" /> {error}
           </div>
+        )}
+        {item && (
+          <p className="px-5 pb-2 text-[11px] text-slate-400 dark:text-slate-500">
+            {item.criado_por ? `Criado por ${item.criado_por}` : 'Criador não registrado'}
+            {item.created_at ? ` em ${format(new Date(item.created_at), 'dd/MM/yyyy HH:mm')}` : ''}
+          </p>
         )}
         <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center">
