@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import type { Event, EventStatus, Staff, EventMaterial } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
 import ClientSearchInput from './ClientSearchInput'
+import { useAuth } from '../contexts/AuthContext'
 
 interface EventModalProps {
   event?: Event | null
@@ -12,6 +13,7 @@ interface EventModalProps {
 }
 
 export default function EventModal({ event, onClose, onSaved }: EventModalProps) {
+  const { profile } = useAuth()
   useEscKey(useCallback(onClose, [onClose]))
   const [title, setTitle] = useState(event?.title ?? '')
   const [clientId, setClientId] = useState<string | null>(event?.client_id ?? null)
@@ -94,6 +96,8 @@ export default function EventModal({ event, onClose, onSaved }: EventModalProps)
           status,
           cliente_nome: clientId ? clientSearch : null,
           descricao: notes.trim() || null,
+          // só ao criar: editar o evento não pode trocar o autor original
+          ...(!event ? { criado_por: profile?.nome ?? null, criado_por_id: profile?.id ?? null } : {}),
           // responsaveis não entra aqui de propósito: o compromisso pode já
           // ter responsáveis atribuídos manualmente na Agenda (agora que
           // "Cadastrar Promotoria" vincula compromissos existentes via

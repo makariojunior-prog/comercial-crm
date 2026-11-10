@@ -6,6 +6,7 @@ import { VISIT_TYPES, DEAL_TYPES } from '../types'
 import { useEscKey } from '../hooks/useEscKey'
 import ResponsaveisPicker from './ResponsaveisPicker'
 import ClientSearchInput from './ClientSearchInput'
+import { useAuth } from '../contexts/AuthContext'
 import AmostraProdutosInput from './AmostraProdutosInput'
 
 interface Props {
@@ -65,6 +66,7 @@ interface NominatimResult {
 }
 
 export default function VisitModal({ visit, initialClientName, onClose, onSaved }: Props) {
+  const { profile } = useAuth()
   useEscKey(useCallback(onClose, [onClose]))
   const [form, setForm] = useState(
     visit ? {
@@ -308,6 +310,8 @@ export default function VisitModal({ visit, initialClientName, onClose, onSaved 
         descricao:    nextAppt.descricao || null,
         responsavel:  responsaveis[0]   ?? null,
         responsaveis,
+        criado_por:    profile?.nome ?? null,
+        criado_por_id: profile?.id ?? null,
         updated_at:   new Date().toISOString(),
       })
     }
