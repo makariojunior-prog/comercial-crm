@@ -196,8 +196,8 @@ export default function PositivacoesTab() {
   const totalPagas    = pagas.reduce((s, c) => s + (c.comissao_valor ?? 0), 0)
   const semVinculoRH  = (c: ClienteRow) => !userMap.get(c.indicador_user_id)?.colaborador_id
 
-  const regraTexto = `${config.meta_pedidos} pedidos + total ≥ ${fmtBRL(config.meta_valor)}`
-  const janelaTexto = config.janela_dias ? `em até ${config.janela_dias} dias do primeiro pedido` : 'todo o histórico de pedidos'
+  const regraTexto = `${config.meta_pedidos} compras em dias diferentes + total ≥ ${fmtBRL(config.meta_valor)}`
+  const janelaTexto = config.janela_dias ? `em até ${config.janela_dias} dias da primeira compra` : 'todo o histórico de compras'
 
   async function confirmar(c: ClienteRow) {
     const quem = nomeIndicador(c.indicador_user_id)
@@ -244,7 +244,7 @@ export default function PositivacoesTab() {
     const valor_comissao = parseFloat(cfgDraft.valor_comissao.replace(',', '.'))
     const janela_dias = cfgDraft.janela_dias.trim() === '' ? null : parseInt(cfgDraft.janela_dias, 10)
     if (!(meta_pedidos > 0) || !(meta_valor >= 0) || !(valor_comissao >= 0) || (janela_dias !== null && !(janela_dias > 0))) {
-      setError('Confira os valores da regra: pedidos > 0, valores ≥ 0 e janela vazia (sem prazo) ou > 0.')
+      setError('Confira os valores da regra: compras > 0, valores ≥ 0 e janela vazia (sem prazo) ou > 0.')
       return
     }
     setCfgSaving(true); setError(null); setNotice(null)
@@ -279,7 +279,7 @@ export default function PositivacoesTab() {
       'Cliente': c.nome,
       'Indicador': nomeIndicador(c.indicador_user_id),
       'Positivado em': fmtDateSimple(c.positivado_em),
-      'Pedidos (na confirmação)': c.positivacao_pedidos ?? '',
+      'Compras (na confirmação)': c.positivacao_pedidos ?? '',
       'Total (na confirmação)': c.positivacao_total ?? '',
       'Fechamento RH': fmtDateSimple(c.comissao_periodo_fim),
       'Status': c.comissao_status === 'pendente' ? 'Aguardando RH' : (STATUS_LABEL[c.comissao_status ?? '']?.label ?? ''),
@@ -368,7 +368,7 @@ export default function PositivacoesTab() {
           <div className="rounded-xl border border-slate-200 dark:border-slate-600 p-3 space-y-3 bg-slate-50 dark:bg-slate-800/40">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <label className="label">Pedidos mínimos</label>
+                <label className="label">Compras mínimas</label>
                 <input className="input" inputMode="numeric" value={cfgDraft.meta_pedidos} onChange={e => setCfgDraft(d => ({ ...d, meta_pedidos: e.target.value }))} />
               </div>
               <div>
@@ -385,7 +385,7 @@ export default function PositivacoesTab() {
               </div>
             </div>
             <p className="text-[11px] text-slate-400">
-              Janela: a meta precisa ser atingida em até N dias do primeiro pedido do cliente. Vazio conta todo o histórico.
+              Janela: a meta precisa ser atingida em até N dias da primeira compra do cliente. Vazio conta todo o histórico.
               Vale para as próximas confirmações; o que já foi enviado ao RH não muda.
             </p>
             <button onClick={salvarConfig} disabled={cfgSaving} className="btn-primary py-1.5 px-4 text-xs">
@@ -425,6 +425,7 @@ export default function PositivacoesTab() {
         <p className="text-[11px] text-slate-400">
           Regra: cliente com <strong>{regraTexto}</strong> ({janelaTexto}) gera comissão de{' '}
           <strong className="text-purple-600">{fmtBRL(config.valor_comissao)}</strong> para o indicador. O RH decide o que paga ou recusa.
+          {' '}Pedidos do mesmo cliente no mesmo dia contam como uma única compra; orçamento e bonificação não contam.
           O período filtra as confirmadas (pela data da confirmação) e o arquivo (pela data da decisão do RH);
           elegíveis e em progresso mostram a situação atual.
         </p>
@@ -521,10 +522,10 @@ export default function PositivacoesTab() {
                           <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">★ {nomeIndicador(c.indicador_user_id)}</span>
                         </div>
                       </div>
-                      <p className="text-xs text-slate-500 text-right shrink-0">{c.n_pedidos} ped. · {fmtBRL(c.total_compras)}</p>
+                      <p className="text-xs text-slate-500 text-right shrink-0">{c.n_pedidos} compra{c.n_pedidos === 1 ? '' : 's'} · {fmtBRL(c.total_compras)}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <ProgressBar value={c.n_pedidos} max={config.meta_pedidos} label="Pedidos" />
+                      <ProgressBar value={c.n_pedidos} max={config.meta_pedidos} label="Compras" />
                       <ProgressBar value={c.total_compras} max={config.meta_valor} label="Total compras" isMoney />
                     </div>
                     {isAdmin ? (
@@ -557,7 +558,7 @@ export default function PositivacoesTab() {
                       {c.tipo && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500">{c.tipo}</span>}
                       <span className="text-[10px] text-slate-500 font-medium">★ {nomeIndicador(c.indicador_user_id)}</span>
                     </div>
-                    <p className="text-[11px] text-slate-400">{c.n_pedidos} ped. · {fmtBRL(c.total_compras)} — meta atingida, sem comissão</p>
+                    <p className="text-[11px] text-slate-400">{c.n_pedidos} compra{c.n_pedidos === 1 ? '' : 's'} · {fmtBRL(c.total_compras)} — meta atingida, sem comissão</p>
                   </div>
                 ))}
               </div>
@@ -579,7 +580,7 @@ export default function PositivacoesTab() {
                         <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">★ {nomeIndicador(c.indicador_user_id)}</span>
                       </div>
                     </div>
-                    <ProgressBar value={c.n_pedidos} max={config.meta_pedidos} label="Pedidos" />
+                    <ProgressBar value={c.n_pedidos} max={config.meta_pedidos} label="Compras" />
                     <ProgressBar value={c.total_compras} max={config.meta_valor} label="Total compras" isMoney />
                   </div>
                 ))}

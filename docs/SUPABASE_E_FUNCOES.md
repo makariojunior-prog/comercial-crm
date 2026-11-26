@@ -37,7 +37,9 @@ Substituiu a planilha do webhook como fonte dos pedidos do atacado (05/11/2026).
   `data_emissao` já gravada é preservada; venda nova usa o `created_at` do Fácil 123.
 - **Venda cancelada** entra com `tipo='CANCELADO'`: fica registrada, mas fora do faturamento (Revenda,
   Dashboard, Romaneio, Resumo, Comitê, positivação e TV já excluem esse tipo).
-- **Orçamentos** (raia "Orçamento" no Fácil 123) continuam contando como pedido (decisão de 05/11/2026).
+- **Orçamentos** (raia "Orçamento" no Fácil 123) continuam contando como pedido (decisão de 05/11/2026),
+  **exceto na positivação** (25/11/2026): `crm_positivacao_progresso` ignora a etapa "Orçamento" e as remessas em
+  bonificação/doação/brinde, e conta os pedidos do mesmo cliente no mesmo dia como uma única compra.
 - A API limita a página a 100 itens (para mais, incrementar `page` até vir vazia) e ignora `start_date` sem
   `end_date`. Introspecção em `ajuda.facil123.com.br` (api-introspeccao).
 - **Filtro por data (confirmado pelo suporte do Fácil 123, 05/11/2026):** `filterfields` usa dialeto próprio,

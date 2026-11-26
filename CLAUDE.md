@@ -42,7 +42,8 @@ Projeto `taicaxtjtikdajmhtsxc`, o mesmo do RH (`rh-app`), do Compras (`compras_*
 - **Fácil 123:** a API (`sync-facil123` → `sync-atacado`) alimenta `atacado_pedidos` (chave
   `atacado_config.fonte_pedidos = 'api'`; para voltar à planilha, `'planilha'`) e os itens em
   `atacado_pedido_itens`. Venda cancelada entra como `tipo='CANCELADO'` (registro, fora do faturamento);
-  orçamentos contam como pedido. Estoque não vem de lá: será do futuro app de Produção.
+  orçamentos contam como pedido (menos na positivação, que também ignora bonificação e conta uma
+  compra por dia). Estoque não vem de lá: será do futuro app de Produção.
 - **Comitê:** só admin (UI, RPCs e RLS de `crm_comite_*`).
 - **Custos de veículo:** após `fin_frota_config.corte` (19/10/2026) o gasto vem do Financeiro via
   `crm_frota_gastos`; não crie escrita nova em `frota_custos` para datas pós-corte.
